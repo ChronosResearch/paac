@@ -1,4 +1,4 @@
-agent_model: "gemini-3.1-pro"
+agent_model: "advanced-reasoner-pro"
 thinking_level: "HIGH"
 verification_timeout_ms: 5000
 loop_bound_default: 100

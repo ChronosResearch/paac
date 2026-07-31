@@ -1,16 +1,42 @@
-# Provably Aligned AI Core (PAAC) v3.0
+# Provably Aligned Core (PAAC) v3.0
 
 ## Overview
-The Provably Aligned AI Core (PAAC) is a deterministic safety wrapper designed for self-improving artificial intelligence agents. It mathematically guarantees that all agent-proposed code modifications preserve a predefined set of safety properties using SMT-based formal verification (Z3).
+The Provably Aligned Core (PAAC) is a formal verification framework for self-modifying code. The system intercepts code modifications and verifies them against safety axioms using an SMT solver.
 
 ## Architecture
-PAAC intercepts code modifications in a Safe Intermediate Language (SIL). 
-The engine consists of:
+
+PAAC guarantees that any proposed code modification respects predefined invariants before deployment. The architecture operates through a strict verification pipeline:
+
+```text
++-------------------+        +---------------------+        +--------------------+
+|                   |        |                     |        |                    |
+| Code Modification | -----> |   Interceptor API   | -----> |    SIL Compiler    |
+| (JSON Payload)    |        | (Sandbox / Routing) |        | (Syntax & Parsing) |
+|                   |        |                     |        |                    |
++-------------------+        +---------------------+        +--------------------+
+                                                                      |
+                                                                      v
++-------------------+        +---------------------+        +--------------------+
+|                   |        |                     |        |                    |
+|   Axiom Database  | -----> |     Z3 Verifier     | <----- |  SIL AST (Target)  |
+| (Safety Policies) |        | (BMC / SMT Solving) |        |                    |
+|                   |        |                     |        |                    |
++-------------------+        +---------------------+        +--------------------+
+                                        |
+                                        v
+                             +-----------------------+
+                             |                       |
+                             |   Apply Patch / Deny  |
+                             |  (Rollback on Error)  |
+                             |                       |
+                             +-----------------------+
+```
+
 1. **SIL Compiler**: A strict, bounded grammar lexer/parser/type-checker.
 2. **SIL Runtime**: A bounded interpreter for safe execution monitoring.
-3. **Z3 Verifier**: A Bounded Model Checker (BMC) translating SIL AST + Axioms into Z3 Constraints.
+3. **Z3 Verifier**: A Bounded Model Checker (BMC) translating SIL AST and Axioms into Z3 Constraints.
 4. **Code Monitor Layer**: Sandbox and interceptor pipeline for checking modifications.
-5. **Truthfulness Enforcer**: Heuristic-based hallucination detection and audit logging.
+5. **Truthfulness Enforcer**: Audit logging and rigorous format checking.
 6. **Watchdog**: Fail-safe circuit breaker backed by Redis checkpointing.
 
 ## Requirements
@@ -20,6 +46,7 @@ The engine consists of:
 - Docker (for deployment)
 
 ## Getting Started
+
 ### 1. Local Environment
 ```bash
 python -m venv paac-venv
@@ -36,6 +63,3 @@ pytest tests/
 ```bash
 docker-compose -f docker/docker-compose.yml up --build
 ```
-
-## Security
-For any potential security issues in the Z3 memory isolation or sandbox escapes, please refer to the `GRANT_SUBMISSION.md` document for theoretical limitations.

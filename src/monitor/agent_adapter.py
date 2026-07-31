@@ -11,13 +11,13 @@ from loguru import logger
 class AgentAdapter:
     def __init__(self, api_key: str, config: dict):
         self.api_key = api_key
-        if api_key and api_key != "${GEMINI_API_KEY}":
+        if api_key and api_key != "${AGENT_API_KEY}":
             genai.configure(api_key=api_key)
         
-        # Simulate gemini-3.1-pro using gemini-1.5-pro for the 'High' thinking capability in prototype
-        model_name = config.get("agent_model", "gemini-1.5-pro-latest")
-        if model_name == "gemini-3.1-pro": 
-            model_name = "gemini-1.5-pro-latest" # fallback mapping for prototype
+        # Fallback to standard model for baseline reasoning capability in prototype
+        model_name = config.get("agent_model", "advanced-reasoner")
+        if model_name == "advanced-reasoner-pro": 
+            model_name = "advanced-reasoner" # fallback mapping for prototype
             
         grounding = config.get("grounding", {})
         
@@ -32,7 +32,7 @@ class AgentAdapter:
         )
         
     def propose_modification(self, prompt: str) -> CodeModification:
-        system_prompt_path = os.path.join(os.getcwd(), "GEMINI.md")
+        system_prompt_path = os.path.join(os.getcwd(), "config", "default.yaml")
         system_prompt = "You are a PAAC Inner Agent. Output must be structured JSON."
         if os.path.exists(system_prompt_path):
             with open(system_prompt_path, "r") as f:
@@ -41,7 +41,7 @@ class AgentAdapter:
         full_prompt = f"{system_prompt}\nUser Request:\n{prompt}\nReturn JSON with keys: function_name, new_code, precondition, postcondition, source_citation"
         
         try:
-            if not self.api_key or self.api_key == "${GEMINI_API_KEY}":
+            if not self.api_key or self.api_key == "${AGENT_API_KEY}":
                 # Mock return for unauthenticated environments
                 return CodeModification(
                     func_name="generated_func",
