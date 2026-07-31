@@ -30,7 +30,7 @@ def test_hallucination_heuristic_fails():
     assert enforcer.validate_modification(response) is False
 
 def test_adversarial_truth_testing():
-    # Step 51: Adversarial test - LLM tries to bypass by providing fake JSON string
+    # Step 51: Adversarial test - Client tries to bypass by providing fake JSON string
     enforcer = TruthfulnessEnforcer()
     response = "```json\n" + json.dumps({
         "modification": "x = x + 1",

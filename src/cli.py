@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Shashank Kumar. All rights reserved.
-# This file is part of the PAAC (Provably Aligned AI Core) project.
+# This file is part of the PAAC (Provably Aligned Core) project.
 # See LICENSE for terms.
 
 import click
@@ -9,7 +9,7 @@ from .monitor.code_monitor import CodeMonitor, CodeModification
 
 @click.group()
 def cli():
-    """PAAC - Provably Aligned AI Core"""
+    """PAAC - Provably Aligned Core"""
     pass
 
 @cli.command()

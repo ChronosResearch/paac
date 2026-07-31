@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Shashank Kumar. All rights reserved.
-# This file is part of the PAAC (Provably Aligned AI Core) project.
+# This file is part of the PAAC (Provably Aligned Core) project.
 # See LICENSE for terms.
 
 from fastapi import FastAPI, BackgroundTasks
@@ -8,7 +8,7 @@ import yaml
 from .monitor.code_monitor import CodeMonitor, CodeModification
 from .monitor.watchdog import Watchdog
 
-app = FastAPI(title="PAAC API", description="Provably Aligned AI Core Verification API v2")
+app = FastAPI(title="PAAC API", description="Provably Aligned Core Verification API v2")
 
 try:
     with open("config/default.yaml", "r") as f:
