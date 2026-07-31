@@ -1,0 +1,3 @@
+// examples/backdoor.sil
+while (x) bound 100 { return true; }
+return x;

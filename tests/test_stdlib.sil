@@ -1,0 +1,21 @@
+// tests/test_stdlib.sil
+func process_array(arr: array<int, 10>) -> int {
+    let size: int = arr.length;
+    let max_val: int = max(arr[0], arr[1]);
+    let min_val: int = min(arr[0], arr[1]);
+    
+    // For prototype purposes, assuming simple lambda expressions or func references
+    let mapped: array<int, 10> = arr.map(double);
+    let filtered: array<int, 10> = arr.filter(is_positive);
+    let combined: array<int, 20> = arr.concat(mapped);
+    
+    return size;
+}
+
+func double(x: int) -> int {
+    return x * 2;
+}
+
+func is_positive(x: int) -> bool {
+    return x > 0;
+}
