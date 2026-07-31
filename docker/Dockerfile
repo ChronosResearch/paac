@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.14-alpine
 
 # Alpine uses musl which avoids Windows-specific .dll loading issues with Z3.
 # Install build dependencies for Z3 and others
