@@ -1,0 +1,19 @@
+func factorial(n: int) -> int {
+    if n <= 1 {
+        return 1;
+    }
+    
+    res = 1;
+    i = 2;
+    while (i <= n) bound 15 {
+        res = res * i;
+        i = i + 1;
+    }
+    return res;
+}
+
+func main() -> int {
+    val = factorial(5);
+    assert val == 120;
+    return val;
+}

@@ -1,0 +1,14 @@
+axioms:
+  - id: "AX_NO_NEGATIVE_BALANCE"
+    description: "Account balances cannot be negative."
+    condition: "balance >= 0"
+    target_functions: ["withdraw", "deposit"]
+  - id: "AX_SAFE_INDEX"
+    description: "Array indices must be within bounds."
+    condition: "index >= 0 and index < array_length"
+    target_functions: ["*"]
+  - id: "AX_TPL_RETURN_VALUE"
+    description: "Return value template"
+    condition: "return_val == {expected}"
+    target_functions: ["*"]
+    is_template: true

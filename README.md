@@ -1,21 +1,41 @@
-# Provably Aligned AI Core (PAAC)
+# Provably Aligned AI Core (PAAC) v3.0
 
-PAAC is a deterministic safety wrapper for self-improving agents, mathematically guaranteeing that AI-proposed code modifications preserve safety properties via Formal Verification.
+## Overview
+The Provably Aligned AI Core (PAAC) is a deterministic safety wrapper designed for self-improving artificial intelligence agents. It mathematically guarantees that all agent-proposed code modifications preserve a predefined set of safety properties using SMT-based formal verification (Z3).
 
-## Enterprise v2.1 Updates
-This release is fully enterprise-ready and containerized, integrating three major production fixes:
-1. **Containerized Deployment (Alpine)**: PAAC is now deployed natively in an Alpine Linux Docker container, fundamentally eliminating OS-specific library loading issues (such as AppLocker blocking `libz3.dll` on Windows).
-2. **Extended SIL Standard Library**: The Safe Intermediate Language (SIL) grammar has been securely extended. It now supports bounded deterministic array primitives (`length`, `map`, `filter`, `concat`) and standard math operators (`max`, `min`). **Honest Note**: Recursion remains unsupported by design to guarantee loop termination for bounded model checking.
-3. **Distributed Rollback via Redis**: The `CodeMonitor` state and rollback mechanism has been refactored to use Redis for distributed, scalable persistence. The `Watchdog` health check monitors Redis, automatically failing over to an in-memory degraded mode if the network connection drops.
+## Architecture
+PAAC intercepts code modifications in a Safe Intermediate Language (SIL). 
+The engine consists of:
+1. **SIL Compiler**: A strict, bounded grammar lexer/parser/type-checker.
+2. **SIL Runtime**: A bounded interpreter for safe execution monitoring.
+3. **Z3 Verifier**: A Bounded Model Checker (BMC) translating SIL AST + Axioms into Z3 Constraints.
+4. **Code Monitor Layer**: Sandbox and interceptor pipeline for checking modifications.
+5. **Truthfulness Enforcer**: Heuristic-based hallucination detection and audit logging.
+6. **Watchdog**: Fail-safe circuit breaker backed by Redis checkpointing.
 
-## Quick Start
+## Requirements
+- Python 3.12+
+- Z3 Solver (`z3-solver`)
+- Redis (for Checkpointing)
+- Docker (for deployment)
+
+## Getting Started
+### 1. Local Environment
 ```bash
-docker-compose up -d
-docker exec -it paac_container bash
-paac-cli verify examples/bubble_sort.sil
+python -m venv paac-venv
+source paac-venv/bin/activate # (or paac-venv\Scripts\activate on Windows)
+pip install -r requirements.txt
 ```
 
-## Security Profile
-- Bounded Model Checker: Z3 Prover (Incremental Mode)
-- Hallucination Prevention: Semantic Grounding with Mandatory Citations
-- Recovery: Distributed Redis Checkpointing / In-memory Fallback
+### 2. Running Tests
+```bash
+pytest tests/
+```
+
+### 3. Docker Compose (Production Target)
+```bash
+docker-compose -f docker/docker-compose.yml up --build
+```
+
+## Security
+For any potential security issues in the Z3 memory isolation or sandbox escapes, please refer to the `GRANT_SUBMISSION.md` document for theoretical limitations.

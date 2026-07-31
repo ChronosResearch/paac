@@ -1,18 +1,51 @@
-# Copyright (c) 2026 Shashank Kumar. All rights reserved.
-# This file is part of the PAAC (Provably Aligned AI Core) project.
-# See LICENSE for terms.
 import pytest
-from src.core.sil_compiler import SILCompiler
-from src.core.exceptions import CompilationError
+from src.core.sil_compiler import SILCompiler, SILError
 
-def test_sil_compiler_valid():
-    code = "func sort() -> int { while(x) bound 100 { x = x + 1; } }"
+def test_valid_sil_parses_correctly():
+    code = """
+    func add(a: int, b: int) -> int {
+        return a + b;
+    }
+    """
     compiler = SILCompiler()
-    ast = compiler.compile(code)
-    assert ast is not None
+    ast, cfgs = compiler.compile(code)
+    assert len(ast.functions) == 1
+    assert ast.functions[0].name == "add"
+    assert "add" in cfgs
 
-def test_sil_compiler_invalid():
-    code = "func sort() -> int { while(x) { x = x + 1; } }" # missing bound
+def test_invalid_sil_no_loop_bound():
+    code = """
+    func loop() -> int {
+        while (true) {
+            return 1;
+        }
+    }
+    """
     compiler = SILCompiler()
-    with pytest.raises(CompilationError):
+    with pytest.raises(SILError, match="Expected token type KEYWORD"):
+        compiler.compile(code)
+
+def test_type_mismatch_caught():
+    code = """
+    func mismatch() -> int {
+        x = 5;
+        x = true;
+        return x;
+    }
+    """
+    compiler = SILCompiler()
+    with pytest.raises(SILError, match="Type mismatch"):
+        compiler.compile(code)
+
+def test_recursion_rejected():
+    code = """
+    func fib(n: int) -> int {
+        if n <= 1 {
+            return n;
+        }
+        return fib(n-1) + fib(n-2);
+    }
+    """
+    compiler = SILCompiler()
+    with pytest.raises(SILError, match="Recursion detected"):
         compiler.compile(code)

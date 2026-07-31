@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  paac_core:
+    build: 
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+
+  redis:
+    image: "redis:7.0-alpine"
+    ports:
+      - "6379:6379"

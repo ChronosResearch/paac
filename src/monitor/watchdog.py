@@ -50,8 +50,9 @@ class Watchdog:
             if r:
                 try:
                     r.ping()
-                except (redis.ConnectionError, redis.TimeoutError):
-                    logger.warning("Watchdog: Redis connection lost. CodeMonitor will degrade to in-memory mode.")
+                except Exception as e:
+                    logger.warning(f"Watchdog: Redis connection lost ({e}). CodeMonitor will degrade to in-memory mode.")
+                    r = None # Stop pinging to avoid blocking the watchdog loop
             
             if elapsed > self.timeout:
                 logger.error(f"Watchdog timeout: {elapsed}s since last heartbeat.")
