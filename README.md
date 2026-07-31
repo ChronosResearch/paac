@@ -1,6 +1,6 @@
 # Provably Aligned Core (PAAC) v3.0
 
-[![Paper](https://img.shields.io/badge/Paper-SSRN-blue)](https://ssrn.com/abstract=6931521)
+[![Paper](https://img.shields.io/badge/Paper-SSRN-blue)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218)
 
 ## Overview
 The Provably Aligned Core (PAAC) is a formal verification framework for self-modifying code. The system intercepts code modifications and verifies them against safety axioms using an SMT solver.
