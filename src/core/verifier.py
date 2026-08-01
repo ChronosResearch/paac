@@ -8,7 +8,7 @@ from src.core.sil_compiler import (
     ProgramNode, FuncDefNode, ASTNode, LiteralNode, IdentifierNode,
     BinaryExprNode, UnaryExprNode, CallExprNode, ArrayAccessNode,
     AssignmentStmtNode, IfStmtNode, WhileStmtNode, ReturnStmtNode,
-    AssertStmtNode, ParamNode,
+    AssertStmtNode, ParamNode, SILLexer, SILParser,
 )
 from src.axioms.axiom_parser import Axiom, AxiomParser
 from src.core.sil_compiler import SILCompiler, SILError
@@ -263,19 +263,17 @@ class StmtEncoder:
 def _encode_axiom(axiom: Axiom, ctx: z3.Context, env: SSAEnv) -> Optional[z3.BoolRef]:
     """
     Parse the axiom condition string as a SIL expression and encode it to Z3.
-    Returns None if the condition cannot be parsed (logged as a warning).
+    Returns None if the condition cannot be parsed.
     """
-    sil_wrapper = f"func _axiom_check() -> bool {{ assert {axiom.condition}; return true; }}"
     try:
-        compiler = SILCompiler()
-        prog, _ = compiler.compile(sil_wrapper)
-        func = prog.functions[0]
-        # The first statement is the AssertStmtNode.
-        assert_stmt = func.body[0]
-        if not isinstance(assert_stmt, AssertStmtNode):
+        lexer = SILLexer(axiom.condition)
+        tokens = lexer.tokenize()
+        parser = SILParser(tokens)
+        cond_expr = parser.parse_expr()
+        if parser.peek() is not None:
             return None
         enc = ExprEncoder(ctx, env)
-        return enc.encode(assert_stmt.condition)
+        return enc.encode(cond_expr)
     except (SILError, VerificationError, Exception):
         return None
 
