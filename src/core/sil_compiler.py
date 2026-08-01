@@ -18,12 +18,13 @@ class SILLexer:
         ('KEYWORD', r'\b(func|return|if|else|while|bound|int|bool|string|array|true|false|and|or|not|assert)\b'),
         ('IDENTIFIER', r'\b[a-zA-Z_][a-zA-Z0-9_]*\b'),
         ('INTEGER', r'\b\d+\b'),
-        ('STRING', r'"[^"]*"'),
+        ('STRING', r'"[\x20-\x21\x23-\x7E]{0,1024}"'),
         ('SYMBOL', r'->|\(|\)|\{|\}|\[|\]|:|;|,'),
         ('OPERATOR', r'==|!=|<=|>=|<|>|\+|-|\*|/|='),
         ('WHITESPACE', r'[ \t]+'),
         ('NEWLINE', r'\n'),
         ('COMMENT', r'#.*'),
+        ('ERROR', r'.'),  # Step 6: catch-all — must be last.
     ]
     
     def __init__(self, code: str):
@@ -41,8 +42,12 @@ class SILLexer:
             if kind == 'NEWLINE':
                 line_start = mo.end()
                 line_num += 1
-            elif kind == 'WHITESPACE' or kind == 'COMMENT':
+            elif kind in ('WHITESPACE', 'COMMENT'):
                 continue
+            elif kind == 'ERROR':
+                raise SILError(
+                    f"Illegal character {value!r} at line {line_num}, column {column}."
+                )
             else:
                 self.tokens.append(Token(kind, value, line_num, column))
         return self.tokens
@@ -155,35 +160,72 @@ class SILParser:
         funcs = []
         while self.peek():
             funcs.append(self.parse_function())
-        # Step 11: Reject recursion
-        func_names = [f.name for f in funcs]
-        for f in funcs:
-            self._check_recursion(f, f.name)
+        # Step 7: Full call-graph cycle detection (catches mutual recursion).
+        self._check_call_graph(funcs)
         return ProgramNode(funcs)
 
-    def _check_recursion(self, node: ASTNode, current_func: str):
-        if isinstance(node, CallExprNode) and node.func_name == current_func:
-            raise SILError(f"Recursion detected in function '{current_func}', which is strictly prohibited.")
-        # Traverse children (simplified for brevity)
-        if isinstance(node, FuncDefNode):
+    # ------------------------------------------------------------------
+    # Step 7: Call-graph cycle detection
+    # ------------------------------------------------------------------
+
+    def _collect_callees(self, node: ASTNode) -> List[str]:
+        """Return all function names called anywhere within node."""
+        callees: List[str] = []
+        if isinstance(node, CallExprNode):
+            callees.append(node.func_name)
+            for arg in node.args:          # also recurse into arguments
+                callees.extend(self._collect_callees(arg))
+        elif isinstance(node, FuncDefNode):
             for stmt in node.body:
-                self._check_recursion(stmt, current_func)
+                callees.extend(self._collect_callees(stmt))
         elif isinstance(node, IfStmtNode):
-            self._check_recursion(node.condition, current_func)
-            for stmt in node.then_branch: self._check_recursion(stmt, current_func)
-            for stmt in node.else_branch: self._check_recursion(stmt, current_func)
+            callees.extend(self._collect_callees(node.condition))
+            for s in node.then_branch: callees.extend(self._collect_callees(s))
+            for s in node.else_branch: callees.extend(self._collect_callees(s))
         elif isinstance(node, WhileStmtNode):
-            self._check_recursion(node.condition, current_func)
-            for stmt in node.body: self._check_recursion(stmt, current_func)
+            callees.extend(self._collect_callees(node.condition))
+            for s in node.body: callees.extend(self._collect_callees(s))
         elif isinstance(node, AssignmentStmtNode):
-            self._check_recursion(node.value, current_func)
+            callees.extend(self._collect_callees(node.value))
         elif isinstance(node, ReturnStmtNode):
-            self._check_recursion(node.value, current_func)
+            callees.extend(self._collect_callees(node.value))
+        elif isinstance(node, AssertStmtNode):
+            callees.extend(self._collect_callees(node.condition))
         elif isinstance(node, BinaryExprNode):
-            self._check_recursion(node.left, current_func)
-            self._check_recursion(node.right, current_func)
+            callees.extend(self._collect_callees(node.left))
+            callees.extend(self._collect_callees(node.right))
         elif isinstance(node, UnaryExprNode):
-            self._check_recursion(node.operand, current_func)
+            callees.extend(self._collect_callees(node.operand))
+        return callees
+
+    def _check_call_graph(self, funcs: List[FuncDefNode]) -> None:
+        """DFS cycle detection over the full inter-function call graph."""
+        graph: Dict[str, List[str]] = {
+            f.name: self._collect_callees(f) for f in funcs
+        }
+        visited: set = set()
+        in_stack: set = set()
+
+        def dfs(name: str, path: List[str]) -> None:
+            if name not in graph:
+                return  # call to external / stdlib — not our concern here
+            if name in in_stack:
+                cycle = " -> ".join(path + [name])
+                raise SILError(f"Recursion cycle detected: {cycle}")
+            if name in visited:
+                return
+            visited.add(name)
+            in_stack.add(name)
+            for callee in graph[name]:
+                dfs(callee, path + [name])
+            in_stack.discard(name)
+
+        for func in funcs:
+            dfs(func.name, [])
+
+    # kept for any external callers that may reference it directly
+    def _check_recursion(self, node: ASTNode, current_func: str) -> None:
+        pass  # superseded by _check_call_graph
 
     def parse_function(self) -> FuncDefNode:
         self.consume('KEYWORD', 'func')
@@ -404,7 +446,14 @@ class SILTypeChecker:
                 if arg_type != param.type_name:
                     raise SILError(f"Argument type mismatch: expected {param.type_name}, got {arg_type}")
             return func.return_type
-        return 'unknown'
+        elif isinstance(expr, UnaryExprNode):
+            operand_type = self._check_expr(expr.operand)
+            if expr.operator == 'not':
+                if operand_type != 'bool':
+                    raise SILError(f"Operator 'not' requires bool operand, got {operand_type}")
+                return 'bool'
+            raise SILError(f"Unknown unary operator: {expr.operator}")
+        raise SILError(f"Type checking not implemented for {type(expr).__name__}")
 
 @dataclass
 class BasicBlock:

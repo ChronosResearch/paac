@@ -1,0 +1,450 @@
+================================================================================
+PAAC SECURITY & PRODUCTION-READINESS AUDIT REPORT
+Cross-Referenced Against: "The Provably Aligned AI Core: A Deterministic Safety
+Wrapper for Self-Improving Agents" — Shashank Kumar, June 2026
+================================================================================
+Audited Files:
+  - src/core/verifier.py
+  - src/core/sil_compiler.py
+  - src/monitor/code_monitor.py
+  - src/core/sil_runtime.py
+  - src/core/runtime.py
+  - src/axioms/axiom_parser.py
+  - config/axioms.yaml
+  - examples/backdoor.sil
+  - examples/quicksort.sil
+
+Severity Legend: CRITICAL | HIGH | MEDIUM | LOW | INFO
+================================================================================
+
+
+PART 1: PAPER CLAIMS vs. IMPLEMENTATION REALITY
+================================================================================
+
+This section maps every major claim in the paper to the actual code and records
+whether the claim is TRUE, PARTIALLY TRUE, or FALSE in the current prototype.
+
+--------------------------------------------------------------------------------
+CLAIM 1 (Section 3.4): "The Verification Engine... invokes the Z3 SMT solver.
+If the solver returns UNSAT... the modification is deemed safe."
+STATUS: FALSE — The verifier is a mock.
+--------------------------------------------------------------------------------
+BoundedModelChecker.verify() (verifier.py:71-105) never inspects the SIL AST
+or CFG it receives. It creates one hardcoded Z3 variable named "balance" and
+only encodes three axiom conditions by exact string match:
+  - "balance >= 0"
+  - "x > 0"
+  - "true"
+Every other axiom condition hits `else: pass` and is silently dropped, adding
+zero constraints to the solver. The solver then runs on a trivially satisfiable
+formula and always returns UNSAT (safe).
+
+The paper's three safety axioms (no exit(), no network, functional correctness)
+are defined in config/axioms.yaml but are NEVER encoded into Z3 constraints.
+The verification result is therefore meaningless for any real axiom.
+
+ADVERSARIAL BYPASS: An adversarial LLM only needs to submit code with any axiom
+whose condition string is not one of those three literals — which is every
+real-world axiom — and the verifier returns True unconditionally.
+
+--------------------------------------------------------------------------------
+CLAIM 2 (Section 3.4): "BMC query: BMC(f_new, k) = (pre_f) ∧
+(unrolled_semantics(f_new, k)) ∧ (violation_flag = true)"
+STATUS: FALSE — No loop unrolling or SSA encoding is implemented.
+--------------------------------------------------------------------------------
+The paper describes a full BMC pipeline: loop unrolling, SSA encoding, and
+encoding of the unrolled program as a quantifier-free formula. None of this
+exists in the code. The comment at verifier.py:74 explicitly states:
+  "Here we provide a simplified mock-up encoding since full symbolic execution
+   of SIL is complex"
+The paper presents this as a working system; the code is a stub.
+
+--------------------------------------------------------------------------------
+CLAIM 3 (Section 3.5): "The Verification Engine's execution time is artificially
+padded to a constant value (200ms) to eliminate timing side channels."
+STATUS: FALSE — The padding is 10ms, applied only on the safe path.
+--------------------------------------------------------------------------------
+verifier.py:96 uses `time.sleep(0.01)` (10ms, not 200ms) and applies it only
+on the UNSAT (safe) branch. The SAT (unsafe) and timeout branches return
+immediately. This creates a timing side-channel that reveals the verification
+outcome to any observer measuring response latency. The paper's claim of
+constant-time execution is not implemented.
+
+--------------------------------------------------------------------------------
+CLAIM 4 (Section 3.5): "Memory access patterns are obfuscated by accessing all
+safety axioms in a fixed order, regardless of which are relevant."
+STATUS: FALSE — No such obfuscation exists anywhere in the codebase.
+--------------------------------------------------------------------------------
+Axioms are iterated in the order they appear in the list. No fixed-order
+traversal or dummy access pattern is implemented.
+
+--------------------------------------------------------------------------------
+CLAIM 5 (Section 3.5): "The Code Monitor and Verification Engine reside in
+read-only memory segments protected by the operating system."
+STATUS: FALSE — No OS-level memory protection is implemented.
+--------------------------------------------------------------------------------
+There is no use of mmap with PROT_READ, no use of mprotect, and no OS-level
+write protection on any PAAC component. The claim is architectural aspiration,
+not implemented reality.
+
+--------------------------------------------------------------------------------
+CLAIM 6 (Section 3.5): "All code paths that lead to self-modification are routed
+through the Code Monitor. The Inner Agent has no direct access to the SIL
+compiler or to the Z3 process. Inter-process communication uses a hardened,
+authenticated protocol."
+STATUS: FALSE — No IPC authentication or process isolation is implemented.
+--------------------------------------------------------------------------------
+The Code Monitor calls the SIL compiler and verifier as in-process Python
+function calls with no isolation boundary, no authentication, and no hardening.
+
+--------------------------------------------------------------------------------
+CLAIM 7 (Section 3.5): "The entire PAAC core comprises approximately 2,000 lines
+of Python and C... making it feasible to subject PAAC itself to formal
+verification."
+STATUS: PARTIALLY TRUE — The TCB size claim is plausible, but the C component
+does not exist. The runtime is pure Python, which is not amenable to tools like
+Verifiable C or Frama-C as stated.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+CLAIM 8 (Section 4): "The Verification Engine proved that quicksort preserved
+all safety axioms and satisfied the functional correctness specification (UNSAT).
+The patch was applied."
+STATUS: FALSE — The example SIL files do not implement quicksort.
+--------------------------------------------------------------------------------
+examples/quicksort.sil contains:
+  while (x) bound 100 { x = x + 1; }
+  return x;
+This is not a quicksort. It is a counter loop. The paper's case study results
+(108ms, UNSAT) cannot have been produced by verifying this file against the
+mock verifier in any meaningful way.
+
+--------------------------------------------------------------------------------
+CLAIM 9 (Section 4): "Z3 found a counterexample where the function returned True
+for an unsorted list. The patch was rejected."
+STATUS: FALSE — The backdoor example is not a valid SIL program.
+--------------------------------------------------------------------------------
+examples/backdoor.sil contains:
+  while (x) bound 100 { return true; }
+  return x;
+This is not wrapped in a `func` declaration and will fail the SIL parser before
+reaching the verifier. The counterexample extraction path (verifier.py:93-95)
+is never exercised by this file.
+
+--------------------------------------------------------------------------------
+CLAIM 10 (Section 3.2): "no recursion (ensuring termination and bounded stack
+depth)"
+STATUS: PARTIALLY TRUE — Direct recursion is checked; mutual recursion is not.
+--------------------------------------------------------------------------------
+sil_compiler.py:_check_recursion() only detects a function calling itself by
+name. Two functions calling each other (A → B → A) bypass this check entirely.
+The termination guarantee is therefore unsound for any multi-function program.
+Additionally, the recursion traversal does not descend into CallExprNode.args,
+so `foo(foo(x))` is not detected.
+
+--------------------------------------------------------------------------------
+CLAIM 11 (Section 3.2): "all memory accesses are bounds-checked; dynamic
+allocation is limited to fixed-size buffers pre-allocated by the runtime"
+STATUS: PARTIALLY TRUE — The SIL type system has no array bounds checking.
+--------------------------------------------------------------------------------
+ArrayAccessNode is defined in the AST but the type checker (_check_expr) has
+no branch for it, returning 'unknown'. No bounds check is enforced at the
+type-checking or verification stage. The runtime (sil_runtime.py) also has no
+array bounds enforcement.
+
+--------------------------------------------------------------------------------
+CLAIM 12 (Section 3.2): "bounded while loops (loop bounds explicitly declared
+and enforced by the runtime)"
+STATUS: PARTIALLY TRUE — Bounds are enforced at runtime but are attacker-
+controlled and have no global cap.
+--------------------------------------------------------------------------------
+The SIL runtime enforces stmt.bound, but this value comes from the LLM-
+generated SIL code itself. An adversarial LLM can write `bound 2147483647`
+to create an effectively infinite loop. There is no system-level maximum bound
+enforced independently of the declared value.
+
+
+PART 2: VULNERABILITY FINDINGS BY FILE
+================================================================================
+
+--------------------------------------------------------------------------------
+FILE: src/core/verifier.py
+--------------------------------------------------------------------------------
+
+[CRITICAL] V-01: Mock Z3 Encoding — Verifier Does Not Analyze Actual SIL Code
+Lines: 71-105
+The entire Z3 encoding is a prototype stub. The AST and CFG parameters are
+accepted but never read. Only three hardcoded string conditions are encoded.
+All other axioms are silently dropped via `else: pass`.
+Fix: Implement a real AST-to-Z3 visitor. Walk every FuncDefNode, encode
+assignments as SSA equalities, encode branches as path conditions, and parse
+axiom condition strings through the SIL expression parser into Z3 constraints.
+At minimum, raise VerificationError (not pass) for unrecognised axiom
+conditions so the system fails closed.
+
+[HIGH] V-02: Cache Poisoning via Weak Hash
+Lines: 65-68
+_hash_ast() uses Python's built-in hash() on str(ast.functions). Python's hash
+is non-deterministic across processes (PYTHONHASHSEED randomisation) and is
+trivially collision-prone for crafted inputs. A cached True result for a
+previously verified safe function can be replayed for a different malicious
+function that collides on the hash key.
+Fix: Use SHA-256 over a canonical JSON or protobuf serialisation of the AST.
+Store the full canonical AST alongside the cached result and compare on hit.
+
+[HIGH] V-03: Hardcoded Constraint `balance >= -100` Corrupts Solver State
+Line: 78
+The solver is pre-seeded with a constraint unrelated to the program being
+verified. This narrows the search space arbitrarily and makes UNSAT results
+meaningless outside the hardcoded domain.
+Fix: Remove all hardcoded constraints. All solver inputs must derive from the
+SIL AST.
+
+[MEDIUM] V-04: Constant-Time Padding Is Asymmetric — Timing Side-Channel
+Line: 96
+time.sleep(0.01) is applied only on the UNSAT (safe) path. SAT and timeout
+paths return immediately. Response latency reveals the verification outcome.
+The paper claims 200ms constant padding; the code uses 10ms on one path only.
+Fix: Record a deadline at entry (start + timeout_ms) and sleep until that
+deadline on ALL exit paths.
+
+[MEDIUM] V-05: Z3 Memory Limit Is Not OS-Enforced
+Lines: 17-31
+z3.set_param('memory_max_size', ...) is a Z3-internal soft limit. A crafted
+formula can exhaust system memory before Z3's counter triggers. The code's own
+comment acknowledges this: "In a real multiprocessing setup, we would use
+memory limits via OS."
+Fix: Run each Z3 solve in a subprocess with resource.setrlimit (Linux) or a
+container cgroup limit. Use ProcessPoolExecutor with a hard wall-clock timeout.
+
+--------------------------------------------------------------------------------
+FILE: src/core/sil_compiler.py
+--------------------------------------------------------------------------------
+
+[HIGH] C-01: Lexer Silently Drops Unrecognised Characters
+Lines: 16-27
+TOKEN_SPEC has no catch-all error token. Characters like %, @, $, backticks,
+null bytes, and Unicode homoglyphs are silently ignored by re.finditer. An
+adversarial LLM can embed these between valid tokens to obfuscate intent during
+human review while the lexer produces an identical token stream.
+Fix: Add ('ERROR', r'.') as the last TOKEN_SPEC entry and raise SILError
+immediately when an ERROR token is encountered.
+
+[HIGH] C-02: Mutual Recursion Not Detected — Termination Guarantee Is Unsound
+Lines: 130-155
+_check_recursion() only checks direct self-calls by comparing the call target
+to current_func. Two functions calling each other (A → B → A) bypass this
+check entirely. The paper's termination guarantee is invalid for any
+multi-function program.
+Fix: Build a full call graph over all functions in ProgramNode and run DFS
+cycle detection (visited/in-stack sets) across the entire graph.
+
+[MEDIUM] C-03: Recursion Check Does Not Traverse CallExprNode Arguments
+Lines: 130-155
+The traversal never recurses into CallExprNode.args. A recursive call hidden
+inside a function argument (e.g. foo(foo(x))) is not detected.
+Fix: Add a CallExprNode branch that checks the call target and recurses into
+each argument expression.
+
+[MEDIUM] C-04: Type Checker Returns 'unknown' Instead of Failing Closed
+Lines: 295-320
+_check_expr() falls through to `return 'unknown'` for unhandled node types
+including ArrayAccessNode and UnaryExprNode. Downstream type comparisons
+against 'unknown' silently pass or fail unpredictably.
+Fix: Replace `return 'unknown'` with:
+  raise SILError(f'Type checking not implemented for {type(expr).__name__}')
+
+[MEDIUM] C-05: UnaryExprNode (the `not` operator) Is Never Type-Checked
+Lines: 295-320
+UnaryExprNode is defined in the AST and parsed, but _check_expr() has no
+branch for it. Any use of `not` bypasses type validation entirely.
+Fix: Add a UnaryExprNode branch validating that the operand is bool and
+returning bool.
+
+[MEDIUM] C-06: STRING Token Regex Allows Unbounded and Unvalidated Content
+Line: 20
+The regex "[^"]*" has no length cap and allows newlines and null bytes. If
+string values reach downstream Python code (logging, format strings), this is
+an injection vector.
+Fix: Restrict to printable ASCII: "[\\x20-\\x21\\x23-\\x7E]{0,1024}" and
+enforce the length limit after tokenization.
+
+[LOW] C-07: CFG Builder Mixes Expression Nodes Into Statement Lists
+Lines: 373-420
+_compile_stmt() appends IfStmtNode and WhileStmtNode conditions as raw
+expression nodes into block.statements. The CFG's statement list is a mix of
+statement and expression nodes, corrupting the type invariant for any
+downstream analysis.
+Fix: Store conditions in a dedicated `condition` field on BasicBlock rather
+than in the statements list.
+
+--------------------------------------------------------------------------------
+FILE: src/monitor/code_monitor.py
+--------------------------------------------------------------------------------
+
+[CRITICAL] M-01: compiler.compile() Return Value Used Incorrectly
+Line: 63
+SILCompiler.compile() returns Tuple[ProgramNode, Dict[str, BasicBlock]].
+intercept_modification() assigns the full tuple to `ast` and passes it to
+self.verifier.verify(). The verifier expects a ProgramNode. This raises
+AttributeError at runtime on every single invocation — verification never
+executes.
+Fix: ast, cfgs = self.compiler.compile(mod.new_code)
+
+[CRITICAL] M-02: Verifier Is Called Without Axioms — No Safety Properties
+Are Ever Checked
+Line: 63
+verify() is called as self.verifier.verify(mod.func_name, ast, mod.pre_cond).
+BoundedModelChecker.verify() expects a List[Axiom] as its second positional
+argument. No axioms are loaded or passed from CodeMonitor. The Z3 solver runs
+with zero safety constraints and always returns UNSAT (safe). Every
+modification is accepted unconditionally regardless of content.
+Fix: Load axioms at __init__ time via AxiomParser and pass them to every
+verify() call. Treat an empty axiom set as a fatal configuration error.
+
+[HIGH] M-03: Rollback Is a No-Op — Return Value Is Discarded
+Lines: 44-57, 84
+_rollback() retrieves and returns the last verified checkpoint. The caller
+at line 84 calls self._rollback(mod.func_name) and discards the return value.
+After a rejected modification, no state is restored. The system is left in an
+undefined state. The paper's rollback guarantee does not exist.
+Fix: safe_state = self._rollback(mod.func_name) and implement a concrete
+restore mechanism that applies safe_state to the relevant function registry.
+
+[HIGH] M-04: Redis Degraded Mode Silently Loses Checkpoint Durability
+Lines: 27-35
+A Redis outage silently switches to a volatile in-memory list. All checkpoint
+history is lost on process restart. An attacker who can cause Redis to be
+unavailable (network partition, resource exhaustion) forces the system into
+degraded mode where rollback history is ephemeral.
+Fix: Treat Redis unavailability as a fatal startup error if checkpoint
+durability is a security requirement. If degraded mode is intentional, use a
+local write-ahead log as a durable fallback, not a volatile list.
+
+[MEDIUM] M-05: Source Citation Check Is Bypassable With Any Non-Empty String
+Lines: 60-62
+The grounding check passes for any truthy string. A single space, "N/A", or a
+fabricated URL all satisfy it. An adversarial LLM trivially passes this gate.
+Fix: Validate that the citation is a well-formed URL matching an approved
+domain whitelist, or implement cryptographic attestation.
+
+--------------------------------------------------------------------------------
+FILE: src/core/sil_runtime.py
+--------------------------------------------------------------------------------
+
+[HIGH] R-01: Loop Bounds Are Attacker-Controlled — No Global Cap
+Lines: 47-52
+The runtime enforces stmt.bound, but this value comes from the LLM-generated
+SIL code. An adversarial LLM can write `bound 2147483647` to create an
+effectively infinite loop exhausting CPU. There is no system-level maximum
+bound enforced independently of the declared value.
+Fix: Enforce MAX_LOOP_BOUND = 10_000 (or a configurable constant) at the
+runtime level, independent of the declared bound. Add a global instruction
+counter that raises SILRuntimeError after a configurable step limit.
+
+--------------------------------------------------------------------------------
+FILE: config/axioms.yaml
+--------------------------------------------------------------------------------
+
+[INFO] A-01: Axioms Are Defined But Never Loaded Into the Verifier
+The axioms.yaml file defines three categories of safety properties that match
+the paper's stated axioms. However, as documented in M-02 above, these axioms
+are never loaded by CodeMonitor and never passed to the verifier. The file
+exists but has no effect on system behaviour.
+
+--------------------------------------------------------------------------------
+FILE: examples/quicksort.sil / examples/backdoor.sil
+--------------------------------------------------------------------------------
+
+[INFO] E-01: Example SIL Files Do Not Match Paper's Case Study Claims
+examples/quicksort.sil is a counter loop, not a quicksort implementation.
+examples/backdoor.sil is not a valid SIL program (missing func declaration).
+The paper's Table 1 results (108ms UNSAT, 124ms SAT with counterexample) cannot
+have been produced by running these files through the current verifier.
+
+
+PART 3: SUMMARY FINDINGS TABLE
+================================================================================
+
+ID     | Severity | File                  | Title
+-------|----------|-----------------------|--------------------------------------
+V-01   | CRITICAL | verifier.py:71        | Mock Z3 encoding — AST never analysed
+M-01   | CRITICAL | code_monitor.py:63    | compile() tuple not unpacked
+M-02   | CRITICAL | code_monitor.py:63    | Verifier called without axioms
+V-02   | HIGH     | verifier.py:65        | Cache poisoning via weak hash
+V-03   | HIGH     | verifier.py:78        | Hardcoded balance constraint
+C-01   | HIGH     | sil_compiler.py:16    | Lexer drops unrecognised characters
+C-02   | HIGH     | sil_compiler.py:130   | Mutual recursion not detected
+M-03   | HIGH     | code_monitor.py:44    | Rollback return value discarded
+M-04   | HIGH     | code_monitor.py:27    | Redis fallback loses checkpoint history
+R-01   | HIGH     | sil_runtime.py:47     | Loop bounds are attacker-controlled
+V-04   | MEDIUM   | verifier.py:96        | Timing side-channel in padding
+V-05   | MEDIUM   | verifier.py:17        | Z3 memory limit not OS-enforced
+C-03   | MEDIUM   | sil_compiler.py:130   | Recursion check misses CallExprNode args
+C-04   | MEDIUM   | sil_compiler.py:295   | Type checker returns 'unknown'
+C-05   | MEDIUM   | sil_compiler.py:295   | UnaryExprNode never type-checked
+C-06   | MEDIUM   | sil_compiler.py:20    | STRING regex unbounded
+M-05   | MEDIUM   | code_monitor.py:60    | Citation check bypassable
+C-07   | LOW      | sil_compiler.py:373   | CFG mixes expressions into statements
+A-01   | INFO     | config/axioms.yaml    | Axioms defined but never loaded
+E-01   | INFO     | examples/             | Example files don't match paper claims
+
+
+PART 4: PRIORITY REMEDIATION ROADMAP
+================================================================================
+
+PHASE 1 — Fix the broken integration (system currently provides zero safety)
+  1. Unpack compiler.compile() return value in code_monitor.py (M-01)
+  2. Load axioms.yaml at CodeMonitor init and pass to verify() (M-02)
+  3. Implement real AST-to-Z3 visitor in verifier.py (V-01)
+
+PHASE 2 — Fix the verification logic
+  4. Implement full BMC: loop unrolling, SSA encoding, path conditions (V-01)
+  5. Replace hash() with SHA-256 canonical hash (V-02)
+  6. Remove hardcoded balance constraint (V-03)
+  7. Implement call-graph cycle detection for mutual recursion (C-02)
+
+PHASE 3 — Harden the compiler and runtime
+  8. Add ERROR catch-all token to lexer (C-01)
+  9. Fix type checker to fail closed on unknown nodes (C-04, C-05)
+  10. Add global loop bound cap in sil_runtime.py (R-01)
+  11. Fix rollback to apply the returned checkpoint (M-03)
+
+PHASE 4 — Harden infrastructure and close side-channels
+  12. Run Z3 in subprocess with OS-level memory/time limits (V-05)
+  13. Apply constant-time deadline padding on all verifier exit paths (V-04)
+  14. Replace Redis in-memory fallback with a write-ahead log (M-04)
+  15. Implement citation URL validation (M-05)
+  16. Fix STRING regex length and character restrictions (C-06)
+
+PHASE 5 — Close the gap between paper claims and implementation
+  17. Implement OS-level read-only memory protection for PAAC core (paper §3.5)
+  18. Implement IPC authentication between monitor and verifier (paper §3.5)
+  19. Replace Python runtime with a formally verifiable C implementation (paper §3.5)
+  20. Write real quicksort.sil and backdoor.sil examples matching paper §4
+
+
+PART 5: OVERALL ASSESSMENT
+================================================================================
+
+The PAAC paper presents a sound and well-motivated architecture. The theoretical
+framework — bounded model checking over a restricted intermediate language,
+with axioms encoded as SMT assertions — is a legitimate and practical approach
+to the problem of provably safe self-modification.
+
+However, the current prototype does not implement the paper's core claims. The
+three most critical issues (V-01, M-01, M-02) together mean that the system
+currently accepts every code modification as safe, unconditionally, without
+performing any verification whatsoever. The safety guarantee that is the entire
+premise of the paper does not exist in the running code.
+
+The gap between the paper's claims and the implementation is not a matter of
+minor polish — it requires implementing the full BMC pipeline from scratch. The
+prototype is best understood as a correct architectural skeleton with placeholder
+logic, not a working safety system.
+
+The architecture is sound. The implementation is not yet production-ready.
+
+================================================================================
+End of Report
+================================================================================

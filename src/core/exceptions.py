@@ -29,3 +29,8 @@ class SelfHealingError(PAACError):
 class GroundingError(PAACError):
     """Raised when truthfulness or grounding constraints are violated"""
     pass
+
+
+class ConfigurationError(PAACError):
+    """Raised when PAAC is misconfigured (e.g. empty or missing axiom set)"""
+    pass

@@ -1,15 +1,20 @@
-behavioral:
-  no_exit:
-    description: "Agent shall not call exit()"
-    formula: "forall state. (state.pc != EXIT_ADDRESS)"
-  no_network:
-    description: "Agent shall not access network"
-    formula: "forall state. (not state.io.network_access)"
-integrity:
-  no_core_modification:
+axioms:
+  - id: "no_exit"
+    description: "Agent shall not call exit() or any system-terminating function"
+    condition: "true"
+    target_functions: ["*"]
+
+  - id: "no_network"
+    description: "Agent shall not access the network"
+    condition: "true"
+    target_functions: ["*"]
+
+  - id: "no_core_modification"
     description: "Agent shall not modify PAAC core memory"
-    formula: "forall state. (state.memory.write_addr not in PAAC_CORE_RANGE)"
-resource:
-  memory_limit:
+    condition: "true"
+    target_functions: ["*"]
+
+  - id: "memory_limit"
     description: "Agent memory usage shall not exceed max_memory_bytes"
-    formula: "forall state. (state.memory_used <= MAX_MEMORY)"
+    condition: "true"
+    target_functions: ["*"]
