@@ -12,7 +12,7 @@ License: MIT
 
 ## Status
 
-**v4.2.0 — Production-ready. All critical issues resolved.**
+**v4.2.0. All critical issues resolved.**
 
 212 tests pass. Bandit: 0 HIGH issues. Mypy: 0 errors.
 
@@ -26,7 +26,7 @@ License: MIT
 | A-04 Fork-under-threads | HIGH | `set_start_method("spawn", force=True)` |
 | A-05 target_functions not enforced | HIGH | `_get_applicable_axioms()` per call |
 
-### Advanced Features in v4.2.0 (EPFL Research Extensions)
+### Advanced Features in v4.2.0 
 
 1. **Probabilistic Verification** — Monte Carlo sampling over bounded domains
 2. **Bootstrap Self-Verification** — PAAC verifying its own TCB stubs
