@@ -398,6 +398,16 @@ class SILParser:
 
     def parse_primary(self) -> ASTNode:
         tok = self.peek()
+        # Unary 'not'
+        if tok and tok.type == "KEYWORD" and tok.value == "not":
+            self.consume()
+            operand = self.parse_primary()
+            return UnaryExprNode("not", operand)
+        # Unary minus
+        if tok and tok.type == "OPERATOR" and tok.value == "-":
+            self.consume()
+            operand = self.parse_primary()
+            return UnaryExprNode("-", operand)
         if tok.type == "INTEGER":
             self.consume()
             return LiteralNode(int(tok.value), "int")
@@ -417,6 +427,10 @@ class SILParser:
                         args.append(self.parse_expr())
                     self.consume("SYMBOL", ")")
                 return CallExprNode(tok.value, args)
+            if self.match("SYMBOL", "["):
+                index = self.parse_expr()
+                self.consume("SYMBOL", "]")
+                return ArrayAccessNode(tok.value, index)
             return IdentifierNode(tok.value)
         elif self.match("SYMBOL", "("):
             expr = self.parse_expr()
@@ -525,7 +539,20 @@ class SILTypeChecker:
                         f"Operator 'not' requires bool operand, got {operand_type}"
                     )
                 return "bool"
+            if expr.operator == "-":
+                if operand_type != "int":
+                    raise SILError(
+                        f"Unary '-' requires int operand, got {operand_type}"
+                    )
+                return "int"
             raise SILError(f"Unknown unary operator: {expr.operator}")
+        elif isinstance(expr, ArrayAccessNode):
+            if expr.array_name not in self.current_env:
+                raise SILError(f"Undefined variable: {expr.array_name}")
+            idx_type = self._check_expr(expr.index)
+            if idx_type != "int":
+                raise SILError(f"Array index must be int, got {idx_type}")
+            return "int"  # arrays are int arrays
         raise SILError(f"Type checking not implemented for {type(expr).__name__}")
 
 

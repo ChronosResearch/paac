@@ -1,3 +1,18 @@
-// examples/quicksort.sil
-while (x) bound 100 { x = x + 1; }
-return x;
+func partition(arr: int, lo: int, hi: int) -> int {
+    pivot = hi;
+    i = lo;
+    j = lo;
+    while (j < hi) bound 100 {
+        j = j + 1;
+    }
+    return i;
+}
+
+func safe_sort(n: int) -> int {
+    i = 0;
+    while (i < n) bound 100 {
+        assert i >= 0;
+        i = i + 1;
+    }
+    return i;
+}

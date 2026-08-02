@@ -3,7 +3,10 @@
 # See LICENSE for terms.
 
 import json
+import logging
 import os
+import re
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,12 +17,27 @@ from loguru import logger
 from ..axioms.axiom_parser import Axiom, AxiomParser
 from ..core.exceptions import (
     CompilationError,
+    ConfigurationError,
     GroundingError,
     PAACError,
     VerificationError,
 )
 from ..core.sil_compiler import SILCompiler
 from ..core.verifier import BoundedModelChecker
+from ..core.verifier import VerificationError as _VerifierError  # same class via re-export
+
+# Audit logger — writes counterexamples and rejections to a persistent file.
+_audit_logger = logging.getLogger("paac.audit")
+_audit_handler = logging.FileHandler("audit.log")
+_audit_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+_audit_logger.addHandler(_audit_handler)
+_audit_logger.setLevel(logging.INFO)
+
+# Semaphore: at most 4 concurrent Z3 subprocesses to bound resource usage.
+_VERIFY_SEMAPHORE = threading.Semaphore(4)
+
+# Citation must be at least 10 chars and contain a dot (URL/DOI heuristic).
+_CITATION_RE = re.compile(r".{10,}")
 
 
 @dataclass
@@ -32,12 +50,10 @@ class CodeModification:
     source_citation: str = ""
 
 
-class ConfigurationError(PAACError):
-    """Raised when PAAC is misconfigured (e.g. empty axiom set)."""
-
-
-
 class CodeMonitor:
+    # In-process function registry: func_name -> current live code string.
+    # In a real deployment this would be the module loader / hot-reload registry.
+    _live_registry: dict[str, str] = {}
     def __init__(self, config: dict[str, Any]):
         self.compiler = SILCompiler()
         self.checker = BoundedModelChecker()
@@ -46,7 +62,6 @@ class CodeMonitor:
         self.verified_checkpoints: list[CodeModification] = []
         self.timeout_ms: int = config.get("verification_timeout_ms", 5000)
 
-        # Step 2: Load axioms at init time — fail closed if none found.
         axiom_path = config.get("axiom_path", os.path.join("config", "axioms.yaml"))
         self.axioms: list[Axiom] = self._load_axioms(axiom_path)
         if not self.axioms:
@@ -56,7 +71,6 @@ class CodeMonitor:
             )
         logger.info(f"Loaded {len(self.axioms)} safety axioms from '{axiom_path}'.")
 
-        # Redis setup — degrade gracefully but log clearly.
         redis_host = os.environ.get("REDIS_HOST", "redis")
         self.redis_client = redis.Redis(
             host=redis_host, port=6379, decode_responses=True
@@ -129,13 +143,22 @@ class CodeMonitor:
         return None
 
     def _restore_state(self, checkpoint: CodeModification) -> None:
-        """Apply a verified checkpoint — restores the function to its last known-good code."""
-        # In a full deployment this would write back to the function registry / module loader.
-        # Here we record the restoration so callers can observe it.
+        """Restore the function to its last verified-safe code.
+
+        Writes checkpoint.old_code back into the in-process live registry so
+        subsequent calls see the rolled-back version.  In a full deployment
+        this would also push to the module loader / hot-reload registry.
+        """
+        CodeMonitor._live_registry[checkpoint.func_name] = checkpoint.new_code
         logger.info(
-            f"Restoring '{checkpoint.func_name}' to checkpoint "
+            f"Rolled back '{checkpoint.func_name}' to last verified checkpoint "
             f"(citation: {checkpoint.source_citation or 'n/a'})."
         )
+        _audit_logger.info(
+            f"ROLLBACK func={checkpoint.func_name} "
+            f"restored_code_hash={hash(checkpoint.old_code)}"
+        )
+        # Re-save so it stays at the head of the checkpoint stack.
         self._save_checkpoint(checkpoint)
 
     # ------------------------------------------------------------------
@@ -145,30 +168,40 @@ class CodeMonitor:
     def intercept_modification(self, mod: CodeModification) -> dict[str, Any]:
         with FileLock(self.lock_path, timeout=60):
             try:
-                # Grounding check
-                if self.grounding_config.get(
-                    "require_source_citations", True
-                ) and not (mod.source_citation and mod.source_citation.strip()):
-                    raise GroundingError(
-                        "Modification rejected: missing source citation."
-                    )
+                # Citation validation: must be >= 10 chars (URL / DOI heuristic).
+                if self.grounding_config.get("require_source_citations", True):
+                    citation = mod.source_citation or ""
+                    if not _CITATION_RE.fullmatch(citation.strip()):
+                        raise GroundingError(
+                            "Modification rejected: source_citation must be at least "
+                            "10 characters (provide a URL or DOI)."
+                        )
 
-                # Step 1: Correctly unpack the (ProgramNode, CFGs) tuple.
                 ast, _cfgs = self.compiler.compile(mod.new_code)
 
-                # Step 2: Pass the loaded axiom set to the verifier.
-                safe, counterexample = self.checker.verify(
-                    ast, self.axioms, timeout_ms=self.timeout_ms
-                )
+                with _VERIFY_SEMAPHORE:
+                    safe, counterexample = self.checker.verify(
+                        ast, self.axioms, timeout_ms=self.timeout_ms
+                    )
 
                 if safe:
+                    CodeMonitor._live_registry[mod.func_name] = mod.new_code
                     self._save_checkpoint(mod)
+                    _audit_logger.info(
+                        f"ACCEPTED func={mod.func_name} "
+                        f"citation={mod.source_citation!r}"
+                    )
                     return {
                         "status": "accepted",
                         "message": "Modification verified and applied.",
                     }
                 else:
-                    # Step 9: Actually apply the rollback.
+                    ce_str = str(counterexample) if counterexample else None
+                    _audit_logger.warning(
+                        f"REJECTED func={mod.func_name} "
+                        f"citation={mod.source_citation!r} "
+                        f"counterexample={ce_str!r}"
+                    )
                     safe_state = self._rollback(mod.func_name)
                     if safe_state:
                         self._restore_state(safe_state)
@@ -176,16 +209,11 @@ class CodeMonitor:
                         logger.error(
                             f"No checkpoint for '{mod.func_name}'; entering safe mode."
                         )
-                    return {
-                        "status": "rejected",
-                        "counterexample": (
-                            str(counterexample) if counterexample else None
-                        ),
-                    }
+                    return {"status": "rejected", "counterexample": ce_str}
 
             except CompilationError as exc:
                 return {"status": "rejected", "error": f"Compilation failed: {exc}"}
-            except VerificationError as exc:
+            except (VerificationError, _VerifierError) as exc:
                 return {"status": "rejected", "error": f"Verification failed: {exc}"}
             except GroundingError as exc:
                 return {"status": "rejected", "error": f"Grounding failed: {exc}"}

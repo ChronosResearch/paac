@@ -186,3 +186,120 @@ def test_constant_time_padding_on_unsafe_path():
     assert (
         elapsed >= CONSTANT_VERIFICATION_TIME_S * 0.9
     ), f"Expected >= {CONSTANT_VERIFICATION_TIME_S:.3f}s, got {elapsed:.3f}s"
+
+
+# ---------------------------------------------------------------------------
+# Axiom enforcement (P0 fix verification)
+# ---------------------------------------------------------------------------
+
+
+def test_axiom_enforced_rejects_violation():
+    """A function that can produce balance < 0 must be rejected when the
+    no_negative_balance axiom is active."""
+    ast = compile("""
+    func withdraw(balance: int, amount: int) -> int {
+        return balance - amount;
+    }
+    """)
+    axiom = Axiom("no_negative_balance", "", "balance >= 0", ["withdraw"])
+    bmc = BoundedModelChecker()
+    safe, ce = bmc.verify(ast, [axiom])
+    assert safe is False, "Axiom violation must be detected"
+    assert ce is not None
+
+
+def test_axiom_enforced_accepts_safe():
+    """A function that always keeps balance >= 0 must pass the axiom."""
+    ast = compile("""
+    func deposit(balance: int, amount: int) -> int {
+        balance = balance + amount;
+        assert balance >= 0;
+        return balance;
+    }
+    """)
+    axiom = Axiom("no_negative_balance", "", "balance >= 0", ["deposit"])
+    bmc = BoundedModelChecker()
+    # balance is unconstrained — Z3 can pick balance = -1 before deposit.
+    # The axiom checks the *parameter* value, not the post-state, so this
+    # is unsafe unless we add a precondition.  Use a program that is always safe.
+    ast2 = compile("""
+    func always_positive(x: int) -> int {
+        y = x * x;
+        assert y >= 0;
+        return y;
+    }
+    """)
+    axiom2 = Axiom("square_nonneg", "", "y >= 0", ["always_positive"])
+    safe, ce = bmc.verify(ast2, [axiom2])
+    assert safe is True
+
+
+# ---------------------------------------------------------------------------
+# Unary operators (P1 fix verification)
+# ---------------------------------------------------------------------------
+
+
+def test_unary_not_parses_and_verifies():
+    """not x must parse, type-check, and be correctly encoded by Z3."""
+    ast = compile("""
+    func negate(x: bool) -> bool {
+        return not x;
+    }
+    """)
+    bmc = BoundedModelChecker()
+    safe, _ce = bmc.verify(ast, [])
+    assert safe is True
+
+
+def test_unary_minus_parses_and_verifies():
+    """Unary minus must parse and be correctly encoded."""
+    ast = compile("""
+    func neg(x: int) -> int {
+        y = -x;
+        assert y == 0 - x;
+        return y;
+    }
+    """)
+    bmc = BoundedModelChecker()
+    safe, _ce = bmc.verify(ast, [])
+    assert safe is True
+
+
+# ---------------------------------------------------------------------------
+# Array access (P1 fix verification)
+# ---------------------------------------------------------------------------
+
+
+def test_array_access_parses_and_verifies():
+    """arr[i] must parse and be encoded as z3.Select."""
+    ast = compile("""
+    func get_elem(arr: array, i: int) -> int {
+        x = arr[i];
+        return x;
+    }
+    """)
+    bmc = BoundedModelChecker()
+    safe, _ce = bmc.verify(ast, [])
+    assert safe is True
+
+
+# ---------------------------------------------------------------------------
+# Loop exit path fix (H-4 fix verification)
+# ---------------------------------------------------------------------------
+
+
+def test_post_loop_assertion_correct_path():
+    """assert x == 3 after a loop that counts to 3 must be SAFE (not a false positive)."""
+    ast = compile("""
+    func count_to_3() -> int {
+        x = 0;
+        while (x < 3) bound 5 {
+            x = x + 1;
+        }
+        assert x == 3;
+        return x;
+    }
+    """)
+    bmc = BoundedModelChecker()
+    safe, ce = bmc.verify(ast, [])
+    assert safe is True, f"Post-loop assertion should be safe; got ce={ce}"

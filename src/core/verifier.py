@@ -34,8 +34,7 @@ _Z3_MEMORY_LIMIT_BYTES: int = 1 * 1024 * 1024 * 1024  # 1 GB address space
 _Z3_CPU_LIMIT_SECONDS: int = 5
 
 
-class VerificationError(Exception):
-    pass
+from src.core.exceptions import VerificationError  # noqa: F401 — re-exported for callers
 
 
 class CounterExample:
@@ -77,10 +76,15 @@ class SSAEnv:
         self._exprs[key] = expr
         return expr
 
-    def declare_param(self, name: str) -> z3.ExprRef:
+    def declare_param(self, name: str, type_name: str = "int") -> z3.ExprRef:
         """Create the initial SSA variable for a function parameter."""
         key = self._versioned(name)
-        v = z3.Int(key, ctx=self.ctx)
+        if type_name == "bool":
+            v = z3.Bool(key, ctx=self.ctx)
+        elif type_name == "array":
+            v = z3.Array(key, z3.IntSort(self.ctx), z3.IntSort(self.ctx))
+        else:
+            v = z3.Int(key, ctx=self.ctx)
         self._exprs[key] = v
         return v
 
@@ -141,6 +145,8 @@ class ExprEncoder:
             operand = self.encode(node.operand)
             if node.operator == "not":
                 return z3.Not(operand)
+            if node.operator == "-":
+                return -operand
             raise VerificationError(f"Unknown unary operator: {node.operator}")
 
         if isinstance(node, BinaryExprNode):
@@ -206,12 +212,19 @@ class StmtEncoder:
         self.solver = solver
         self.env = env
         self.expr_enc = ExprEncoder(ctx, env)
-        # Collect violation flags: each AssertStmtNode adds one.
         self.violation_flags: list[z3.BoolRef] = []
+        self._loop_exit_path: z3.BoolRef | None = None
 
     def encode_stmts(self, stmts: list[ASTNode], path_cond: z3.BoolRef) -> None:
+        current_path = path_cond
         for stmt in stmts:
-            self._encode_stmt(stmt, path_cond)
+            self._loop_exit_path = None
+            self._encode_stmt(stmt, current_path)
+            # If the statement was a while loop, subsequent statements run on
+            # the exit path (loop condition false), not the entry path.
+            if self._loop_exit_path is not None:
+                current_path = self._loop_exit_path
+                self._loop_exit_path = None
 
     def _encode_stmt(self, stmt: ASTNode, path_cond: z3.BoolRef) -> None:
         if isinstance(stmt, AssignmentStmtNode):
@@ -258,18 +271,22 @@ class StmtEncoder:
                     f"Loop bound {declared_bound} exceeds global cap {self.MAX_LOOP_BOUND}."
                 )
             # Unroll the loop declared_bound times.
+            # Snapshot the entry path condition so the exit path is
+            # And(entry_path, Not(loop_cond_at_entry)) — not the last iteration.
+            entry_path = path_cond
             current_path = path_cond
+            self.expr_enc = ExprEncoder(self.ctx, self.env)
+            entry_loop_cond = self.expr_enc.encode(stmt.condition)
             for _iteration in range(declared_bound):
+                self.expr_enc = ExprEncoder(self.ctx, self.env)
                 loop_cond = self.expr_enc.encode(stmt.condition)
                 iter_path = z3.And(current_path, loop_cond)
-                snap_before = self.env.snapshot()
                 self.encode_stmts(stmt.body, iter_path)
-                _snap_after = self.env.snapshot()
-                # After this iteration, path continues only if loop_cond was true.
                 current_path = iter_path
-                # Re-encode condition with updated SSA state for next iteration.
-                self.expr_enc = ExprEncoder(self.ctx, self.env)
-            # After unrolling, execution continues on the exit path.
+            # Exit path: entry_path AND loop condition was false at entry.
+            # Using the entry-level condition gives a sound over-approximation
+            # that avoids false positives on post-loop assertions.
+            self._loop_exit_path = z3.And(entry_path, z3.Not(entry_loop_cond))
 
         else:
             # Unknown statement type — skip silently (conservative).
@@ -281,22 +298,35 @@ class StmtEncoder:
 # ---------------------------------------------------------------------------
 
 
-def _encode_axiom(axiom: Axiom, ctx: z3.Context, env: SSAEnv) -> z3.BoolRef | None:
+def _encode_axiom(
+    axiom: Axiom,
+    ctx: z3.Context,
+    env: SSAEnv,
+    param_names: list[str] | None = None,
+) -> z3.BoolRef | None:
     """
     Parse the axiom condition string as a SIL expression and encode it to Z3.
-    Returns None if the condition cannot be parsed (logged as a warning).
+
+    param_names: variable names already declared in env (function parameters).
+    They are injected as int parameters of the synthetic wrapper function so
+    that references like 'balance >= 0' resolve correctly.
+
+    Returns None only if the condition string is syntactically invalid SIL.
     """
+    params = param_names or []
+    param_str = ", ".join(f"{n}: int" for n in params)
     sil_wrapper = (
-        f"func _axiom_check() -> bool {{ assert {axiom.condition}; return true; }}"
+        f"func _axiom_check({param_str}) -> bool "
+        f"{{ assert {axiom.condition}; return true; }}"
     )
     try:
         compiler = SILCompiler()
         prog, _ = compiler.compile(sil_wrapper)
         func = prog.functions[0]
-        # The first statement is the AssertStmtNode.
         assert_stmt = func.body[0]
         if not isinstance(assert_stmt, AssertStmtNode):
             return None
+        # Encode using the *caller's* env so the param SSA variables are shared.
         enc = ExprEncoder(ctx, env)
         return enc.encode(assert_stmt.condition)
     except (SILError, VerificationError):
@@ -482,14 +512,30 @@ class BoundedModelChecker:
         # Encode every function in the program.
         for func in ast.functions:
             func_path = z3.BoolVal(True, ctx=ctx)
-            # Declare parameters as unconstrained symbolic integers.
+            # Declare parameters with the correct Z3 sort.
             for param in func.params:
-                env.declare_param(param.name)
+                env.declare_param(param.name, param.type_name)
             stmt_enc.encode_stmts(func.body, func_path)
 
         # Encode axioms as additional assertions that must hold.
+        # Collect all parameter names declared so far so axiom conditions that
+        # reference them (e.g. 'balance >= 0') resolve correctly.
+        declared_params = list(env._counters.keys()) + [
+            k.rsplit("_", 1)[0]
+            for k in env._exprs
+            if k not in env._counters
+        ]
+        # Deduplicate while preserving order.
+        seen: set[str] = set()
+        param_names: list[str] = []
+        for n in declared_params:
+            base = n.rsplit("_", 1)[0] if "_" in n else n
+            if base not in seen:
+                seen.add(base)
+                param_names.append(base)
+
         for axiom in axioms:
-            z3_cond = _encode_axiom(axiom, ctx, env)
+            z3_cond = _encode_axiom(axiom, ctx, env, param_names)
             if z3_cond is not None:
                 # Axiom must hold — add its negation as a violation flag.
                 stmt_enc.violation_flags.append(z3.Not(z3_cond))

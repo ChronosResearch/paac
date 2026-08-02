@@ -115,6 +115,8 @@ class SILRuntime:
             operand = self._eval_expr(expr.operand)
             if expr.operator == "not":
                 return not operand
+            if expr.operator == "-":
+                return -operand
             raise SILRuntimeError(f"Unknown unary operator: {expr.operator}")
         elif isinstance(expr, BinaryExprNode):
             l = self._eval_expr(expr.left)

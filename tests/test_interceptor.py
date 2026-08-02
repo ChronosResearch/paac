@@ -19,19 +19,37 @@ def test_interceptor_accepts_safe():
 
     interceptor = Interceptor(db)
     mod = CodeModification("foo.py", "bar", "func bar() -> int { return 1; }", "agent")
-
-    # Should compile fine and verify as safe (since true axiom)
     assert interceptor.intercept(mod) is True
 
 
 def test_interceptor_rejects_unsafe():
+    """A program that explicitly asserts false must be rejected."""
     db = AxiomDatabase()
-    db.axioms["AX1"] = Axiom("AX1", "", "balance >= 0", ["*"])
+    # No axioms needed — the program itself contains assert false.
+    interceptor = Interceptor(db)
+    mod = CodeModification(
+        "foo.py",
+        "bad",
+        "func bad() -> int { assert false; return 0; }",
+        "agent",
+    )
+    assert interceptor.intercept(mod) is False
+
+
+def test_interceptor_rejects_axiom_violation():
+    """A program that can make balance negative violates the no_negative_balance axiom."""
+    db = AxiomDatabase()
+    # Axiom: balance must be >= 0.  The withdraw function can produce balance < 0.
+    db.axioms["AX_BAL"] = Axiom("AX_BAL", "", "balance >= 0", ["withdraw"])
 
     interceptor = Interceptor(db)
-    mod = CodeModification("foo.py", "bar", "func bar() -> int { return 1; }", "agent")
-
-    # Unsafe due to mock logic in BMC for balance >= 0
+    mod = CodeModification(
+        "foo.py",
+        "withdraw",
+        # balance is unconstrained — Z3 picks balance = -1 to violate the axiom.
+        "func withdraw(balance: int, amount: int) -> int { return balance - amount; }",
+        "agent",
+    )
     assert interceptor.intercept(mod) is False
 
 
@@ -41,6 +59,4 @@ def test_interceptor_rejects_syntax_error():
     mod = CodeModification(
         "foo.py", "bar", "func bar() -> int { invalid syntax }", "agent"
     )
-
-    # Syntax error in compiler caught by interceptor
     assert interceptor.intercept(mod) is False
