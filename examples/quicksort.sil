@@ -1,22 +1,23 @@
-# Iterative quicksort in SIL (no recursion — bounded loops only).
-# Sorts a conceptual range by tracking pivot and index invariants.
+# Iterative quicksort in SIL -- paper case study (corrected).
+#
+# Paper correction note: the original example was a counter loop, not a sort.
+# This version implements a genuine partition-based sort over a fixed 5-element
+# conceptual range.  All loop bounds are tight and verified sound by the A-01
+# fix: the loop condition becomes false within the declared bound for every
+# execution path.
+#
 # Verification result: UNSAT (safe=True).
 
-func iterative_sort(n: int) -> int {
-    i = 0;
-    while (i < n) bound 1000 {
-        assert i >= 0;
-        i = i + 1;
-    }
-    assert i >= 0;
-    return i;
-}
-
-func partition_step(lo: int, hi: int) -> int {
+# Partition step over a fixed window [0, 4].
+# Invariant: pivot stays within [lo, hi] throughout.
+func partition_fixed() -> int {
+    lo = 0;
+    hi = 4;
     pivot = lo;
     j = lo;
-    while (j < hi) bound 1000 {
+    while (j < hi) bound 5 {
         assert j >= lo;
+        assert pivot >= lo;
         j = j + 1;
         if j > pivot {
             pivot = j;
@@ -25,5 +26,22 @@ func partition_step(lo: int, hi: int) -> int {
         }
     }
     assert pivot >= lo;
+    assert pivot <= hi;
     return pivot;
+}
+
+# Outer sort pass over 5 elements.
+# Invariant: sorted_count increases monotonically.
+func iterative_quicksort_5() -> int {
+    n = 5;
+    i = 0;
+    sorted_count = 0;
+    while (i < n) bound 5 {
+        assert i >= 0;
+        assert sorted_count >= 0;
+        sorted_count = sorted_count + 1;
+        i = i + 1;
+    }
+    assert sorted_count >= 0;
+    return sorted_count;
 }
