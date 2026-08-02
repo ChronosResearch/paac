@@ -20,6 +20,8 @@ from src.core.sil_compiler import (
     LiteralNode,
     ProgramNode,
     ReturnStmtNode,
+    SILParser,
+    SILLexer,
     SILCompiler,
     SILError,
     UnaryExprNode,
@@ -329,7 +331,7 @@ def _encode_axiom(
         # Encode using the *caller's* env so the param SSA variables are shared.
         enc = ExprEncoder(ctx, env)
         return enc.encode(assert_stmt.condition)
-    except (SILError, VerificationError):
+    except (SILError, VerificationError, Exception):
         return None
 
 
