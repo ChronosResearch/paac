@@ -1,5 +1,3 @@
-agent_model: "advanced-reasoner-pro"
-thinking_level: "HIGH"
 verification_timeout_ms: 5000
 loop_bound_default: 100
 constant_verification_time_padding_ms: 200
@@ -7,12 +5,9 @@ max_memory_bytes: 4294967296
 safe_io_whitelist:
   - "print_to_log"
   - "safe_file_write"
-self_healing:
-  enabled: true
-  heartbeat_interval_secs: 5
-  recovery_timeout_secs: 30
-  backup_dir: "backups/"
 grounding:
   enforce_runtime_execution: true
   require_source_citations: true
-  temperature: 0.0
+# Redis connection is read from environment variables REDIS_HOST and REDIS_PORT.
+# Axiom file path is read from environment variable AXIOM_PATH.
+# See .env.example for the full list of required variables.

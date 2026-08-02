@@ -1,6 +1,8 @@
 import pytest
-from src.axioms.axiom_parser import AxiomParser, AxiomError
+
 from src.axioms.axiom_loader import AxiomDatabase
+from src.axioms.axiom_parser import AxiomError, AxiomParser
+
 
 def test_axiom_parser_valid():
     yaml_content = """
@@ -14,6 +16,7 @@ def test_axiom_parser_valid():
     assert axioms[0].id == "TEST_AXIOM"
     assert axioms[0].condition == "x > 0"
 
+
 def test_axiom_parser_missing_fields():
     yaml_content = """
     axioms:
@@ -21,6 +24,7 @@ def test_axiom_parser_missing_fields():
     """
     with pytest.raises(AxiomError):
         AxiomParser.parse(yaml_content)
+
 
 def test_axiom_database_load(tmp_path):
     d = tmp_path / "config"
@@ -35,6 +39,7 @@ def test_axiom_database_load(tmp_path):
     db.load_directory(str(d))
     assert len(db.axioms) == 1
     assert "AX_1" in db.axioms
+
 
 def test_axiom_template():
     yaml_content = """

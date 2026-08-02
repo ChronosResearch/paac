@@ -1,20 +1,37 @@
-import z3
-import time
 import hashlib
 import json
-from typing import List, Dict, Any, Tuple, Optional
+import multiprocessing
+import resource
+import time
+from typing import Any
 
+import z3
+
+from src.axioms.axiom_parser import Axiom
 from src.core.sil_compiler import (
-    ProgramNode, FuncDefNode, ASTNode, LiteralNode, IdentifierNode,
-    BinaryExprNode, UnaryExprNode, CallExprNode, ArrayAccessNode,
-    AssignmentStmtNode, IfStmtNode, WhileStmtNode, ReturnStmtNode,
-    AssertStmtNode, ParamNode,
+    ArrayAccessNode,
+    AssertStmtNode,
+    AssignmentStmtNode,
+    ASTNode,
+    BinaryExprNode,
+    CallExprNode,
+    IdentifierNode,
+    IfStmtNode,
+    LiteralNode,
+    ProgramNode,
+    ReturnStmtNode,
+    SILCompiler,
+    SILError,
+    UnaryExprNode,
+    WhileStmtNode,
 )
-from src.axioms.axiom_parser import Axiom, AxiomParser
-from src.core.sil_compiler import SILCompiler, SILError
 
-# Constant verification window claimed by the paper (§3.5).
+# Constant verification window (paper §3.5).
 CONSTANT_VERIFICATION_TIME_S: float = 0.200
+
+# Subprocess resource limits for Z3 isolation (R-1).
+_Z3_MEMORY_LIMIT_BYTES: int = 1 * 1024 * 1024 * 1024  # 1 GB address space
+_Z3_CPU_LIMIT_SECONDS: int = 5
 
 
 class VerificationError(Exception):
@@ -23,7 +40,7 @@ class VerificationError(Exception):
 
 class CounterExample:
     def __init__(self, model: z3.ModelRef):
-        self.assignments: Dict[str, Any] = {}
+        self.assignments: dict[str, Any] = {}
         for d in model.decls():
             self.assignments[d.name()] = model[d]
 
@@ -35,13 +52,14 @@ class CounterExample:
 # SSA environment
 # ---------------------------------------------------------------------------
 
+
 class SSAEnv:
     """Tracks the current SSA version of every variable and the Z3 expressions."""
 
     def __init__(self, ctx: z3.Context):
         self.ctx = ctx
-        self._counters: Dict[str, int] = {}
-        self._exprs: Dict[str, z3.ExprRef] = {}
+        self._counters: dict[str, int] = {}
+        self._exprs: dict[str, z3.ExprRef] = {}
 
     def _versioned(self, name: str) -> str:
         return f"{name}_{self._counters.get(name, 0)}"
@@ -66,17 +84,17 @@ class SSAEnv:
         self._exprs[key] = v
         return v
 
-    def snapshot(self) -> Dict[str, int]:
+    def snapshot(self) -> dict[str, int]:
         return dict(self._counters)
 
-    def restore(self, snap: Dict[str, int]) -> None:
+    def restore(self, snap: dict[str, int]) -> None:
         self._counters = snap
 
     def merge(
         self,
         cond: z3.BoolRef,
-        snap_then: Dict[str, int],
-        snap_else: Dict[str, int],
+        snap_then: dict[str, int],
+        snap_else: dict[str, int],
         solver: z3.Solver,
     ) -> None:
         """
@@ -98,6 +116,7 @@ class SSAEnv:
 # ---------------------------------------------------------------------------
 # Expression encoder
 # ---------------------------------------------------------------------------
+
 
 class ExprEncoder:
     """Translates SIL ASTNode expressions into Z3 expressions."""
@@ -173,6 +192,7 @@ class ExprEncoder:
 # Statement encoder (BMC with loop unrolling)
 # ---------------------------------------------------------------------------
 
+
 class StmtEncoder:
     """
     Encodes SIL statements into Z3 solver assertions using SSA form and
@@ -187,9 +207,9 @@ class StmtEncoder:
         self.env = env
         self.expr_enc = ExprEncoder(ctx, env)
         # Collect violation flags: each AssertStmtNode adds one.
-        self.violation_flags: List[z3.BoolRef] = []
+        self.violation_flags: list[z3.BoolRef] = []
 
-    def encode_stmts(self, stmts: List[ASTNode], path_cond: z3.BoolRef) -> None:
+    def encode_stmts(self, stmts: list[ASTNode], path_cond: z3.BoolRef) -> None:
         for stmt in stmts:
             self._encode_stmt(stmt, path_cond)
 
@@ -198,10 +218,10 @@ class StmtEncoder:
             rhs = self.expr_enc.encode(stmt.value)
             new_var = self.env.write(stmt.target, rhs)
             # Under path_cond, new_var equals rhs; otherwise it keeps its old value.
-            old_var = z3.Int(f"{stmt.target}_{self.env._counters[stmt.target] - 1}", ctx=self.ctx)
-            self.solver.add(
-                new_var == z3.If(path_cond, rhs, old_var, ctx=self.ctx)
+            old_var = z3.Int(
+                f"{stmt.target}_{self.env._counters[stmt.target] - 1}", ctx=self.ctx
             )
+            self.solver.add(new_var == z3.If(path_cond, rhs, old_var, ctx=self.ctx))
 
         elif isinstance(stmt, AssertStmtNode):
             cond = self.expr_enc.encode(stmt.condition)
@@ -244,7 +264,7 @@ class StmtEncoder:
                 iter_path = z3.And(current_path, loop_cond)
                 snap_before = self.env.snapshot()
                 self.encode_stmts(stmt.body, iter_path)
-                snap_after = self.env.snapshot()
+                _snap_after = self.env.snapshot()
                 # After this iteration, path continues only if loop_cond was true.
                 current_path = iter_path
                 # Re-encode condition with updated SSA state for next iteration.
@@ -260,12 +280,15 @@ class StmtEncoder:
 # Axiom encoder
 # ---------------------------------------------------------------------------
 
-def _encode_axiom(axiom: Axiom, ctx: z3.Context, env: SSAEnv) -> Optional[z3.BoolRef]:
+
+def _encode_axiom(axiom: Axiom, ctx: z3.Context, env: SSAEnv) -> z3.BoolRef | None:
     """
     Parse the axiom condition string as a SIL expression and encode it to Z3.
     Returns None if the condition cannot be parsed (logged as a warning).
     """
-    sil_wrapper = f"func _axiom_check() -> bool {{ assert {axiom.condition}; return true; }}"
+    sil_wrapper = (
+        f"func _axiom_check() -> bool {{ assert {axiom.condition}; return true; }}"
+    )
     try:
         compiler = SILCompiler()
         prog, _ = compiler.compile(sil_wrapper)
@@ -276,7 +299,7 @@ def _encode_axiom(axiom: Axiom, ctx: z3.Context, env: SSAEnv) -> Optional[z3.Boo
             return None
         enc = ExprEncoder(ctx, env)
         return enc.encode(assert_stmt.condition)
-    except (SILError, VerificationError, Exception):
+    except (SILError, VerificationError):
         return None
 
 
@@ -284,29 +307,77 @@ def _encode_axiom(axiom: Axiom, ctx: z3.Context, env: SSAEnv) -> Optional[z3.Boo
 # Bounded Model Checker
 # ---------------------------------------------------------------------------
 
+
+def _apply_resource_limits() -> None:
+    """Set OS-level resource limits for the Z3 subprocess (Linux only)."""
+    try:
+        resource.setrlimit(
+            resource.RLIMIT_AS,
+            (_Z3_MEMORY_LIMIT_BYTES, _Z3_MEMORY_LIMIT_BYTES),
+        )
+        resource.setrlimit(
+            resource.RLIMIT_CPU,
+            (_Z3_CPU_LIMIT_SECONDS, _Z3_CPU_LIMIT_SECONDS),
+        )
+    except (ValueError, resource.error):
+        # Resource limits may not be available on all platforms (e.g. macOS
+        # restricts RLIMIT_AS). The subprocess still provides process isolation.
+        pass
+
+
+def _subprocess_worker(
+    ast: ProgramNode,
+    axioms: list[Axiom],
+    timeout_ms: int,
+    cache: dict[str, tuple[bool, str | None]],
+    conn: "multiprocessing.connection.Connection",
+) -> None:
+    """Entry point for the isolated Z3 subprocess. Sends result over a Pipe."""
+    _apply_resource_limits()
+    checker = BoundedModelChecker()
+    checker._cache = dict(cache)
+    try:
+        safe, ce = checker._verify_inner(ast, axioms, timeout_ms)
+        # Convert Z3 model values to plain strings before pickling across the pipe.
+        ce_dict = (
+            {k: str(v) for k, v in ce.assignments.items()} if ce is not None else None
+        )
+        conn.send((safe, ce_dict, checker._cache))
+    except Exception as exc:  # noqa: BLE001
+        conn.send(exc)
+    finally:
+        conn.close()
+
+
 class BoundedModelChecker:
     def __init__(self) -> None:
         # Cache: canonical_hash -> (safe: bool, ce_str: Optional[str])
-        self._cache: Dict[str, Tuple[bool, Optional[str]]] = {}
+        self._cache: dict[str, tuple[bool, str | None]] = {}
 
     # ------------------------------------------------------------------
     # Step 5: Secure cache hash (SHA-256 over canonical JSON)
     # ------------------------------------------------------------------
 
-    def _hash_ast(self, ast: ProgramNode, axioms: List[Axiom]) -> str:
+    def _hash_ast(self, ast: ProgramNode, axioms: list[Axiom]) -> str:
         def _node_to_dict(node: Any) -> Any:
             if isinstance(node, list):
                 return [_node_to_dict(n) for n in node]
             if hasattr(node, "__dataclass_fields__"):
                 return {
                     "__type__": type(node).__name__,
-                    **{k: _node_to_dict(getattr(node, k)) for k in node.__dataclass_fields__},
+                    **{
+                        k: _node_to_dict(getattr(node, k))
+                        for k in node.__dataclass_fields__
+                    },
                 }
             return node
 
         payload = {
             "ast": _node_to_dict(ast),
-            "axioms": [{"id": a.id, "condition": a.condition} for a in sorted(axioms, key=lambda x: x.id)],
+            "axioms": [
+                {"id": a.id, "condition": a.condition}
+                for a in sorted(axioms, key=lambda x: x.id)
+            ],
         }
         canonical = json.dumps(payload, sort_keys=True, default=str)
         return hashlib.sha256(canonical.encode()).hexdigest()
@@ -318,36 +389,86 @@ class BoundedModelChecker:
     def verify(
         self,
         ast: ProgramNode,
-        axioms: List[Axiom],
+        axioms: list[Axiom],
         timeout_ms: int = 5000,
-    ) -> Tuple[bool, Optional[CounterExample]]:
+    ) -> tuple[bool, "CounterExample | None"]:
         """
         Returns (safe, counterexample).
-        safe=True  → UNSAT (no violation reachable within bounds).
-        safe=False → SAT   (counterexample found).
+        safe=True  -> UNSAT (no violation reachable within bounds).
+        safe=False -> SAT   (counterexample found).
         Raises VerificationError on solver timeout / unknown result.
 
-        Step 10: Constant-time padding — always takes CONSTANT_VERIFICATION_TIME_S
-        regardless of outcome.
+        R-1 / Step 5: _verify_inner runs in a subprocess with OS-level
+        RLIMIT_AS (1 GB) and RLIMIT_CPU (5 s) so a crafted formula cannot
+        exhaust host memory or CPU.
+
+        Step 10: Constant-time padding ensures every call takes at least
+        CONSTANT_VERIFICATION_TIME_S regardless of outcome.
         """
         start = time.monotonic()
         try:
-            return self._verify_inner(ast, axioms, timeout_ms)
+            return self._verify_subprocess(ast, axioms, timeout_ms)
         finally:
             elapsed = time.monotonic() - start
             remaining = CONSTANT_VERIFICATION_TIME_S - elapsed
             if remaining > 0:
                 time.sleep(remaining)
 
+    def _verify_subprocess(
+        self,
+        ast: ProgramNode,
+        axioms: list[Axiom],
+        timeout_ms: int,
+    ) -> tuple[bool, "CounterExample | None"]:
+        """Run _verify_inner in an isolated subprocess with OS resource limits."""
+        parent_conn, child_conn = multiprocessing.Pipe(duplex=False)
+        proc = multiprocessing.Process(
+            target=_subprocess_worker,
+            args=(ast, axioms, timeout_ms, self._cache, child_conn),
+            daemon=True,
+        )
+        proc.start()
+        child_conn.close()  # parent does not write
+        timeout_s = (timeout_ms / 1000) + CONSTANT_VERIFICATION_TIME_S + 1.0
+
+        try:
+            if not parent_conn.poll(timeout_s):
+                proc.kill()
+                proc.join()
+                raise VerificationError(
+                    "Z3 subprocess exceeded wall-clock timeout and was killed."
+                )
+            outcome = parent_conn.recv()
+        finally:
+            parent_conn.close()
+
+        proc.join()
+        if proc.exitcode not in (0, -9):  # -9 = SIGKILL from resource limit
+            raise VerificationError(
+                f"Z3 subprocess terminated with exit code {proc.exitcode}. "
+                "Possible memory or CPU limit exceeded."
+            )
+
+        if isinstance(outcome, Exception):
+            raise VerificationError(str(outcome)) from outcome
+
+        safe, ce_dict, cache_update = outcome
+        self._cache.update(cache_update)
+        if ce_dict is not None:
+            ce = CounterExample.__new__(CounterExample)
+            ce.assignments = ce_dict
+            return safe, ce
+        return safe, None
+
     def _verify_inner(
         self,
         ast: ProgramNode,
-        axioms: List[Axiom],
+        axioms: list[Axiom],
         timeout_ms: int,
-    ) -> Tuple[bool, Optional[CounterExample]]:
+    ) -> tuple[bool, CounterExample | None]:
         cache_key = self._hash_ast(ast, axioms)
         if cache_key in self._cache:
-            safe, ce_str = self._cache[cache_key]
+            safe, _ce_str = self._cache[cache_key]
             return safe, None  # Cached counterexamples are not re-materialised.
 
         # Z3 context and solver — timeout set via solver params (not global).
@@ -398,10 +519,11 @@ class BoundedModelChecker:
 # Thin Verifier façade (keeps the interface code_monitor.py expects)
 # ---------------------------------------------------------------------------
 
+
 class Verifier:
     """Thin façade so existing code that instantiates Verifier(config) still works."""
 
-    def __init__(self, config: Dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         self._bmc = BoundedModelChecker()
         self._timeout_ms: int = config.get("verification_timeout_ms", 5000)
 
@@ -410,8 +532,8 @@ class Verifier:
         func_name: str,
         ast: ProgramNode,
         pre_cond: str,
-        axioms: Optional[List[Axiom]] = None,
-    ) -> Dict[str, Any]:
+        axioms: list[Axiom] | None = None,
+    ) -> dict[str, Any]:
         axioms = axioms or []
         safe, ce = self._bmc.verify(ast, axioms, timeout_ms=self._timeout_ms)
         return {"safe": safe, "counterexample": str(ce) if ce else None}

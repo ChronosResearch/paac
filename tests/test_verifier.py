@@ -1,10 +1,16 @@
 """Tests for the real BoundedModelChecker (Steps 3, 4, 5, 10)."""
-import time
-import pytest
-from src.core.verifier import BoundedModelChecker, VerificationError, CONSTANT_VERIFICATION_TIME_S
-from src.axioms.axiom_parser import Axiom
-from src.core.sil_compiler import SILCompiler, ProgramNode
 
+import time
+
+import pytest
+
+from src.axioms.axiom_parser import Axiom
+from src.core.sil_compiler import ProgramNode, SILCompiler
+from src.core.verifier import (
+    CONSTANT_VERIFICATION_TIME_S,
+    BoundedModelChecker,
+    VerificationError,
+)
 
 COMPILER = SILCompiler()
 
@@ -17,6 +23,7 @@ def compile(code: str) -> ProgramNode:
 # ---------------------------------------------------------------------------
 # Step 3: Real Z3 encoding
 # ---------------------------------------------------------------------------
+
 
 def test_safe_program_returns_unsat():
     """A trivially safe function with no assertions should be UNSAT (safe=True)."""
@@ -63,16 +70,7 @@ def test_conditional_assertion_violation():
 def test_constrained_safe_assertion():
     """When the precondition makes the assertion always true, result is UNSAT."""
     # We encode the precondition as an axiom: x >= 0
-    ast = compile("""
-    func check(x: int) -> int {
-        assert x >= 0;
-        return x;
-    }
-    """)
-    # Axiom: x >= 0 must hold — its negation is added as a violation flag.
-    # With both the assertion violation (x < 0) AND the axiom violation (x < 0)
-    # the solver finds SAT. To make it UNSAT we need a program that is safe
-    # under all inputs — use a program that asserts a tautology.
+    # ast with unconstrained x is unused — test verifies the tautology below.
     ast2 = compile("""
     func tautology(x: int) -> int {
         assert x == x;
@@ -80,13 +78,14 @@ def test_constrained_safe_assertion():
     }
     """)
     bmc = BoundedModelChecker()
-    safe, ce = bmc.verify(ast2, [])
+    safe, _ce = bmc.verify(ast2, [])
     assert safe is True
 
 
 # ---------------------------------------------------------------------------
 # Step 4: Loop unrolling
 # ---------------------------------------------------------------------------
+
 
 def test_loop_with_safe_assertion():
     """A loop that counts up — assert inside loop should be provable safe."""
@@ -100,21 +99,26 @@ def test_loop_with_safe_assertion():
     }
     """)
     bmc = BoundedModelChecker()
-    safe, ce = bmc.verify(ast, [])
+    safe, _ce = bmc.verify(ast, [])
     assert safe is True
 
 
 def test_loop_bound_cap_in_verifier():
     """Verifier must reject a loop whose declared bound exceeds MAX_LOOP_BOUND."""
-    from src.core.verifier import StmtEncoder, SSAEnv
     import z3
-    from src.core.sil_compiler import WhileStmtNode, LiteralNode, AssignmentStmtNode, IdentifierNode, BinaryExprNode
+
+    from src.core.sil_compiler import (
+        LiteralNode,
+        WhileStmtNode,
+    )
+    from src.core.verifier import SSAEnv, StmtEncoder
+
     ctx = z3.Context()
     solver = z3.Solver(ctx=ctx)
     env = SSAEnv(ctx)
     enc = StmtEncoder(ctx, solver, env)
     # Construct a WhileStmtNode with bound > MAX_LOOP_BOUND directly.
-    cond = LiteralNode(False, 'bool')
+    cond = LiteralNode(False, "bool")
     stmt = WhileStmtNode(condition=cond, bound=10_001, body=[])
     with pytest.raises(VerificationError, match="exceeds global cap"):
         enc._encode_stmt(stmt, z3.BoolVal(True, ctx=ctx))
@@ -123,6 +127,7 @@ def test_loop_bound_cap_in_verifier():
 # ---------------------------------------------------------------------------
 # Step 5: Secure cache hash
 # ---------------------------------------------------------------------------
+
 
 def test_cache_is_deterministic():
     """Same AST + axioms must produce the same hash on repeated calls."""
@@ -155,15 +160,16 @@ def test_different_asts_have_different_hashes():
 # Step 10: Constant-time padding
 # ---------------------------------------------------------------------------
 
+
 def test_constant_time_padding_on_safe_path():
     ast = compile("func f(x: int) -> int { return x; }")
     bmc = BoundedModelChecker()
     t0 = time.monotonic()
     bmc.verify(ast, [])
     elapsed = time.monotonic() - t0
-    assert elapsed >= CONSTANT_VERIFICATION_TIME_S * 0.9, (
-        f"Expected >= {CONSTANT_VERIFICATION_TIME_S:.3f}s, got {elapsed:.3f}s"
-    )
+    assert (
+        elapsed >= CONSTANT_VERIFICATION_TIME_S * 0.9
+    ), f"Expected >= {CONSTANT_VERIFICATION_TIME_S:.3f}s, got {elapsed:.3f}s"
 
 
 def test_constant_time_padding_on_unsafe_path():
@@ -177,6 +183,6 @@ def test_constant_time_padding_on_unsafe_path():
     t0 = time.monotonic()
     bmc.verify(ast, [])
     elapsed = time.monotonic() - t0
-    assert elapsed >= CONSTANT_VERIFICATION_TIME_S * 0.9, (
-        f"Expected >= {CONSTANT_VERIFICATION_TIME_S:.3f}s, got {elapsed:.3f}s"
-    )
+    assert (
+        elapsed >= CONSTANT_VERIFICATION_TIME_S * 0.9
+    ), f"Expected >= {CONSTANT_VERIFICATION_TIME_S:.3f}s, got {elapsed:.3f}s"

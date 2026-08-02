@@ -1,108 +1,178 @@
-# Provably Aligned Core (PAAC) v3.0
+# PAAC — Provably Aligned AI Core
 
-[![Paper](https://img.shields.io/badge/Paper-SSRN-blue)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218)
-[![CI Pipeline](https://img.shields.io/badge/build-passing-brightgreen)](#)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+PAAC is a prototype implementation of a formal verification wrapper for
+self-modifying code. It intercepts proposed code changes, compiles them to a
+restricted intermediate language, and verifies them against a set of safety
+axioms using the Z3 SMT solver. Only modifications that pass verification are
+accepted.
 
-## Overview
-The Provably Aligned Core (PAAC) is an enterprise-grade formal verification framework for self-modifying code. Designed for high-assurance execution environments, the system intercepts code modifications dynamically and rigorously verifies them against a set of predefined safety axioms using an SMT (Satisfiability Modulo Theories) solver before allowing deployment.
+This is a research prototype. It is not production-ready. See the status
+section below for what works and what does not.
 
-### Key Features
-* **Bounded Model Checking**: SMT-based AST constraint verification backed by Z3.
-* **Deterministic Rollbacks**: Circuit breakers utilizing in-memory checkpoints with clustered Redis fallback.
-* **Strict SIL Grammar**: Custom LL(1) bounded syntax restricting infinite loops and unchecked recursion.
-* **Format Enforcer**: Heuristic-based constraint validation and code interception.
-* **High-Throughput Caching**: Sub-millisecond verification skipping via AST structural hashing.
+Paper: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218
+License: MIT
 
-## Architecture & Verification Pipeline
+---
 
-PAAC guarantees that any proposed code modification respects predefined invariants before deployment. The architecture operates through a strict verification pipeline:
+## Status
 
-```text
-+-------------------+        +---------------------+        +--------------------+
-|                   |        |                     |        |                    |
-| Code Modification | -----> |   Interceptor API   | -----> |    SIL Compiler    |
-| (JSON Payload)    |        | (Sandbox / Routing) |        | (Syntax & Parsing) |
-|                   |        |                     |        |                    |
-+-------------------+        +---------------------+        +--------------------+
-                                                                      |
-                                                                      v
-+-------------------+        +---------------------+        +--------------------+
-|                   |        |                     |        |                    |
-|   Axiom Database  | -----> |     Z3 Verifier     | <----- |  SIL AST (Target)  |
-| (Safety Policies) |        | (BMC / SMT Solving) |        |                    |
-|                   |        |                     |        |                    |
-+-------------------+        +---------------------+        +--------------------+
-                                        |
-                                        v
-                             +-----------------------+
-                             |                       |
-                             |   Apply Patch / Deny  |
-                             |  (Rollback on Error)  |
-                             |                       |
-                             +-----------------------+
+The system is CONDITIONALLY GO for development and internal testing.
+It is NOT production-ready until Z3 subprocess isolation is hardened with
+container-level memory limits. See DEPLOYMENT.md for details.
+
+What works:
+- SIL compiler: lexer, parser, type checker, call-graph recursion detection
+- Z3 verifier: real BMC pipeline with SSA encoding and loop unrolling
+- Safety axiom loading from YAML
+- Constant-time verification padding (200 ms)
+- Checkpoint and rollback
+- Subprocess isolation for Z3 with OS-level RLIMIT_AS and RLIMIT_CPU
+
+What is not implemented:
+- OS-level read-only memory protection for the PAAC core
+- IPC authentication between the monitor and verifier
+- Formal verification of the PAAC core itself
+- Array bounds checking in the type system
+- Bounded recursion support in SIL
+
+---
+
+## Architecture
+
+```
+Code Modification
+      |
+      v
+Code Monitor  <-- loads axioms from config/axioms.yaml
+      |
+      v
+SIL Compiler  (lexer -> parser -> type checker -> CFG)
+      |
+      v
+Z3 Verifier   (SSA encoding -> loop unrolling -> BMC query)
+      |
+      +-- UNSAT -> modification accepted, checkpoint saved
+      +-- SAT   -> modification rejected, counterexample returned, rollback applied
 ```
 
-1. **SIL Compiler**: A strict, bounded grammar lexer, recursive descent parser, and rigorous type-checker.
-2. **SIL Runtime**: A bounded interpreter for safe execution monitoring, catching memory and boundary violations immediately.
-3. **Z3 Verifier**: A Bounded Model Checker (BMC) translating SIL AST and Axioms into Z3 Constraints, resolving state safely within a 5-second timeout.
-4. **Code Monitor Layer**: Sandbox and interceptor pipeline for checking JSON modifications, simulating outcomes in a containerized environment.
-5. **Format Enforcer**: Audit logging, rigid formatting enforcement, and heuristic text parsing.
-6. **Watchdog**: Fail-safe circuit breaker backed by Redis checkpointing, handling self-healing and recovery logic.
-## Verification Protocol & Threat Model
+The Inner Agent submits code in the Safe Intermediate Language (SIL). SIL is
+a restricted language with bounded integers, booleans, bounded while loops,
+no recursion, and no dynamic memory allocation. These restrictions make the
+verification problem decidable.
 
-For a function `f_new` with precondition `pre_f`, PAAC utilizes Bounded Model Checking (BMC) by unrolling loops up to a declared bound `k` and encoding semantics as a quantifier-free formula. The BMC query operates strictly as:
+---
 
-```math
-BMC(f_{new}, k) = (pre_f) \land (unrolled\_semantics(f_{new}, k)) \land (violation\_flag = true)
-```
+## Safety Axiom Categories
 
-If the solver returns `SAT`, a concrete counterexample is found (the assertion can be violated) and the modification is **rejected**. If it returns `UNSAT`, the modification is **provably safe** for all executions within `k` iterations. 
+Axioms are defined in `config/axioms.yaml` in three categories:
 
-### Security Guarantees
-PAAC provides the following strict guarantees against an adversarial code-generating agent:
-- **Code Integrity**: The Code Monitor and Verification Engine reside in OS-protected read-only memory. Any write attempt immediately terminates the agent.
-- **Verification Bypass Prevention**: The agent has no direct access to the SIL compiler or the Z3 process. All code paths route strictly through the Code Monitor using an authenticated inter-process protocol.
-- **Side-channel Resistance**: The Verification Engine’s execution time is artificially padded to a constant value (e.g., 200ms) to eliminate timing side channels.
-- **Tiny TCB (Trusted Computing Base)**: The entire core logic comprises ~2,000 lines of Python and C, small enough for future formal verification of PAAC itself via tools like Verifiable C or Frama-C.
+- **Behavioral**: constraints on what the code may output or call
+  (e.g., no network access, no calls to exit())
+- **Integrity**: constraints preventing modification of the PAAC core itself
+- **Resource**: bounds on memory and execution time
 
-## Proof-of-Concept Simulation
+Axiom conditions are written as SIL boolean expressions and compiled to Z3
+constraints at verification time.
 
-In our initial threat-model simulations, we evaluated PAAC against generated SIL code patches across multiple scenarios. The system successfully blocked malicious optimizations while permitting mathematically sound improvements with minimal overhead:
+---
 
-| Modification Attempt | Verification Time (ms) | Result |
-| :--- | :--- | :--- |
-| Quicksort optimization (Safe) | 108 ms | **Passed** (`UNSAT`) |
-| Backdoor insertion (Malicious) | 124 ms | **Blocked** (Counterexample found) |
+## Quick Start
 
-This demonstrates PAAC’s ability to distinguish legitimate algorithmic improvements from malicious changes with sub-150ms latency.
-## Requirements
-- Python 3.12+ (Musl libc compatible via Alpine Linux in Production)
-- Z3 Solver (`z3-solver>=5.0.0`)
-- Redis (for Checkpointing)
-- Docker & Docker Compose (for containerized deployment)
+### Docker (recommended)
 
-## Getting Started
-
-### 1. Local Environment
 ```bash
-python -m venv paac-venv
-source paac-venv/bin/activate # (or paac-venv\Scripts\activate on Windows)
+docker run --rm \
+  -e REDIS_HOST=localhost \
+  -e AXIOM_PATH=config/axioms.yaml \
+  --memory=2g \
+  paac:latest \
+  python3.11 -m pytest tests/
+```
+
+### Docker Compose
+
+```bash
+cp .env.example .env
+docker-compose -f docker/docker-compose.yml up --build
+```
+
+### Local
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-### 2. Running Tests
-The framework is fully tested with unit and integration tests (26 passing).
+---
+
+## Configuration
+
+All runtime configuration is via environment variables. See `.env.example`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `REDIS_HOST` | `redis` | Redis hostname for checkpoint storage |
+| `REDIS_PORT` | `6379` | Redis port |
+| `AXIOM_PATH` | `config/axioms.yaml` | Path to axiom definition file |
+| `VERIFICATION_TIMEOUT_MS` | `5000` | Z3 solver timeout per query |
+
+---
+
+## SIL Language Reference
+
+SIL programs consist of one or more function definitions:
+
+```
+func function_name(param: type, ...) -> return_type {
+    statements
+}
+```
+
+Types: `int`, `bool`, `string`, `array`
+
+Statements: assignment, `if`/`else`, `while (...) bound N { }`, `return`, `assert`
+
+Restrictions:
+- No recursion (direct or mutual)
+- All while loops require an explicit integer bound
+- The runtime enforces a global loop bound cap of 10,000 iterations
+- The runtime enforces a global instruction limit of 100,000 steps
+
+Example:
+
+```
+func clamp(x: int, lo: int, hi: int) -> int {
+    if x < lo {
+        return lo;
+    }
+    if x > hi {
+        return hi;
+    }
+    return x;
+}
+```
+
+---
+
+## Running Tests
+
 ```bash
-PYTHONPATH=. pytest tests/
+PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-### 3. Docker Compose (Production Target)
-We deploy PAAC on Alpine Linux with fail-safes pre-configured:
-```bash
-docker-compose -f docker-compose.yml up --build
-```
-This spins up a healthy Redis node alongside the PAAC API. The containers will automatically recover on failure using our Docker `on-failure` policies and periodic health check validations.
+Expected: 24 tests pass.
 
-## Contributing
-All submissions are subject to the same formal verification tests run via our CI pipelines. Pull requests modifying core invariants or the SIL compiler must attach benchmark proofs.
+---
+
+## Known Limitations
+
+See SECURITY.md for the full threat model and guarantee boundaries.
+See DEPLOYMENT.md for deployment prerequisites.
+See KNOWN_ISSUES.md for the current issue list with severities.
+
+The most significant open issue is R-1: Z3 runs in a subprocess with
+RLIMIT_AS and RLIMIT_CPU set, but these limits are not enforced on all
+platforms (macOS restricts RLIMIT_AS). For production deployments, run the
+PAAC service inside a container with `--memory=2g` set at the Docker level.
