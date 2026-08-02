@@ -1,8 +1,8 @@
 """tests/test_axiom_evolution.py — Feature 5: Verified Self-Evolving Axioms"""
-import pytest
 from src.axioms.axiom_parser import Axiom
 from src.core.axiom_evolution import (
-    AxiomEvolutionEngine, AxiomModification,
+    AxiomEvolutionEngine,
+    AxiomModification,
 )
 
 

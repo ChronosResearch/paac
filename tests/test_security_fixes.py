@@ -9,8 +9,6 @@ Tests for the five critical security fixes:
 import multiprocessing
 import secrets
 
-import pytest
-
 from src.axioms.axiom_parser import Axiom
 from src.core.sil_compiler import SILCompiler
 from src.core.verifier import BoundedModelChecker
@@ -125,7 +123,7 @@ def test_cache_not_poisonable_via_attribute_set():
         bmc._cache = poisoned  # property has no setter -- should raise AttributeError
     except AttributeError:
         pass
-    safe, ce = bmc.verify(unsafe_ast, [])
+    safe, _ce = bmc.verify(unsafe_ast, [])
     assert safe is False, "Cache poisoning must not make an unsafe program appear safe"
 
 
@@ -270,5 +268,5 @@ def test_withdraw_axiom_not_applied_to_deposit_end_to_end():
     """)
     bmc = BoundedModelChecker()
     # No applicable axioms for deposit -- must be safe
-    safe, ce = bmc.verify(ast, [])
+    safe, _ce = bmc.verify(ast, [])
     assert safe is True, "deposit with no applicable axioms must be SAFE"

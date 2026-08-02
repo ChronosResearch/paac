@@ -33,7 +33,7 @@ class CircuitBreaker:
                 self.state = "HALF_OPEN"
                 return True
             return False
-        if self.state == "HALF_OPEN":  # noqa: SIM103
+        if self.state == "HALF_OPEN":
             return True
         return False
 

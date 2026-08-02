@@ -1,10 +1,11 @@
 """tests/test_compositional.py — Feature 7: Multi-Agent Coordination Verification"""
-import pytest
 from src.axioms.axiom_parser import Axiom
-from src.core.sil_compiler import SILCompiler
 from src.core.compositional import (
-    AgentModification, CompositionalVerifier, FunctionDependencyGraph,
+    AgentModification,
+    CompositionalVerifier,
+    FunctionDependencyGraph,
 )
+from src.core.sil_compiler import SILCompiler
 
 COMPILER = SILCompiler()
 

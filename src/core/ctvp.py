@@ -37,16 +37,22 @@ from __future__ import annotations
 import copy
 import os
 from dataclasses import dataclass, field
-from typing import Any
 
 from loguru import logger
 
 from src.axioms.axiom_parser import Axiom
-from src.core.exceptions import VerificationError
 from src.core.sil_compiler import (
-    ASTNode, AssertStmtNode, AssignmentStmtNode, BinaryExprNode,
-    FuncDefNode, IdentifierNode, LiteralNode, ProgramNode,
-    ReturnStmtNode, UnaryExprNode, WhileStmtNode, IfStmtNode,
+    AssertStmtNode,
+    AssignmentStmtNode,
+    ASTNode,
+    BinaryExprNode,
+    IdentifierNode,
+    IfStmtNode,
+    LiteralNode,
+    ProgramNode,
+    ReturnStmtNode,
+    UnaryExprNode,
+    WhileStmtNode,
 )
 from src.core.verifier import BoundedModelChecker
 
@@ -88,13 +94,18 @@ def _rename_vars(prog: ProgramNode) -> ProgramNode:
         counter = [0]
         param_names = {p.name for p in func.params}
 
-        def _new_name(old: str) -> str:
-            if old in param_names:
+        def _new_name(
+            old: str,
+            _pn: set = param_names,
+            _m: dict = mapping,
+            _c: list = counter,
+        ) -> str:
+            if old in _pn:
                 return old
-            if old not in mapping:
-                mapping[old] = f"v{counter[0]}"
-                counter[0] += 1
-            return mapping[old]
+            if old not in _m:
+                _m[old] = f"v{_c[0]}"
+                _c[0] += 1
+            return _m[old]
 
         def _rename_node(node: ASTNode) -> ASTNode:
             if isinstance(node, IdentifierNode):
@@ -241,7 +252,7 @@ class CTVPEngine:
     consistency to detect semantic backdoors.
     """
 
-    VARIANTS = [
+    VARIANTS: list = [
         ("original", lambda p: p),
         ("renamed", _rename_vars),
         ("simplified", _algebraic_simplify),
@@ -275,7 +286,7 @@ class CTVPEngine:
                     safe=safe,
                     counterexample=str(ce) if ce else None,
                 ))
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 results.append(VariantResult(
                     variant_name=name,
                     safe=True,   # fail-open for transform errors

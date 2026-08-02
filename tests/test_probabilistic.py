@@ -1,9 +1,10 @@
 """tests/test_probabilistic.py — Feature 1: Probabilistic Verification"""
-import pytest
-from src.core.sil_compiler import SILCompiler
 from src.core.probabilistic import (
-    ProbabilisticAxiom, ProbabilisticVerifier, load_probabilistic_axioms,
+    ProbabilisticAxiom,
+    ProbabilisticVerifier,
+    load_probabilistic_axioms,
 )
+from src.core.sil_compiler import SILCompiler
 
 COMPILER = SILCompiler()
 

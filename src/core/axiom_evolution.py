@@ -41,16 +41,15 @@ import hashlib
 import json
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any
 
 import z3
 from loguru import logger
 
 from src.axioms.axiom_parser import Axiom
-from src.core.exceptions import VerificationError
-from src.core.sil_compiler import SILCompiler, AssertStmtNode
-from src.core.verifier import SSAEnv, ExprEncoder, _encode_axiom
+from src.core.sil_compiler import SILCompiler
+from src.core.verifier import SSAEnv, _encode_axiom
 
 _HISTORY_PATH = os.environ.get("PAAC_AXIOM_HISTORY_PATH", "axiom_history.jsonl")
 
@@ -250,14 +249,7 @@ class AxiomEvolutionEngine:
         param_str = ", ".join(f"{v}: int" for v in sorted(vars_used))
 
         # Encode: new_cond holds AND old_cond does NOT hold.
-        sil_new = (
-            f"func _new_check({param_str}) -> bool "
-            f"{{ assert {new_condition}; return true; }}"
-        )
-        sil_old = (
-            f"func _old_check({param_str}) -> bool "
-            f"{{ assert {old_condition}; return true; }}"
-        )
+        # (SIL wrappers are built for reference but Z3 encoding is done directly below.)
 
         try:
             ctx = z3.Context()
@@ -317,7 +309,7 @@ class AxiomEvolutionEngine:
                     message="Z3 returned unknown — rejecting (fail-closed).",
                 )
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return AxiomEvolutionResult(
                 accepted=False,
                 old_condition=old_condition,

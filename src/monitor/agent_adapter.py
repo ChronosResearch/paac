@@ -67,5 +67,5 @@ class AgentAdapter:
             )
         except json.JSONDecodeError:
             raise RuntimeError("Agent failed to return valid JSON.")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise RuntimeError(f"Agent failed to propose modification: {e}")

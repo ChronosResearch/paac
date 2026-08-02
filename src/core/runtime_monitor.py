@@ -30,20 +30,31 @@ RuntimeSafetyViolation triggers:
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from loguru import logger
 
 from src.axioms.axiom_parser import Axiom
 from src.core.exceptions import SafetyViolationError
 from src.core.sil_compiler import (
-    ASTNode, AssertStmtNode, AssignmentStmtNode, BinaryExprNode,
-    FuncDefNode, IdentifierNode, IfStmtNode, LiteralNode, ProgramNode,
-    ReturnStmtNode, UnaryExprNode, WhileStmtNode, ArrayAccessNode,
+    ArrayAccessNode,
+    AssertStmtNode,
+    AssignmentStmtNode,
+    ASTNode,
+    BinaryExprNode,
     CallExprNode,
+    FuncDefNode,
+    IdentifierNode,
+    IfStmtNode,
+    LiteralNode,
+    ProgramNode,
+    ReturnStmtNode,
+    UnaryExprNode,
+    WhileStmtNode,
 )
-from src.core.sil_runtime import SILRuntime, SILRuntimeError, SILReturn
+from src.core.sil_runtime import SILReturn, SILRuntimeError
 
 
 class RuntimeSafetyViolation(SafetyViolationError):
@@ -87,9 +98,9 @@ def _eval_axiom_condition(condition: str, env: dict[str, Any]) -> bool:
         .replace(" not ", " not ")
     )
     try:
-        result = eval(py_cond, {"__builtins__": {}}, dict(env))  # noqa: S307
+        result = eval(py_cond, {"__builtins__": {}}, dict(env))
         return bool(result)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return True  # variable not in scope → axiom inapplicable → skip
 
 

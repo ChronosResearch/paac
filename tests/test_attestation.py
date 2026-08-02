@@ -1,11 +1,12 @@
 """tests/test_attestation.py — Feature 3: Cryptographic Attestation"""
 import json
-import pytest
-from src.core.attestation import (
-    AttestationEngine, AttestationRecord,
-    attest_verification, verify_attestation,
-)
 
+from src.core.attestation import (
+    AttestationEngine,
+    AttestationRecord,
+    attest_verification,
+    verify_attestation,
+)
 
 # ---------------------------------------------------------------------------
 # Basic generation and verification
@@ -15,6 +16,7 @@ def test_attest_safe_program():
     """Attestation for a safe (UNSAT) result must be generated and verify."""
     engine = AttestationEngine()
     record = engine.attest(
+        modification_id="test_safe",
         program_hash="abc123",
         axiom_hash="def456",
         safe=True,
@@ -30,6 +32,7 @@ def test_attest_unsafe_program():
     """Attestation for an unsafe (SAT) result must include ce_hash."""
     engine = AttestationEngine()
     record = engine.attest(
+        modification_id="test_unsafe",
         program_hash="abc123",
         axiom_hash="def456",
         safe=False,
@@ -44,9 +47,10 @@ def test_attest_unsafe_program():
 def test_tampered_result_fails_verification():
     """Modifying the result field must invalidate the commitment."""
     engine = AttestationEngine()
-    record = engine.attest("h1", "h2", True, None)
+    record = engine.attest("mod_h1", "h1", "h2", True, None)
     # Tamper with the result.
     tampered = AttestationRecord(
+        modification_id=record.modification_id,
         program_hash=record.program_hash,
         axiom_hash=record.axiom_hash,
         result="SAT",           # changed from UNSAT
@@ -60,8 +64,9 @@ def test_tampered_result_fails_verification():
 def test_tampered_program_hash_fails():
     """Modifying program_hash must invalidate the commitment."""
     engine = AttestationEngine()
-    record = engine.attest("original_hash", "ax_hash", True, None)
+    record = engine.attest("mod_orig", "original_hash", "ax_hash", True, None)
     tampered = AttestationRecord(
+        modification_id=record.modification_id,
         program_hash="tampered_hash",
         axiom_hash=record.axiom_hash,
         result=record.result,
@@ -77,8 +82,8 @@ def test_different_keys_produce_different_commitments():
     import secrets
     engine1 = AttestationEngine(key=secrets.token_bytes(32))
     engine2 = AttestationEngine(key=secrets.token_bytes(32))
-    r1 = engine1.attest("h", "a", True, None)
-    r2 = engine2.attest("h", "a", True, None)
+    r1 = engine1.attest("mod_e1", "h", "a", True, None)
+    r2 = engine2.attest("mod_e2", "h", "a", True, None)
     assert r1.commitment != r2.commitment
 
 
@@ -87,13 +92,13 @@ def test_cross_engine_verification_fails():
     import secrets
     engine1 = AttestationEngine(key=secrets.token_bytes(32))
     engine2 = AttestationEngine(key=secrets.token_bytes(32))
-    record = engine1.attest("h", "a", True, None)
+    record = engine1.attest("mod_e1b", "h", "a", True, None)
     assert engine2.verify(record) is False
 
 
 def test_module_level_functions():
     """Module-level attest_verification and verify_attestation must work."""
-    record = attest_verification("ph", "ah", True, None)
+    record = attest_verification("mod_test", "ph", "ah", True, None)
     assert verify_attestation(record) is True
 
 
@@ -114,7 +119,7 @@ def test_hash_axioms_order_independent():
 def test_record_to_dict_serializable():
     """AttestationRecord.to_dict() must be JSON-serializable."""
     engine = AttestationEngine()
-    record = engine.attest("h", "a", False, "ce_text")
+    record = engine.attest("mod_ce", "h", "a", False, "ce_text")
     d = record.to_dict()
     json_str = json.dumps(d)
     assert "commitment" in json_str
@@ -125,5 +130,5 @@ def test_timestamp_is_recent():
     """Attestation timestamp must be a recent Unix timestamp."""
     import time
     engine = AttestationEngine()
-    record = engine.attest("h", "a", True, None)
+    record = engine.attest("mod_safe", "h", "a", True, None)
     assert abs(record.timestamp - time.time()) < 5.0

@@ -1,11 +1,12 @@
 """tests/test_ctvp.py — Feature 4: Cross-Trace Semantic Verification (CTVP)"""
-import pytest
-from src.core.sil_compiler import SILCompiler
 from src.core.ctvp import (
-    CTVPEngine, CTVPResult,
-    _rename_vars, _algebraic_simplify, _increase_loop_bound,
+    CTVPEngine,
+    _algebraic_simplify,
+    _increase_loop_bound,
+    _rename_vars,
     _split_conjunctive_asserts,
 )
+from src.core.sil_compiler import SILCompiler
 
 COMPILER = SILCompiler()
 
@@ -27,8 +28,14 @@ def test_rename_vars_produces_valid_ast():
 def test_algebraic_simplify_removes_identity():
     """x + 0 should be simplified to x."""
     from src.core.sil_compiler import (
-        BinaryExprNode, IdentifierNode, LiteralNode, AssignmentStmtNode,
-        ReturnStmtNode, FuncDefNode, ProgramNode, ParamNode,
+        AssignmentStmtNode,
+        BinaryExprNode,
+        FuncDefNode,
+        IdentifierNode,
+        LiteralNode,
+        ParamNode,
+        ProgramNode,
+        ReturnStmtNode,
     )
     ast = ProgramNode(functions=[FuncDefNode(
         name="f",
@@ -66,8 +73,14 @@ def test_increase_loop_bound():
 def test_split_conjunctive_asserts():
     """assert (a and b) should split into assert a; assert b."""
     from src.core.sil_compiler import (
-        AssertStmtNode, BinaryExprNode, IdentifierNode,
-        FuncDefNode, ProgramNode, ParamNode, ReturnStmtNode, LiteralNode,
+        AssertStmtNode,
+        BinaryExprNode,
+        FuncDefNode,
+        IdentifierNode,
+        LiteralNode,
+        ParamNode,
+        ProgramNode,
+        ReturnStmtNode,
     )
     ast = ProgramNode(functions=[FuncDefNode(
         name="f",

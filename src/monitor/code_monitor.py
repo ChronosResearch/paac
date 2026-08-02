@@ -20,7 +20,6 @@ from ..core.exceptions import (
     CompilationError,
     ConfigurationError,
     GroundingError,
-    PAACError,
     VerificationError,
 )
 from ..core.failsafe import (
@@ -35,7 +34,9 @@ from ..core.failsafe import (
 from ..core.sil_compiler import SILCompiler
 from ..core.tcb_protect import protect_tcb
 from ..core.verifier import BoundedModelChecker
-from ..core.verifier import VerificationError as _VerifierError  # same class via re-export
+from ..core.verifier import (
+    VerificationError as _VerifierError,  # same class via re-export
+)
 
 # Audit logger — writes counterexamples and rejections to a persistent file.
 _audit_logger = logging.getLogger("paac.audit")
@@ -64,7 +65,7 @@ class CodeModification:
 
 class CodeMonitor:
     # In-process function registry: func_name -> current live code string.
-    _live_registry: dict[str, str] = {}
+    _live_registry: dict[str, str] = {}  # noqa: RUF012
 
     # Shared circuit breaker — one instance per process.
     _circuit_breaker: CircuitBreaker = CircuitBreaker()

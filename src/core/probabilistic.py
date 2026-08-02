@@ -30,16 +30,14 @@ from __future__ import annotations
 import os
 import random
 from dataclasses import dataclass, field
-from typing import Any
 
 import yaml
 import z3
 from loguru import logger
 
-from src.axioms.axiom_parser import Axiom, AxiomParser
-from src.core.exceptions import VerificationError
-from src.core.sil_compiler import SILCompiler, ProgramNode
-from src.core.verifier import SSAEnv, StmtEncoder, ExprEncoder, _encode_axiom
+from src.axioms.axiom_parser import Axiom
+from src.core.sil_compiler import ProgramNode, SILCompiler
+from src.core.verifier import SSAEnv, StmtEncoder, _encode_axiom
 
 _DOMAIN: int = int(os.environ.get("PAAC_PROB_DOMAIN", "100"))
 _SAMPLES: int = int(os.environ.get("PAAC_PROB_SAMPLES", "200"))

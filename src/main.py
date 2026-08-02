@@ -1,7 +1,8 @@
 """
-PAAC FastAPI application.
+PAAC FastAPI application — v5.0.0
 Steps 39-50: health, metrics, rate limiting, API key auth, request validation.
 Steps 76-85: Prometheus metrics, structured logging.
+v5.0.0: bootstrap self-verification, cryptographic attestation, multi-agent.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ if _mp.get_start_method(allow_none=True) != "spawn":
     _mp.set_start_method("spawn", force=True)
 
 import os
+import re as _re
 import secrets
 import sys
 import time
@@ -26,11 +28,13 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from loguru import logger
 from pydantic import BaseModel, field_validator
 
+from .core.attestation import get_engine as get_attest_engine
+from .core.self_verify import get_self_verifier
 from .monitor.code_monitor import CodeModification, CodeMonitor
 from .monitor.watchdog import Watchdog
 
 # ---------------------------------------------------------------------------
-# Structured JSON logging (Step 76)
+# Structured JSON logging
 # ---------------------------------------------------------------------------
 
 logger.remove()
@@ -47,7 +51,7 @@ logger.add(
 logger.add("paac_core.log", rotation="10 MB", level="DEBUG", serialize=True)
 
 # ---------------------------------------------------------------------------
-# Prometheus metrics (Steps 77-81)
+# Prometheus metrics
 # ---------------------------------------------------------------------------
 
 try:
@@ -55,10 +59,6 @@ try:
         Counter,
         Gauge,
         Histogram,
-        generate_latest,
-        CONTENT_TYPE_LATEST,
-        CollectorRegistry,
-        REGISTRY,
     )
     _PROM_AVAILABLE = True
     _verifications_total = Counter(
@@ -78,6 +78,12 @@ try:
     _active_verifications = Gauge(
         "active_verifications", "Currently active verification requests"
     )
+    _attestations_total = Counter(
+        "attestations_total", "Total attestations generated"
+    )
+    _self_verify_total = Counter(
+        "self_verify_total", "Total self-verification runs", ["result"]
+    )
 except ImportError:
     _PROM_AVAILABLE = False
 
@@ -92,13 +98,13 @@ except FileNotFoundError:
     config = {}
 
 # ---------------------------------------------------------------------------
-# API key auth (Step 40)
+# API key auth
 # ---------------------------------------------------------------------------
 
 _API_KEY = os.environ.get("PAAC_API_KEY", "")
 
 # ---------------------------------------------------------------------------
-# Rate limiting (Steps 39, 87): 100 req/min per IP
+# Rate limiting: 100 req/min per IP
 # ---------------------------------------------------------------------------
 
 _RATE_LIMIT = int(os.environ.get("PAAC_RATE_LIMIT", "100"))
@@ -108,9 +114,7 @@ _rate_counters: dict[str, list[float]] = defaultdict(list)
 
 def _check_rate_limit(ip: str) -> bool:
     now = time.monotonic()
-    window = _rate_counters[ip]
-    # Evict old entries
-    _rate_counters[ip] = [t for t in window if now - t < _RATE_WINDOW_S]
+    _rate_counters[ip] = [t for t in _rate_counters[ip] if now - t < _RATE_WINDOW_S]
     if len(_rate_counters[ip]) >= _RATE_LIMIT:
         return False
     _rate_counters[ip].append(now)
@@ -118,10 +122,8 @@ def _check_rate_limit(ip: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Input sanitization (Step 88): reject non-SIL characters
+# Input sanitization: reject non-SIL characters
 # ---------------------------------------------------------------------------
-
-import re as _re
 
 _SIL_SAFE_RE = _re.compile(r'^[\x20-\x7E\n\r\t]*$')
 
@@ -138,17 +140,32 @@ def _sanitize_sil(code: str) -> str:
 
 app = FastAPI(
     title="PAAC API",
-    description="Provably Aligned Core Verification API v4.1",
-    version="4.1.0",
+    description="Provably Aligned Core Verification API v5.0.0",
+    version="5.0.0",
 )
 
 monitor = CodeMonitor(config)
 watchdog = Watchdog(config)
 watchdog.start()
 
+# Bootstrap self-verification on startup (if configured)
+_bootstrap_cfg = config.get("bootstrap_verification", {})
+if _bootstrap_cfg.get("run_on_startup", False):
+    try:
+        sv = get_self_verifier()
+        _sv_result = sv.run()
+        if not _sv_result.passed:
+            logger.error(
+                f"Startup self-verification FAILED: {_sv_result.message}"
+            )
+        else:
+            logger.info(f"Startup self-verification PASSED: {_sv_result.message}")
+    except Exception as _sv_exc:  # noqa: BLE001
+        logger.warning(f"Startup self-verification error (non-fatal): {_sv_exc}")
+
 
 # ---------------------------------------------------------------------------
-# Middleware: rate limiting + API key (Steps 39-40)
+# Middleware: rate limiting + API key
 # ---------------------------------------------------------------------------
 
 @app.middleware("http")
@@ -157,7 +174,7 @@ async def security_middleware(request: Request, call_next):
     if request.url.path in ("/health", "/metrics"):
         return await call_next(request)
 
-    # API key check (A-03 fix: constant-time comparison via secrets.compare_digest)
+    # API key check (A-03: constant-time comparison)
     if _API_KEY:
         key = request.headers.get("X-API-Key", "")
         if not secrets.compare_digest(key, _API_KEY):
@@ -178,7 +195,7 @@ async def security_middleware(request: Request, call_next):
 
 
 # ---------------------------------------------------------------------------
-# Request model with validation (Step 41)
+# Request models
 # ---------------------------------------------------------------------------
 
 class ModificationRequest(BaseModel):
@@ -206,7 +223,7 @@ class ModificationRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Endpoints
+# Core endpoints
 # ---------------------------------------------------------------------------
 
 @app.post("/verify")
@@ -230,6 +247,25 @@ async def verify_modification(req: ModificationRequest, request: Request):
             if outcome == "error":
                 _verification_errors_total.inc()
 
+        # Generate attestation if enabled and accepted
+        attest_cfg = config.get("attestation", {})
+        if attest_cfg.get("enabled", True) and result.get("status") == "accepted":
+            try:
+                import hashlib
+                engine = get_attest_engine()
+                prog_hash = hashlib.sha256(req.new_code.encode()).hexdigest()
+                axiom_hash = engine.hash_axioms(
+                    [a.condition for a in monitor.axioms]
+                )
+                mod_id = f"{req.func_name}:{int(time.time())}"
+                record = engine.attest(mod_id, prog_hash, axiom_hash, True, None)
+                result["attestation_id"] = mod_id
+                result["attestation_commitment"] = record.commitment[:16] + "..."
+                if _PROM_AVAILABLE:
+                    _attestations_total.inc()
+            except Exception as _ae:  # noqa: BLE001
+                logger.warning(f"Attestation generation failed (non-fatal): {_ae}")
+
         return result
     except Exception as exc:  # noqa: BLE001
         elapsed = time.monotonic() - start
@@ -245,8 +281,7 @@ async def verify_modification(req: ModificationRequest, request: Request):
 
 @app.get("/health")
 async def health():
-    """Step 42: Health endpoint — returns healthy/degraded/unhealthy."""
-    from .core.failsafe import CircuitBreaker
+    """Health endpoint — returns healthy/degraded/unhealthy."""
     cb_state = CodeMonitor._circuit_breaker.state
 
     if cb_state == "OPEN":
@@ -259,32 +294,156 @@ async def health():
         status = "healthy"
         http_code = 200
 
+    # Include self-verification status if available
+    sv = get_self_verifier()
+    sv_result = sv.last_result
+    sv_status = (
+        "passed" if sv_result and sv_result.passed
+        else "failed" if sv_result and not sv_result.passed
+        else "not_run"
+    )
+
+    attest_metrics = get_attest_engine().metrics()
+
     return JSONResponse(
         status_code=http_code,
         content={
             "status": status,
+            "version": "5.0.0",
             "circuit_breaker": cb_state,
             "axioms_loaded": len(monitor.axioms),
             "registry_size": len(CodeMonitor._live_registry),
+            "self_verification": sv_status,
+            "attestation": attest_metrics,
         },
     )
 
 
 @app.get("/metrics")
 async def metrics():
-    """Step 77/85: Prometheus metrics endpoint."""
+    """Prometheus metrics endpoint."""
     if not _PROM_AVAILABLE:
         return PlainTextResponse(
             "# prometheus_client not installed\n", media_type="text/plain"
         )
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
     data = generate_latest()
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 
+# ---------------------------------------------------------------------------
+# Bootstrap self-verification endpoint
+# ---------------------------------------------------------------------------
+
+@app.post("/self-verify")
+async def self_verify_endpoint():
+    """
+    Run bootstrap self-verification of the PAAC TCB.
+
+    Translates TCB function contracts to SIL stubs and verifies them
+    against PAAC's own structural invariants.
+    """
+    sv = get_self_verifier()
+    result = sv.run()
+
+    if _PROM_AVAILABLE:
+        _self_verify_total.labels(result="passed" if result.passed else "failed").inc()
+
+    return {
+        "passed": result.passed,
+        "stage": result.stage,
+        "elapsed_ms": round(result.elapsed_ms, 1),
+        "stubs_verified": len(result.stub_results),
+        "stubs_failed": sum(1 for v in result.stub_results.values() if not v),
+        "message": result.message,
+        "counterexamples": result.counterexamples,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Attestation endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/attest/{modification_id}")
+async def get_attestation(modification_id: str):
+    """
+    Retrieve the attestation record for a given modification ID.
+    Returns the full HMAC-SHA256 commitment and metadata.
+    """
+    engine = get_attest_engine()
+    record = engine.get(modification_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No attestation found for modification_id={modification_id!r}.",
+        )
+    return record.to_dict()
+
+
+@app.post("/attest/verify")
+async def verify_attestation_endpoint(record_data: dict):
+    """
+    Verify an attestation record submitted by a third party.
+    Returns {valid: true/false}.
+    """
+    from .core.attestation import AttestationRecord, verify_attestation
+    try:
+        record = AttestationRecord.from_dict(record_data)
+        valid = verify_attestation(record)
+        return {"valid": valid}
+    except (KeyError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid attestation record: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Multi-agent endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/agents")
+async def list_agents():
+    """List all registered agents and their status."""
+    from .core.compositional import CompositionalVerifier
+    # Use a module-level verifier instance
+    verifier = _get_compositional_verifier()
+    statuses = verifier.agent_statuses()
+    metrics = verifier.metrics()
+    return {
+        "agents": [
+            {
+                "agent_id": s.agent_id,
+                "active_func": s.active_func,
+                "queued_count": s.queued_count,
+                "last_seen": s.last_seen,
+            }
+            for s in statuses
+        ],
+        "metrics": metrics,
+    }
+
+
+# Module-level compositional verifier singleton
+_compositional_verifier = None
+_cv_lock = __import__("threading").Lock()
+
+
+def _get_compositional_verifier():
+    global _compositional_verifier
+    with _cv_lock:
+        if _compositional_verifier is None:
+            from .core.compositional import CompositionalVerifier
+            _compositional_verifier = CompositionalVerifier(
+                timeout_ms=config.get("verification_timeout_ms", 5000)
+            )
+    return _compositional_verifier
+
+
+# ---------------------------------------------------------------------------
+# Exception handler and shutdown
+# ---------------------------------------------------------------------------
+
 @app.exception_handler(Exception)
 async def panic_hook(request: Request, exc: Exception):
-    """Step 63: Panic hook — log unhandled exceptions with ERROR level."""
+    """Panic hook — log unhandled exceptions with ERROR level."""
     logger.error(
         f"PANIC: unhandled exception on {request.url.path}: "
         f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"

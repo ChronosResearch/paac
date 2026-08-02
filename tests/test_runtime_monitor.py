@@ -1,8 +1,12 @@
 """tests/test_runtime_monitor.py — Feature 6: Runtime Verification"""
 import pytest
+
 from src.axioms.axiom_parser import Axiom
+from src.core.runtime_monitor import (
+    RuntimeMonitor,
+    RuntimeSafetyViolation,
+)
 from src.core.sil_compiler import SILCompiler
-from src.core.runtime_monitor import RuntimeMonitor, RuntimeSafetyViolation, RuntimeTrace
 
 COMPILER = SILCompiler()
 
