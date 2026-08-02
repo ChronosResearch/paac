@@ -2,11 +2,12 @@
 # This file is part of the PAAC (Provably Aligned Core) project.
 # See LICENSE for terms.
 
+import os
 import threading
 import time
-import os
+
 from loguru import logger
-from ..core.exceptions import SelfHealingError
+
 
 class Watchdog:
     def __init__(self, config):
@@ -37,23 +38,26 @@ class Watchdog:
     def _monitor_loop(self):
         redis_host = os.environ.get("REDIS_HOST", "redis")
         import redis
+
         try:
             r = redis.Redis(host=redis_host, port=6379, socket_timeout=0.1)
-        except Exception:
+        except Exception:  # noqa: BLE001
             r = None
-            
+
         while self.running:
             time.sleep(self.interval)
             elapsed = time.time() - self.last_heartbeat
-            
+
             # Redis Health Check
             if r:
                 try:
                     r.ping()
-                except Exception as e:
-                    logger.warning(f"Watchdog: Redis connection lost ({e}). CodeMonitor will degrade to in-memory mode.")
-                    r = None # Stop pinging to avoid blocking the watchdog loop
-            
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(
+                        f"Watchdog: Redis connection lost ({e}). CodeMonitor will degrade to in-memory mode."
+                    )
+                    r = None  # Stop pinging to avoid blocking the watchdog loop
+
             if elapsed > self.timeout:
                 logger.error(f"Watchdog timeout: {elapsed}s since last heartbeat.")
                 self._trigger_recovery()

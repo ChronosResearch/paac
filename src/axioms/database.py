@@ -2,8 +2,10 @@
 # This file is part of the PAAC (Provably Aligned Core) project.
 # See LICENSE for terms.
 
-import yaml
 import os
+
+import yaml
+
 
 class AxiomDatabase:
     def __init__(self, config_dir="config"):
@@ -15,7 +17,7 @@ class AxiomDatabase:
     def _load_yaml(self, path):
         if not os.path.exists(path):
             return {}
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             return yaml.safe_load(f)
 
     def get_axioms_by_category(self, category: str):
