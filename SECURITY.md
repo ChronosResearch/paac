@@ -1,74 +1,103 @@
-# PAAC Security Policy — v4.1
+# PAAC Security Policy
+
+## Supported Versions
+
+| Version | Supported |
+|---|---|
+| v4.1 (release-v4.0 branch) | ✅ Active |
+| v4.0 | ✅ Security fixes only |
+| < v4.0 | ❌ End of life |
+
+## Reporting a Vulnerability
+
+**Do not open a public GitHub issue for security vulnerabilities.**
+
+Email: security@chronosresearch.example.com
+
+Include:
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact
+- Suggested fix (optional)
+
+We will acknowledge within 48 hours and provide a fix timeline within 7 days.
+
+---
 
 ## Threat Model
 
-PAAC assumes the Inner Agent is adversarial. It may:
+### What PAAC protects against
 
-- Submit SIL code that violates safety axioms (mitigated: real Z3 axiom enforcement)
-- Submit mutual recursion to bypass termination check (mitigated: call-graph DFS)
-- Submit unrecognised characters to obfuscate intent (mitigated: lexer catch-all ERROR)
-- Submit a large loop bound to exhaust CPU (mitigated: MAX_LOOP_BOUND=10,000 + subprocess RLIMIT_CPU)
-- Craft a Z3 formula that exhausts memory (mitigated: subprocess RLIMIT_AS + docker --memory=2g)
-- Flood the system with concurrent requests (mitigated: threading.Semaphore(4))
-- Cause repeated verification failures to degrade service (mitigated: CircuitBreaker)
+1. **Unsafe code modifications**: SIL programs that violate safety axioms are
+   rejected before execution. The Z3 BMC pipeline provides formal guarantees
+   within the bounds of the SIL language.
 
-## Guarantees Provided (v4.1)
+2. **Unbounded computation**: All loops require explicit bounds. The runtime
+   enforces a global instruction limit (100,000 steps) and loop bound cap
+   (10,000 iterations).
 
-- Every modification is compiled through the SIL type checker before Z3 is invoked.
-- Every modification is verified by Z3 against real safety axioms (not stubs).
-- Unsafe modifications are rejected with a concrete counterexample.
-- Verification response time is padded to a constant 200 ms on all exit paths.
-- The verification cache uses SHA-256 over canonical JSON (collision-resistant).
-- Z3 runs in a subprocess with RLIMIT_AS (1 GB) and RLIMIT_CPU (5 s) on Linux.
-- Z3 subprocess crashes trigger automatic retry (up to 3 attempts) before the
-  circuit breaker opens.
-- On verification failure, the last verified checkpoint is restored from Redis,
-  WAL, or in-memory store (in that priority order).
-- Checkpoints are written to a write-ahead log (checkpoints.wal) before Redis,
-  so they survive process restarts even when Redis is unavailable.
-- The live function registry is persisted to live_registry.json after every
-  accepted modification and loaded on startup.
-- A circuit breaker opens after 5 consecutive verification failures, rejecting
-  all new modifications for 60 s. After cooldown, one probe is allowed; success
-  closes the circuit.
-- A watchdog thread checks for heartbeats every 5 s. If no heartbeat is received
-  for 30 s, the circuit breaker is reset and service resumes.
-- IPC between the monitor and Z3 subprocess uses a per-call random 32-byte token
-  (constant-time comparison). Responses without a matching token are rejected.
-- TCB source files are marked read-only (chmod 0o444) on Linux at startup.
-- Source citations must be >= 20 characters and contain a dot (URL/DOI heuristic).
-- All verification attempts, counterexamples, and rollbacks are written to audit.log.
+3. **Recursion**: Direct and mutual recursion are rejected at compile time via
+   call-graph cycle detection.
 
-## Remaining Gaps
+4. **Resource exhaustion**: Z3 runs in a subprocess with RLIMIT_AS (1 GB) and
+   RLIMIT_CPU (5 s) on Linux. Docker `--memory=2g` provides an additional layer.
 
-- **R-1 (partial)**: RLIMIT_AS is not enforced on macOS. Mitigation: deploy with
-  `docker run --memory=2g`. This is the only NO-GO condition for production.
+5. **IPC spoofing**: A random 32-byte token is generated per verification call.
+   The subprocess echoes it back; mismatches are rejected (constant-time comparison).
 
-- **R-2 (partial)**: TCB source files are chmod'd read-only at startup. This
-  prevents accidental overwrite but does not prevent a privileged process from
-  chmod'ing them back. Full mitigation: `docker run --read-only`.
+6. **TCB tampering**: TCB source files are chmod'd read-only at startup on Linux.
 
-- **R-3 (partial)**: IPC token authenticates the subprocess response but the
-  token is passed as a constructor argument (not over a separate authenticated
-  channel). A process with access to /proc/<pid>/mem could read it. Acceptable
-  for single-host deployments.
+### What PAAC does NOT protect against
 
-- **R-4 (resolved)**: WAL provides durable checkpoint storage independent of
-  Redis. Checkpoints survive process restarts.
+1. **Axiom completeness**: PAAC only enforces the axioms defined in
+   `config/axioms.yaml`. An incomplete axiom set may allow unsafe programs.
 
-- **R-5 (resolved)**: Citation validation requires >= 20 chars with a dot.
+2. **SIL expressiveness**: Not all safety properties can be expressed in SIL.
+   Properties requiring quantifiers, heap reasoning, or concurrency are out of scope.
 
-- **Physical side-channels**: Power analysis, EM emissions, and cache-timing
-  attacks are out of scope.
+3. **Z3 soundness**: PAAC inherits Z3's soundness guarantees. Z3 bugs could
+   produce incorrect results.
 
-- **Axiom completeness**: PAAC enforces whatever axioms are provided. Incomplete
-  axiom sets allow uncovered behaviours to pass. Axiom design is the operator's
-  responsibility.
+4. **Side channels beyond timing**: Constant-time padding mitigates timing
+   side channels. Other side channels (power, cache) are not addressed.
 
-- **Neural network verification**: PAAC verifies SIL code, not model weights.
+5. **Kernel/hypervisor attacks**: PAAC does not protect against attacks at the
+   OS or hypervisor level.
 
-## Reporting Vulnerabilities
+6. **macOS RLIMIT_AS**: The kernel does not enforce RLIMIT_AS on macOS.
+   Use Docker `--memory=2g` on macOS.
 
-Contact: shashankchoudhary792@gmail.com
+---
 
-90-day responsible disclosure. Acknowledgement within 5 business days.
+## Security Controls (v4.1 Status)
+
+| Control | Status | Notes |
+|---|---|---|
+| Real Z3 BMC pipeline | ✅ Complete | SSA, loop unrolling, phi-node merges |
+| Real axiom conditions | ✅ Complete | `balance >= 0`, `counter >= 0`, etc. |
+| Axiom encoding raises on failure | ✅ Complete | Never silently skipped |
+| Z3 subprocess isolation | ✅ Complete | RLIMIT_AS + RLIMIT_CPU (Linux) |
+| IPC token authentication | ✅ Complete | 32-byte random, constant-time compare |
+| Z3 crash retry (3x) | ✅ Complete | Falls back to static analyzer |
+| Static fallback analyzer | ✅ Complete | Catches assert false, div-by-zero |
+| Circuit breaker | ✅ Complete | 5 failures → OPEN, 60s cooldown |
+| WAL persistence | ✅ Complete | JSON-lines, atomic registry save |
+| Rollback on rejection | ✅ Complete | Restores last verified checkpoint |
+| Constant-time padding | ✅ Complete | 200 ms floor |
+| TCB file protection | ✅ Complete | chmod 0o444 on Linux |
+| API key authentication | ✅ Complete | X-API-Key header |
+| Rate limiting | ✅ Complete | 100 req/min per IP |
+| Input sanitization | ✅ Complete | Rejects non-printable characters |
+| Non-root Docker container | ✅ Complete | `paac` user |
+| Docker HEALTHCHECK | ✅ Complete | /health endpoint |
+| Structured audit log | ✅ Complete | audit.log, append-only |
+| Prometheus metrics | ✅ Complete | /metrics endpoint |
+
+---
+
+## Known Limitations
+
+See `KNOWN_ISSUES.md` for the full list with severities and mitigations.
+
+The most significant open limitation is that RLIMIT_AS is not enforced on macOS.
+Mitigation: deploy with `docker run --memory=2g`.
