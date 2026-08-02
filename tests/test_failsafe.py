@@ -1,7 +1,6 @@
 """Tests for PAAC v4.1 fail-safe mechanisms."""
 
 import os
-import tempfile
 import threading
 import time
 
@@ -19,13 +18,10 @@ from src.core.failsafe import (
 from src.core.sil_compiler import (
     AssignmentStmtNode,
     BasicBlock,
-    IdentifierNode,
-    LiteralNode,
     SILCompiler,
 )
 from src.core.tcb_protect import generate_ipc_token, verify_ipc_token
-from src.core.verifier import BoundedModelChecker, VerificationError
-
+from src.core.verifier import BoundedModelChecker
 
 # ---------------------------------------------------------------------------
 # Circuit Breaker
@@ -81,7 +77,7 @@ def test_circuit_breaker_thread_safe():
         try:
             for _ in range(5):
                 cb.record_failure()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             errors.append(e)
 
     threads = [threading.Thread(target=worker) for _ in range(4)]
@@ -236,7 +232,7 @@ def test_cfg_basic_block_statements_are_stmt_nodes():
         AssignmentStmtNode,
         # ReturnStmtNode, AssertStmtNode are also valid
     )
-    from src.core.sil_compiler import ReturnStmtNode, AssertStmtNode
+    from src.core.sil_compiler import AssertStmtNode, ReturnStmtNode
 
     def walk(block: BasicBlock, visited: set) -> None:
         if id(block) in visited:

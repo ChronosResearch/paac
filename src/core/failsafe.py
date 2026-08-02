@@ -120,9 +120,8 @@ class WALEntry:
 
 def wal_append(entry: WALEntry) -> None:
     """Append one checkpoint entry to the WAL file (JSON-lines format)."""
-    with _WAL_LOCK:
-        with open(_WAL_PATH, "a") as fh:
-            fh.write(json.dumps(asdict(entry)) + "\n")
+    with _WAL_LOCK, open(_WAL_PATH, "a") as fh:
+        fh.write(json.dumps(asdict(entry)) + "\n")
 
 
 def wal_load_latest() -> dict[str, WALEntry]:
@@ -133,23 +132,22 @@ def wal_load_latest() -> dict[str, WALEntry]:
     if not os.path.exists(_WAL_PATH):
         return {}
     latest: dict[str, WALEntry] = {}
-    with _WAL_LOCK:
-        with open(_WAL_PATH) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    data = json.loads(line)
-                    entry = WALEntry(**data)
-                    # Keep the most recent entry per function.
-                    if (
-                        entry.func_name not in latest
-                        or entry.timestamp > latest[entry.func_name].timestamp
-                    ):
-                        latest[entry.func_name] = entry
-                except (json.JSONDecodeError, TypeError):
-                    logger.warning(f"WAL: skipping malformed line: {line[:80]}")
+    with _WAL_LOCK, open(_WAL_PATH) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                entry = WALEntry(**data)
+                # Keep the most recent entry per function.
+                if (
+                    entry.func_name not in latest
+                    or entry.timestamp > latest[entry.func_name].timestamp
+                ):
+                    latest[entry.func_name] = entry
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"WAL: skipping malformed line: {line[:80]}")
     logger.info(f"WAL: replayed {len(latest)} checkpoint(s) from '{_WAL_PATH}'.")
     return latest
 
@@ -175,9 +173,8 @@ def registry_load() -> dict[str, str]:
     """Load the persisted registry; return empty dict if not found."""
     if not os.path.exists(_REGISTRY_PATH):
         return {}
-    with _REGISTRY_LOCK:
-        with open(_REGISTRY_PATH) as fh:
-            data: dict[str, Any] = json.load(fh)
+    with _REGISTRY_LOCK, open(_REGISTRY_PATH) as fh:
+        data: dict[str, Any] = json.load(fh)
     logger.info(
         f"Registry: loaded {len(data)} function(s) from '{_REGISTRY_PATH}'."
     )

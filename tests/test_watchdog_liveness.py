@@ -11,10 +11,7 @@ Pass criteria:
 import threading
 import time
 
-import pytest
-
 from src.monitor.watchdog import Watchdog
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -148,7 +145,6 @@ def test_heartbeat_count_increments():
 
 def test_code_monitor_idle_does_not_trigger(tmp_path, monkeypatch):
     """CodeMonitor's embedded watchdog must not fire during idle."""
-    import os
     monkeypatch.setenv("PAAC_WATCHDOG_TIMEOUT", "4")
     monkeypatch.setattr("src.core.failsafe._WAL_PATH", str(tmp_path / "test.wal"))
     monkeypatch.setattr("src.core.failsafe._REGISTRY_PATH", str(tmp_path / "reg.json"))

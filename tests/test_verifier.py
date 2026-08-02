@@ -203,14 +203,14 @@ def test_axiom_enforced_rejects_violation():
     """)
     axiom = Axiom("no_negative_balance", "", "balance >= 0", ["withdraw"])
     bmc = BoundedModelChecker()
-    safe, ce = bmc.verify(ast, [axiom])
+    safe, _ce = bmc.verify(ast, [axiom])
     assert safe is False, "Axiom violation must be detected"
-    assert ce is not None
+    assert _ce is not None
 
 
 def test_axiom_enforced_accepts_safe():
     """A function that always keeps balance >= 0 must pass the axiom."""
-    ast = compile("""
+    _ast = compile("""
     func deposit(balance: int, amount: int) -> int {
         balance = balance + amount;
         assert balance >= 0;
@@ -230,7 +230,7 @@ def test_axiom_enforced_accepts_safe():
     }
     """)
     axiom2 = Axiom("square_nonneg", "", "y >= 0", ["always_positive"])
-    safe, ce = bmc.verify(ast2, [axiom2])
+    safe, _ce2 = bmc.verify(ast2, [axiom2])
     assert safe is True
 
 

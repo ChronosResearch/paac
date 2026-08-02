@@ -9,6 +9,7 @@ import z3
 from loguru import logger
 
 from src.axioms.axiom_parser import Axiom
+from src.core.exceptions import VerificationError  # re-exported for callers
 from src.core.sil_compiler import (
     ArrayAccessNode,
     AssertStmtNode,
@@ -21,14 +22,11 @@ from src.core.sil_compiler import (
     LiteralNode,
     ProgramNode,
     ReturnStmtNode,
-    SILParser,
-    SILLexer,
     SILCompiler,
     SILError,
     UnaryExprNode,
     WhileStmtNode,
 )
-from src.core.exceptions import VerificationError  # noqa: F401 — re-exported for callers
 from src.core.tcb_protect import generate_ipc_token, verify_ipc_token
 
 # Constant verification window (paper §3.5).
@@ -426,8 +424,8 @@ def _apply_resource_limits() -> None:
             resource.RLIMIT_CPU,
             (_Z3_CPU_LIMIT_SECONDS, _Z3_CPU_LIMIT_SECONDS),
         )
-    except (ValueError, Exception):  # noqa: BLE001
-        pass
+    except (ValueError, Exception) as _rl_exc:  # noqa: BLE001
+        logger.debug(f"Resource limit not applied: {_rl_exc}")
 
 
 # ---------------------------------------------------------------------------

@@ -125,7 +125,7 @@ class Watchdog:
         try:
             r = _redis.Redis(host=redis_host, port=6379, socket_timeout=0.5)
             r.ping()
-        except Exception:  # noqa: BLE001
+        except Exception:
             r = None
 
         while self._monitor_running:
@@ -140,7 +140,7 @@ class Watchdog:
             if r:
                 try:
                     r.ping()
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.warning(
                         f"Watchdog: Redis connection lost ({e}). "
                         "CodeMonitor will degrade to in-memory mode."

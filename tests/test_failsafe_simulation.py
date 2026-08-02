@@ -3,7 +3,6 @@ Fail-safe simulation tests (Step 98).
 Simulates: Redis down, Z3 crash, circuit breaker open, WAL corruption.
 All scenarios must recover gracefully.
 """
-import os
 import tempfile
 import time
 
@@ -13,10 +12,10 @@ from src.core.failsafe import (
     CircuitBreaker,
     CircuitOpenError,
     WALEntry,
+    registry_load,
+    registry_save,
     wal_append,
     wal_load_latest,
-    registry_save,
-    registry_load,
 )
 from src.core.sil_compiler import SILCompiler
 from src.core.verifier import BoundedModelChecker, VerificationError
@@ -212,7 +211,6 @@ def test_failsafe_ipc_token_rejects_wrong_token():
 
 if __name__ == "__main__":
     import tempfile
-    import sys
 
     # Run all scenarios
     with tempfile.TemporaryDirectory() as tmp:

@@ -2,17 +2,23 @@
 Comprehensive production-readiness tests covering Steps 10-20 and fail-safe scenarios.
 """
 import os
-import tempfile
-import threading
 import time
 
 import pytest
 
 from src.axioms.axiom_parser import Axiom
-from src.core.sil_compiler import SILCompiler, SILError
-from src.core.sil_runtime import MAX_LOOP_BOUND, MAX_INSTRUCTIONS, SILRuntime, SILRuntimeError
-from src.core.verifier import BoundedModelChecker, VerificationError, _static_fallback_check
 from src.core.failsafe import CircuitBreaker, CircuitOpenError
+from src.core.sil_compiler import SILCompiler, SILError
+from src.core.sil_runtime import (
+    MAX_LOOP_BOUND,
+    SILRuntime,
+    SILRuntimeError,
+)
+from src.core.verifier import (
+    BoundedModelChecker,
+    VerificationError,
+    _static_fallback_check,
+)
 
 COMPILER = SILCompiler()
 
@@ -210,6 +216,7 @@ def test_loop_without_bound_rejected():
 def test_loop_bound_over_10000_rejected_in_verifier():
     """Verifier must reject loop bound > MAX_LOOP_BOUND."""
     import z3
+
     from src.core.sil_compiler import LiteralNode, WhileStmtNode
     from src.core.verifier import SSAEnv, StmtEncoder
 
@@ -309,7 +316,8 @@ def test_assert_false_raises_at_runtime():
 def test_axiom_encoding_raises_on_invalid_condition():
     """An axiom with an invalid SIL condition must raise VerificationError."""
     import z3
-    from src.core.verifier import _encode_axiom, SSAEnv
+
+    from src.core.verifier import SSAEnv, _encode_axiom
 
     ctx = z3.Context()
     env = SSAEnv(ctx)
@@ -456,7 +464,6 @@ def test_resource_limits_graceful_on_non_linux(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_wal_path_is_configurable_via_env(tmp_path, monkeypatch):
-    from pathlib import Path
     wal_file = str(tmp_path / "custom.wal")
     monkeypatch.setenv("PAAC_WAL_PATH", wal_file)
     # Verify the env var is read correctly

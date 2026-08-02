@@ -1,4 +1,5 @@
-# PAAC default configuration — all values can be overridden via environment variables.
+# PAAC default configuration — v5.0.0
+# All values can be overridden via environment variables.
 # See docs/DEPLOYMENT.md for the full variable reference.
 
 # Verification engine
@@ -46,3 +47,27 @@ self_healing:
 safe_io_whitelist:
   - "print_to_log"
   - "safe_file_write"
+
+# ── v5.0.0 new features ──────────────────────────────────────────────────────
+
+# Bootstrap self-verification
+bootstrap_verification:
+  enabled: true                        # PAAC_BOOTSTRAP_ENABLED
+  timeout_ms: 5000                     # PAAC_BOOTSTRAP_TIMEOUT_MS
+  run_on_startup: false                # PAAC_BOOTSTRAP_ON_STARTUP
+  include_live_tcb: false              # PAAC_BOOTSTRAP_LIVE_TCB
+
+# Cryptographic attestation
+attestation:
+  enabled: true                        # PAAC_ATTEST_ENABLED
+  # key loaded from PAAC_ATTEST_KEY env var (hex-encoded 32 bytes)
+  # if not set, an ephemeral key is generated at startup
+  log_to_audit: true                   # PAAC_ATTEST_LOG_AUDIT
+
+# Multi-agent coordination
+multi_agent:
+  enabled: true                        # PAAC_MULTI_AGENT_ENABLED
+  max_agents: 10                       # PAAC_MULTI_AGENT_MAX_AGENTS
+  agent_timeout_s: 30                  # PAAC_MULTI_AGENT_TIMEOUT_S
+  # If an agent has not sent a heartbeat in agent_timeout_s seconds,
+  # its queued modifications are marked as abandoned.

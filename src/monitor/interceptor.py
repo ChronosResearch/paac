@@ -50,7 +50,7 @@ class Interceptor:
         except (SILError, VerificationError) as e:
             self._log_rejection(mod, str(e))
             return False
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Auto-rollback on unexpected failures
             self._rollback(mod)
             return False
