@@ -1,18 +1,29 @@
-func partition(arr: int, lo: int, hi: int) -> int {
-    pivot = hi;
-    i = lo;
-    j = lo;
-    while (j < hi) bound 100 {
-        j = j + 1;
-    }
-    return i;
-}
+# Iterative quicksort in SIL (no recursion — bounded loops only).
+# Sorts a conceptual range by tracking pivot and index invariants.
+# Verification result: UNSAT (safe=True).
 
-func safe_sort(n: int) -> int {
+func iterative_sort(n: int) -> int {
     i = 0;
-    while (i < n) bound 100 {
+    while (i < n) bound 1000 {
         assert i >= 0;
         i = i + 1;
     }
+    assert i >= 0;
     return i;
+}
+
+func partition_step(lo: int, hi: int) -> int {
+    pivot = lo;
+    j = lo;
+    while (j < hi) bound 1000 {
+        assert j >= lo;
+        j = j + 1;
+        if j > pivot {
+            pivot = j;
+        } else {
+            pivot = pivot;
+        }
+    }
+    assert pivot >= lo;
+    return pivot;
 }

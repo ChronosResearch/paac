@@ -1,13 +1,48 @@
-verification_timeout_ms: 5000
-loop_bound_default: 100
-constant_verification_time_padding_ms: 200
-max_memory_bytes: 4294967296
-safe_io_whitelist:
-  - "print_to_log"
-  - "safe_file_write"
+# PAAC default configuration — all values can be overridden via environment variables.
+# See docs/DEPLOYMENT.md for the full variable reference.
+
+# Verification engine
+verification_timeout_ms: 5000          # PAAC_VERIFICATION_TIMEOUT_MS
+z3_memory_limit_mb: 1024               # PAAC_Z3_MEMORY_LIMIT_MB
+z3_cpu_limit_seconds: 5                # PAAC_Z3_CPU_LIMIT_SECONDS
+z3_max_retries: 3                      # PAAC_Z3_MAX_RETRIES
+
+# SIL runtime limits
+max_loop_bound: 10000                  # PAAC_MAX_LOOP_BOUND
+max_instructions: 100000               # PAAC_MAX_INSTRUCTIONS
+
+# Constant-time padding (seconds)
+constant_verification_time_padding_s: 0.200   # PAAC_CONSTANT_TIME_PADDING_S
+
+# Circuit breaker
+circuit_breaker_failure_threshold: 5   # PAAC_CB_FAILURE_THRESHOLD
+circuit_breaker_cooldown_s: 60         # PAAC_CB_COOLDOWN_S
+
+# Concurrency
+max_concurrent_verifications: 4        # PAAC_MAX_CONCURRENT_VERIFICATIONS
+
+# Rate limiting
+rate_limit_per_minute: 100             # PAAC_RATE_LIMIT
+
+# Persistence
+wal_path: "checkpoints.wal"            # PAAC_WAL_PATH
+registry_path: "live_registry.json"    # PAAC_REGISTRY_PATH
+
+# Axioms
+axiom_path: "config/axioms.yaml"       # AXIOM_PATH
+
+# Grounding / citation enforcement
 grounding:
   enforce_runtime_execution: true
   require_source_citations: true
-# Redis connection is read from environment variables REDIS_HOST and REDIS_PORT.
-# Axiom file path is read from environment variable AXIOM_PATH.
-# See .env.example for the full list of required variables.
+
+# Self-healing watchdog
+self_healing:
+  enabled: true
+  heartbeat_interval_secs: 5
+  recovery_timeout_secs: 30
+
+# Safe I/O whitelist
+safe_io_whitelist:
+  - "print_to_log"
+  - "safe_file_write"

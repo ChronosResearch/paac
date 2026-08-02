@@ -45,7 +45,8 @@ class SILLexer:
         line_start = 0
         for mo in re.finditer(tok_regex, self.code):
             kind = mo.lastgroup
-            assert kind is not None  # guaranteed by the regex structure
+            if kind is None:  # pragma: no cover — guaranteed by regex structure
+                continue
             value = mo.group()
             column = mo.start() - line_start
             if kind == "NEWLINE":

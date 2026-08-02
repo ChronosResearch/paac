@@ -1,7 +1,9 @@
 import operator
+import os
 from typing import Any
 
 from src.core.sil_compiler import (
+    ArrayAccessNode,
     AssertStmtNode,
     AssignmentStmtNode,
     ASTNode,
@@ -17,9 +19,9 @@ from src.core.sil_compiler import (
     WhileStmtNode,
 )
 
-# Step 8: Global caps — cannot be overridden by SIL source code.
-MAX_LOOP_BOUND = 10_000
-MAX_INSTRUCTIONS = 100_000
+# Steps 18-19: Global caps — can be overridden via environment variables (Step 66).
+MAX_LOOP_BOUND: int = int(os.environ.get("PAAC_MAX_LOOP_BOUND", "10000"))
+MAX_INSTRUCTIONS: int = int(os.environ.get("PAAC_MAX_INSTRUCTIONS", "100000"))
 
 
 class SILRuntimeError(Exception):
@@ -40,7 +42,6 @@ class SILRuntime:
     def _tick(self) -> None:
         self._instruction_count += 1
         import src.core.sil_runtime as _rt  # noqa: PLW0406
-
         if self._instruction_count > _rt.MAX_INSTRUCTIONS:
             raise SILRuntimeError(
                 f"Instruction limit {_rt.MAX_INSTRUCTIONS} exceeded. Possible infinite loop."
@@ -68,7 +69,7 @@ class SILRuntime:
         self.env.pop()
         return None
 
-    def _exec_stmt(self, stmt: ASTNode):
+    def _exec_stmt(self, stmt: ASTNode) -> None:
         self._tick()
         if isinstance(stmt, AssignmentStmtNode):
             val = self._eval_expr(stmt.value)
@@ -82,7 +83,6 @@ class SILRuntime:
                 for s in stmt.else_branch:
                     self._exec_stmt(s)
         elif isinstance(stmt, WhileStmtNode):
-            # Step 8: Enforce global cap independent of declared bound.
             effective_bound = stmt.bound
             if effective_bound > MAX_LOOP_BOUND:
                 raise SILRuntimeError(
@@ -90,7 +90,7 @@ class SILRuntime:
                 )
             iters = 0
             while self._eval_expr(stmt.condition):
-                self._tick()  # count each loop iteration against the global instruction budget
+                self._tick()
                 if iters >= effective_bound:
                     raise SILRuntimeError(f"Loop bound {effective_bound} exceeded")
                 for s in stmt.body:
@@ -139,6 +139,15 @@ class SILRuntime:
                 return l and r
             elif expr.operator == "or":
                 return l or r
+        elif isinstance(expr, ArrayAccessNode):
+            # Step 12: Array access — arrays are dicts mapping int index -> int value.
+            arr = self._eval_expr(IdentifierNode(expr.array_name))
+            idx = self._eval_expr(expr.index)
+            if isinstance(arr, dict):
+                return arr.get(idx, 0)
+            raise SILRuntimeError(
+                f"Variable '{expr.array_name}' is not an array (got {type(arr).__name__})"
+            )
         elif isinstance(expr, CallExprNode):
             args = [self._eval_expr(a) for a in expr.args]
             return self.execute(expr.func_name, args)

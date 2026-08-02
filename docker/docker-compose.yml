@@ -2,16 +2,51 @@ version: '3.8'
 
 services:
   paac_core:
-    build: 
+    build:
       context: ..
       dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - AXIOM_PATH=config/axioms.yaml
+      - PAAC_WAL_PATH=/app/data/checkpoints.wal
+      - PAAC_REGISTRY_PATH=/app/data/live_registry.json
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+        reservations:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "python3.11", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - paac_data:/app/data
+    restart: unless-stopped
 
   redis:
     image: "redis:7.0-alpine"
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+
+volumes:
+  paac_data:
+  redis_data:
