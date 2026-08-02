@@ -190,6 +190,23 @@ class CodeMonitor:
             return []
 
     # ------------------------------------------------------------------
+    # Axiom filtering (A-05 fix)
+    # ------------------------------------------------------------------
+
+    def _get_applicable_axioms(self, func_name: str) -> list:
+        """Return axioms that apply to func_name.
+
+        An axiom applies when its target_functions list is empty, contains
+        the wildcard "*", or explicitly names func_name.
+        """
+        result = []
+        for axiom in self.axioms:
+            tf = axiom.target_functions
+            if not tf or "*" in tf or func_name in tf:
+                result.append(axiom)
+        return result
+
+    # ------------------------------------------------------------------
     # Checkpoint / rollback
     # ------------------------------------------------------------------
 
@@ -294,9 +311,11 @@ class CodeMonitor:
 
                 ast, _cfgs = self.compiler.compile(mod.new_code)
 
+                # A-05 fix: only pass axioms that target this function.
+                applicable = self._get_applicable_axioms(mod.func_name)
                 with _VERIFY_SEMAPHORE:
                     safe, counterexample = self.checker.verify(
-                        ast, self.axioms, timeout_ms=self.timeout_ms
+                        ast, applicable, timeout_ms=self.timeout_ms
                     )
 
                 if safe:
