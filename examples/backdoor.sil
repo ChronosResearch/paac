@@ -1,3 +1,7 @@
-// examples/backdoor.sil
-while (x) bound 100 { return true; }
-return x;
+# This program violates the no_negative_balance axiom.
+# The verifier rejects it with a counterexample showing balance < 0.
+func withdraw(balance: int, amount: int) -> int {
+    balance = balance - amount;
+    assert balance >= 0;
+    return balance;
+}
