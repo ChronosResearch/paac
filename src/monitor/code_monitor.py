@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,7 +23,17 @@ from ..core.exceptions import (
     PAACError,
     VerificationError,
 )
+from ..core.failsafe import (
+    CircuitBreaker,
+    CircuitOpenError,
+    WALEntry,
+    registry_load,
+    registry_save,
+    wal_append,
+    wal_load_latest,
+)
 from ..core.sil_compiler import SILCompiler
+from ..core.tcb_protect import protect_tcb
 from ..core.verifier import BoundedModelChecker
 from ..core.verifier import VerificationError as _VerifierError  # same class via re-export
 
@@ -36,8 +47,9 @@ _audit_logger.setLevel(logging.INFO)
 # Semaphore: at most 4 concurrent Z3 subprocesses to bound resource usage.
 _VERIFY_SEMAPHORE = threading.Semaphore(4)
 
-# Citation must be at least 10 chars and contain a dot (URL/DOI heuristic).
-_CITATION_RE = re.compile(r".{10,}")
+# R-6: Citation must be >= 20 chars and contain a dot (URL / DOI heuristic).
+# Accepts: https://doi.org/..., https://github.com/..., http://..., doi:10....
+_CITATION_RE = re.compile(r".{20,}")
 
 
 @dataclass
@@ -52,9 +64,15 @@ class CodeModification:
 
 class CodeMonitor:
     # In-process function registry: func_name -> current live code string.
-    # In a real deployment this would be the module loader / hot-reload registry.
     _live_registry: dict[str, str] = {}
+
+    # Shared circuit breaker — one instance per process.
+    _circuit_breaker: CircuitBreaker = CircuitBreaker()
+
     def __init__(self, config: dict[str, Any]):
+        # R-2: attempt to protect TCB pages read-only.
+        protect_tcb()
+
         self.compiler = SILCompiler()
         self.checker = BoundedModelChecker()
         self.grounding_config = config.get("grounding", {})
@@ -71,6 +89,17 @@ class CodeMonitor:
             )
         logger.info(f"Loaded {len(self.axioms)} safety axioms from '{axiom_path}'.")
 
+        # R-4: load persisted registry and WAL checkpoints on startup.
+        saved_registry = registry_load()
+        if saved_registry:
+            CodeMonitor._live_registry.update(saved_registry)
+        wal_entries = wal_load_latest()
+        for func_name, entry in wal_entries.items():
+            if func_name not in CodeMonitor._live_registry:
+                CodeMonitor._live_registry[func_name] = entry.new_code
+                logger.info(f"WAL: restored '{func_name}' from write-ahead log.")
+
+        # Redis setup — degrade gracefully to WAL.
         redis_host = os.environ.get("REDIS_HOST", "redis")
         self.redis_client = redis.Redis(
             host=redis_host, port=6379, decode_responses=True
@@ -80,21 +109,56 @@ class CodeMonitor:
             self.redis_client.ping()
         except redis.ConnectionError:
             logger.warning(
-                "Redis is unavailable. Falling back to in-memory checkpoint store. "
-                "Checkpoint history will be lost on process restart."
+                "Redis is unavailable. Falling back to WAL checkpoint store. "
+                "Checkpoints will be written to disk and replayed on restart."
             )
             self.use_redis = False
+
+        # Watchdog: health-check thread every 5 s.
+        self._watchdog_running = True
+        self._last_heartbeat = time.monotonic()
+        self._watchdog_thread = threading.Thread(
+            target=self._watchdog_loop, daemon=True, name="paac-watchdog"
+        )
+        self._watchdog_thread.start()
+
+    # ------------------------------------------------------------------
+    # Watchdog
+    # ------------------------------------------------------------------
+
+    def heartbeat(self) -> None:
+        self._last_heartbeat = time.monotonic()
+
+    def _watchdog_loop(self) -> None:
+        while self._watchdog_running:
+            time.sleep(5)
+            elapsed = time.monotonic() - self._last_heartbeat
+            if elapsed > 30:
+                logger.error(
+                    f"Watchdog: no heartbeat for {elapsed:.1f}s — "
+                    "triggering self-healing reset."
+                )
+                self._watchdog_recover()
+
+    def _watchdog_recover(self) -> None:
+        """Reset internal state on watchdog timeout."""
+        self._last_heartbeat = time.monotonic()
+        # Reset circuit breaker so the system can accept new requests.
+        CodeMonitor._circuit_breaker = CircuitBreaker()
+        logger.warning("Watchdog: circuit breaker reset. Service resuming.")
+
+    def stop_watchdog(self) -> None:
+        self._watchdog_running = False
 
     # ------------------------------------------------------------------
     # Axiom loading
     # ------------------------------------------------------------------
 
     def _load_axioms(self, path: str) -> list[Axiom]:
-        """Load axioms from a YAML file that uses the flat `axioms:` list format."""
         if not os.path.exists(path):
             logger.error(f"Axiom file not found: {path}")
             return []
-        with open(path, "r") as fh:
+        with open(path) as fh:
             content = fh.read()
         try:
             return AxiomParser.parse(content)
@@ -107,13 +171,25 @@ class CodeMonitor:
     # ------------------------------------------------------------------
 
     def _save_checkpoint(self, mod: CodeModification) -> None:
+        # Always write to WAL first (R-4 durability).
+        wal_append(
+            WALEntry(
+                func_name=mod.func_name,
+                old_code=mod.old_code,
+                new_code=mod.new_code,
+                pre_cond=mod.pre_cond,
+                post_cond=mod.post_cond,
+                source_citation=mod.source_citation,
+                timestamp=time.time(),
+            )
+        )
         if self.use_redis:
             try:
                 key = f"checkpoint:{mod.func_name}"
                 self.redis_client.lpush(key, json.dumps(mod.__dict__))
-                self.redis_client.ltrim(key, 0, 9)  # keep last 10
+                self.redis_client.ltrim(key, 0, 9)
             except redis.ConnectionError:
-                logger.error("Failed to store checkpoint in Redis; saving in-memory.")
+                logger.error("Failed to store checkpoint in Redis; WAL is the fallback.")
                 self._save_checkpoint_memory(mod)
         else:
             self._save_checkpoint_memory(mod)
@@ -128,37 +204,45 @@ class CodeMonitor:
             key = f"checkpoint:{func_name}"
             try:
                 checkpoints = self.redis_client.lrange(key, 0, -1)
-                if not checkpoints:
-                    logger.warning(f"No Redis checkpoint for '{func_name}'.")
-                    return None
-                data = json.loads(checkpoints[0])
-                return CodeModification(**data)
+                if checkpoints:
+                    data = json.loads(checkpoints[0])
+                    return CodeModification(**data)
+                logger.warning(f"No Redis checkpoint for '{func_name}'.")
             except redis.ConnectionError:
-                logger.warning("Redis unavailable during rollback; trying in-memory.")
-        # Fall through to in-memory
+                logger.warning("Redis unavailable during rollback; trying WAL/memory.")
+
+        # Try WAL.
+        wal_entries = wal_load_latest()
+        if func_name in wal_entries:
+            e = wal_entries[func_name]
+            return CodeModification(
+                func_name=e.func_name,
+                old_code=e.old_code,
+                new_code=e.new_code,
+                pre_cond=e.pre_cond,
+                post_cond=e.post_cond,
+                source_citation=e.source_citation,
+            )
+
+        # Fall through to in-memory.
         for cp in reversed(self.verified_checkpoints):
             if cp.func_name == func_name:
                 return cp
-        logger.warning(f"No in-memory checkpoint for '{func_name}'.")
+        logger.warning(f"No checkpoint found for '{func_name}'.")
         return None
 
     def _restore_state(self, checkpoint: CodeModification) -> None:
-        """Restore the function to its last verified-safe code.
-
-        Writes checkpoint.old_code back into the in-process live registry so
-        subsequent calls see the rolled-back version.  In a full deployment
-        this would also push to the module loader / hot-reload registry.
-        """
+        """Restore the function to its last verified-safe code."""
         CodeMonitor._live_registry[checkpoint.func_name] = checkpoint.new_code
+        registry_save(dict(CodeMonitor._live_registry))
         logger.info(
             f"Rolled back '{checkpoint.func_name}' to last verified checkpoint "
             f"(citation: {checkpoint.source_citation or 'n/a'})."
         )
         _audit_logger.info(
             f"ROLLBACK func={checkpoint.func_name} "
-            f"restored_code_hash={hash(checkpoint.old_code)}"
+            f"restored_code_hash={hash(checkpoint.new_code)}"
         )
-        # Re-save so it stays at the head of the checkpoint stack.
         self._save_checkpoint(checkpoint)
 
     # ------------------------------------------------------------------
@@ -166,15 +250,23 @@ class CodeMonitor:
     # ------------------------------------------------------------------
 
     def intercept_modification(self, mod: CodeModification) -> dict[str, Any]:
+        self.heartbeat()
         with FileLock(self.lock_path, timeout=60):
             try:
-                # Citation validation: must be >= 10 chars (URL / DOI heuristic).
+                # Circuit breaker check.
+                try:
+                    CodeMonitor._circuit_breaker.allow_request()
+                except CircuitOpenError as exc:
+                    return {"status": "error", "error": str(exc), "http_status": 503}
+
+                # R-6: Citation validation — >= 20 chars with a dot.
                 if self.grounding_config.get("require_source_citations", True):
                     citation = mod.source_citation or ""
-                    if not _CITATION_RE.fullmatch(citation.strip()):
+                    stripped = citation.strip()
+                    if not _CITATION_RE.fullmatch(stripped) or "." not in stripped:
                         raise GroundingError(
                             "Modification rejected: source_citation must be at least "
-                            "10 characters (provide a URL or DOI)."
+                            "20 characters and contain a dot (provide a URL or DOI)."
                         )
 
                 ast, _cfgs = self.compiler.compile(mod.new_code)
@@ -185,7 +277,9 @@ class CodeMonitor:
                     )
 
                 if safe:
+                    CodeMonitor._circuit_breaker.record_success()
                     CodeMonitor._live_registry[mod.func_name] = mod.new_code
+                    registry_save(dict(CodeMonitor._live_registry))
                     self._save_checkpoint(mod)
                     _audit_logger.info(
                         f"ACCEPTED func={mod.func_name} "
@@ -196,6 +290,7 @@ class CodeMonitor:
                         "message": "Modification verified and applied.",
                     }
                 else:
+                    CodeMonitor._circuit_breaker.record_failure()
                     ce_str = str(counterexample) if counterexample else None
                     _audit_logger.warning(
                         f"REJECTED func={mod.func_name} "
@@ -214,6 +309,7 @@ class CodeMonitor:
             except CompilationError as exc:
                 return {"status": "rejected", "error": f"Compilation failed: {exc}"}
             except (VerificationError, _VerifierError) as exc:
+                CodeMonitor._circuit_breaker.record_failure()
                 return {"status": "rejected", "error": f"Verification failed: {exc}"}
             except GroundingError as exc:
                 return {"status": "rejected", "error": f"Grounding failed: {exc}"}

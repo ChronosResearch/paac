@@ -1,0 +1,3 @@
+{
+  "sq": "func sq(x: int) -> int { y = x * x; assert y >= 0; return y; }"
+}

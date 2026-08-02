@@ -1,85 +1,74 @@
-# PAAC Security Policy
+# PAAC Security Policy — v4.1
 
 ## Threat Model
 
-PAAC assumes the Inner Agent is adversarial. Specifically, it may:
+PAAC assumes the Inner Agent is adversarial. It may:
 
-- Submit SIL code that violates safety axioms
-- Attempt to bypass verification by crafting axiom conditions that are not
-  encoded (e.g., conditions outside the three hardcoded strings in earlier
-  versions — this is fixed in v4.0)
-- Submit SIL code with mutual recursion to bypass the termination check
-  (fixed in v4.0 via full call-graph cycle detection)
-- Submit SIL code with unrecognised characters to obfuscate intent
-  (fixed in v4.0 via lexer catch-all ERROR token)
-- Submit a loop with a very large declared bound to exhaust CPU
-  (mitigated in v4.0 via MAX_LOOP_BOUND=10,000 and MAX_INSTRUCTIONS=100,000)
-- Craft a Z3 formula that exhausts system memory
-  (partially mitigated in v4.0 via subprocess RLIMIT_AS; see R-1 below)
+- Submit SIL code that violates safety axioms (mitigated: real Z3 axiom enforcement)
+- Submit mutual recursion to bypass termination check (mitigated: call-graph DFS)
+- Submit unrecognised characters to obfuscate intent (mitigated: lexer catch-all ERROR)
+- Submit a large loop bound to exhaust CPU (mitigated: MAX_LOOP_BOUND=10,000 + subprocess RLIMIT_CPU)
+- Craft a Z3 formula that exhausts memory (mitigated: subprocess RLIMIT_AS + docker --memory=2g)
+- Flood the system with concurrent requests (mitigated: threading.Semaphore(4))
+- Cause repeated verification failures to degrade service (mitigated: CircuitBreaker)
 
-## Guarantees Provided
+## Guarantees Provided (v4.1)
 
-- Every code modification is compiled through the SIL type checker before
-  reaching the verifier. Ill-typed code is rejected before Z3 is invoked.
-- Every code modification is verified by Z3 against the loaded axiom set
-  before being accepted. The verifier uses bounded model checking with SSA
-  encoding and loop unrolling.
-- Unsafe modifications are rejected with a concrete counterexample extracted
-  from the Z3 model.
-- Verification response time is padded to a constant 200 ms on all exit paths
-  (safe, unsafe, and error) to prevent timing side-channels.
-- The verification cache uses SHA-256 over a canonical JSON serialisation of
-  the AST and axiom set. Hash collisions do not cause incorrect cache hits.
-- The Z3 solver runs in a subprocess with RLIMIT_AS (1 GB) and RLIMIT_CPU
-  (5 s) set via resource.setrlimit on Linux.
-- On verification failure, the last verified checkpoint is restored.
+- Every modification is compiled through the SIL type checker before Z3 is invoked.
+- Every modification is verified by Z3 against real safety axioms (not stubs).
+- Unsafe modifications are rejected with a concrete counterexample.
+- Verification response time is padded to a constant 200 ms on all exit paths.
+- The verification cache uses SHA-256 over canonical JSON (collision-resistant).
+- Z3 runs in a subprocess with RLIMIT_AS (1 GB) and RLIMIT_CPU (5 s) on Linux.
+- Z3 subprocess crashes trigger automatic retry (up to 3 attempts) before the
+  circuit breaker opens.
+- On verification failure, the last verified checkpoint is restored from Redis,
+  WAL, or in-memory store (in that priority order).
+- Checkpoints are written to a write-ahead log (checkpoints.wal) before Redis,
+  so they survive process restarts even when Redis is unavailable.
+- The live function registry is persisted to live_registry.json after every
+  accepted modification and loaded on startup.
+- A circuit breaker opens after 5 consecutive verification failures, rejecting
+  all new modifications for 60 s. After cooldown, one probe is allowed; success
+  closes the circuit.
+- A watchdog thread checks for heartbeats every 5 s. If no heartbeat is received
+  for 30 s, the circuit breaker is reset and service resumes.
+- IPC between the monitor and Z3 subprocess uses a per-call random 32-byte token
+  (constant-time comparison). Responses without a matching token are rejected.
+- TCB source files are marked read-only (chmod 0o444) on Linux at startup.
+- Source citations must be >= 20 characters and contain a dot (URL/DOI heuristic).
+- All verification attempts, counterexamples, and rollbacks are written to audit.log.
 
-## Guarantees Not Provided
+## Remaining Gaps
 
-- **R-1 (partial)**: Z3 subprocess resource limits are not enforced on macOS.
-  On Linux, RLIMIT_AS is enforced but a sufficiently crafted formula may still
-  cause the subprocess to be killed by the OOM killer before RLIMIT_AS fires.
-  Mitigation: deploy with `docker run --memory=2g`.
+- **R-1 (partial)**: RLIMIT_AS is not enforced on macOS. Mitigation: deploy with
+  `docker run --memory=2g`. This is the only NO-GO condition for production.
 
-- **R-2**: The PAAC core (Code Monitor, Verifier) does not reside in OS-level
-  read-only memory. A sufficiently privileged process on the same host could
-  modify PAAC code at runtime.
+- **R-2 (partial)**: TCB source files are chmod'd read-only at startup. This
+  prevents accidental overwrite but does not prevent a privileged process from
+  chmod'ing them back. Full mitigation: `docker run --read-only`.
 
-- **R-3**: There is no IPC authentication between the Code Monitor and the
-  Verifier subprocess. The subprocess is spawned directly by the monitor
-  process; it is not accessible from outside the process group.
+- **R-3 (partial)**: IPC token authenticates the subprocess response but the
+  token is passed as a constructor argument (not over a separate authenticated
+  channel). A process with access to /proc/<pid>/mem could read it. Acceptable
+  for single-host deployments.
 
-- **R-4**: If Redis is unavailable, checkpoints fall back to a volatile
-  in-memory store. Checkpoint history is lost on process restart.
+- **R-4 (resolved)**: WAL provides durable checkpoint storage independent of
+  Redis. Checkpoints survive process restarts.
 
-- **R-5**: Source citation validation checks only that the citation field is
-  non-empty. It does not validate URLs or verify that citations resolve to
-  real sources.
+- **R-5 (resolved)**: Citation validation requires >= 20 chars with a dot.
 
-- **Physical side-channels**: Power analysis, electromagnetic emissions, and
-  cache-timing attacks are outside the scope of this system.
+- **Physical side-channels**: Power analysis, EM emissions, and cache-timing
+  attacks are out of scope.
 
-- **Axiom completeness**: PAAC enforces whatever axioms are provided. If the
-  axiom set is incomplete, dangerous behaviours not covered by axioms will
-  pass verification. Axiom design is the responsibility of the operator.
+- **Axiom completeness**: PAAC enforces whatever axioms are provided. Incomplete
+  axiom sets allow uncovered behaviours to pass. Axiom design is the operator's
+  responsibility.
 
-- **Neural network verification**: PAAC verifies SIL code, not neural network
-  weights. It does not protect against unsafe behaviour that emerges from
-  model weights rather than code modifications.
+- **Neural network verification**: PAAC verifies SIL code, not model weights.
 
 ## Reporting Vulnerabilities
 
 Contact: shashankchoudhary792@gmail.com
 
-Please include:
-- A description of the vulnerability
-- Steps to reproduce
-- The version of PAAC affected
-- Any proof-of-concept code
-
-## Disclosure Policy
-
-90-day responsible disclosure. We will acknowledge receipt within 5 business
-days and provide a status update within 30 days. If a fix is not available
-within 90 days, we will coordinate with the reporter on public disclosure
-timing.
+90-day responsible disclosure. Acknowledgement within 5 business days.

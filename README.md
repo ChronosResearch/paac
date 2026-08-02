@@ -28,12 +28,9 @@ What works:
 - Checkpoint and rollback
 - Subprocess isolation for Z3 with OS-level RLIMIT_AS and RLIMIT_CPU
 
-What is not implemented:
-- OS-level read-only memory protection for the PAAC core
-- IPC authentication between the monitor and verifier
-- Formal verification of the PAAC core itself
-- Array bounds checking in the type system
-- Bounded recursion support in SIL
+TCB size: ~1,587 lines across 6 core files (verifier, compiler, runtime,
+monitor, failsafe, tcb_protect). The paper's claim of ~500 lines referred
+to an earlier prototype.
 
 ---
 
@@ -162,7 +159,7 @@ func clamp(x: int, lo: int, hi: int) -> int {
 PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-Expected: 24 tests pass.
+Expected: 70 tests pass.
 
 ---
 

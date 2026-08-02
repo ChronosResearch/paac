@@ -1,4 +1,42 @@
-# PAAC Deployment Guide
+# PAAC Deployment Guide — v4.1
+
+## Prerequisites
+
+- Docker 24+ and Docker Compose v2+
+- 4 GB RAM minimum (2 GB reserved for the PAAC container)
+- Linux host (RLIMIT_AS enforcement and TCB file protection require Linux)
+- Redis 7.0+ with `appendonly yes` (provided by docker-compose)
+
+## Fail-Safe Systems
+
+### Circuit Breaker
+Opens after 5 consecutive verification failures. All modifications are rejected
+with HTTP 503 for 60 s. After cooldown, one probe is allowed; success closes
+the circuit. The watchdog resets the circuit breaker if no heartbeat is received
+for 30 s.
+
+### Write-Ahead Log (WAL)
+Every accepted checkpoint is written to `checkpoints.wal` before Redis. On
+startup, the WAL is replayed to restore the last known-good state for each
+function. Set `PAAC_WAL_PATH` to override the default path.
+
+### Registry Persistence
+The live function registry is saved to `live_registry.json` after every
+accepted modification. On startup, it is loaded before the WAL replay.
+Set `PAAC_REGISTRY_PATH` to override.
+
+### Z3 Crash Recovery
+If the Z3 subprocess exits with a non-zero code, the parent retries up to
+3 times. After 3 consecutive crashes, VerificationError is raised and the
+circuit breaker records a failure.
+
+### IPC Authentication (R-3)
+A random 32-byte token is generated per verification call. The subprocess
+echoes it back; the parent rejects any response with a wrong token.
+
+### TCB File Protection (R-2)
+On Linux, TCB source files are chmod'd read-only at startup. Deploy with
+`docker run --read-only` for full filesystem protection.
 
 ## Prerequisites
 
@@ -44,6 +82,8 @@ docker-compose -f docker/docker-compose.yml logs -f paac_core
 | `REDIS_PORT` | No | `6379` | Redis port |
 | `AXIOM_PATH` | No | `config/axioms.yaml` | Axiom file path inside the container |
 | `VERIFICATION_TIMEOUT_MS` | No | `5000` | Z3 solver timeout per query in milliseconds |
+| `PAAC_WAL_PATH` | No | `checkpoints.wal` | Write-ahead log file path |
+| `PAAC_REGISTRY_PATH` | No | `live_registry.json` | Registry persistence file path |
 
 ## Configuration
 
