@@ -114,12 +114,18 @@ class CodeMonitor:
             )
             self.use_redis = False
 
-        # Watchdog: health-check thread every 5 s.
+        # Watchdog: two threads — liveness stamps every second,
+        # monitor checks every 5 s.  Idle periods never trigger recovery.
         self._watchdog_running = True
         self._last_heartbeat = time.monotonic()
+        self._heartbeat_lock = threading.Lock()
+        self._liveness_thread = threading.Thread(
+            target=self._liveness_loop, daemon=True, name="paac-liveness"
+        )
         self._watchdog_thread = threading.Thread(
             target=self._watchdog_loop, daemon=True, name="paac-watchdog"
         )
+        self._liveness_thread.start()
         self._watchdog_thread.start()
 
     # ------------------------------------------------------------------
@@ -127,23 +133,40 @@ class CodeMonitor:
     # ------------------------------------------------------------------
 
     def heartbeat(self) -> None:
-        self._last_heartbeat = time.monotonic()
+        """Optional: called by request handlers for application-level liveness.
+        The liveness thread keeps the timestamp alive during idle periods."""
+        with self._heartbeat_lock:
+            self._last_heartbeat = time.monotonic()
+
+    def _liveness_loop(self) -> None:
+        """Stamps last_heartbeat every second while the process is alive.
+        Prevents false watchdog triggers during idle periods."""
+        _count = 0
+        while self._watchdog_running:
+            time.sleep(1)
+            with self._heartbeat_lock:
+                self._last_heartbeat = time.monotonic()
+                _count += 1
+            if _count % 10 == 0:
+                logger.debug(f"CodeMonitor liveness thread alive — tick #{_count}.")
 
     def _watchdog_loop(self) -> None:
+        _timeout = int(os.environ.get("PAAC_WATCHDOG_TIMEOUT", "60"))
         while self._watchdog_running:
             time.sleep(5)
-            elapsed = time.monotonic() - self._last_heartbeat
-            if elapsed > 30:
+            with self._heartbeat_lock:
+                elapsed = time.monotonic() - self._last_heartbeat
+            if elapsed > _timeout:
                 logger.error(
-                    f"Watchdog: no heartbeat for {elapsed:.1f}s — "
+                    f"Watchdog: liveness thread stalled for {elapsed:.1f}s — "
                     "triggering self-healing reset."
                 )
                 self._watchdog_recover()
 
     def _watchdog_recover(self) -> None:
         """Reset internal state on watchdog timeout."""
-        self._last_heartbeat = time.monotonic()
-        # Reset circuit breaker so the system can accept new requests.
+        with self._heartbeat_lock:
+            self._last_heartbeat = time.monotonic()
         CodeMonitor._circuit_breaker = CircuitBreaker()
         logger.warning("Watchdog: circuit breaker reset. Service resuming.")
 
