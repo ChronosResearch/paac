@@ -1,0 +1,14 @@
+probabilistic_axioms:
+  # balance stays non-negative with high confidence
+  - id: "prob_balance_nonneg"
+    description: "Balance is non-negative with 90% confidence."
+    condition: "balance >= 0"
+    confidence_threshold: 0.90
+    target_functions: ["*"]
+
+  # result stays bounded with moderate confidence
+  - id: "prob_result_bounded"
+    description: "Result is non-negative with 80% confidence."
+    condition: "result >= 0"
+    confidence_threshold: 0.80
+    target_functions: ["*"]

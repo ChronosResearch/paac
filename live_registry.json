@@ -1,4 +1,4 @@
 {
   "sq": "func sq(x: int) -> int { y = x * x; assert y >= 0; return y; }",
-  "f": "func f(x: int) -> int { return x; }"
+  "f": "func f(x:int)->int{return x;}"
 }
