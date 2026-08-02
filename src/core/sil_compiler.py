@@ -45,6 +45,7 @@ class SILLexer:
         line_start = 0
         for mo in re.finditer(tok_regex, self.code):
             kind = mo.lastgroup
+            assert kind is not None  # guaranteed by the regex structure
             value = mo.group()
             column = mo.start() - line_start
             if kind == "NEWLINE":
@@ -292,6 +293,8 @@ class SILParser:
 
     def parse_stmt(self) -> ASTNode:
         tok = self.peek()
+        if tok is None:
+            raise SILError("Unexpected end of input in statement")
         if tok.type == "KEYWORD" and tok.value == "if":
             return self.parse_if()
         elif tok.type == "KEYWORD" and tok.value == "while":
@@ -398,26 +401,28 @@ class SILParser:
 
     def parse_primary(self) -> ASTNode:
         tok = self.peek()
+        if tok is None:
+            raise SILError("Unexpected end of input in expression")
         # Unary 'not'
-        if tok and tok.type == "KEYWORD" and tok.value == "not":
+        if tok.type == "KEYWORD" and tok.value == "not":
             self.consume()
             operand = self.parse_primary()
             return UnaryExprNode("not", operand)
         # Unary minus
-        if tok and tok.type == "OPERATOR" and tok.value == "-":
+        if tok.type == "OPERATOR" and tok.value == "-":
             self.consume()
             operand = self.parse_primary()
             return UnaryExprNode("-", operand)
         if tok.type == "INTEGER":
             self.consume()
             return LiteralNode(int(tok.value), "int")
-        elif tok.type == "KEYWORD" and tok.value in ("true", "false"):
+        if tok.type == "KEYWORD" and tok.value in ("true", "false"):
             self.consume()
             return LiteralNode(tok.value == "true", "bool")
-        elif tok.type == "STRING":
+        if tok.type == "STRING":
             self.consume()
             return LiteralNode(tok.value[1:-1], "string")
-        elif tok.type == "IDENTIFIER":
+        if tok.type == "IDENTIFIER":
             self.consume()
             if self.match("SYMBOL", "("):
                 args = []
@@ -432,7 +437,7 @@ class SILParser:
                 self.consume("SYMBOL", "]")
                 return ArrayAccessNode(tok.value, index)
             return IdentifierNode(tok.value)
-        elif self.match("SYMBOL", "("):
+        if self.match("SYMBOL", "("):
             expr = self.parse_expr()
             self.consume("SYMBOL", ")")
             return expr
@@ -559,8 +564,9 @@ class SILTypeChecker:
 @dataclass
 class BasicBlock:
     id: int
-    statements: list[ASTNode]
+    statements: list[ASTNode]  # only StatementNodes (Assignment, Return, Assert)
     successors: list["BasicBlock"]
+    branch_condition: "ASTNode | None" = None  # R-5: condition stored separately
 
 
 class SILToIRCompiler:
@@ -590,11 +596,12 @@ class SILToIRCompiler:
             current_block.statements.append(stmt)
             return current_block
         elif isinstance(stmt, IfStmtNode):
-            current_block.statements.append(stmt.condition)
+            # R-5: store the branch condition in the dedicated field, not statements.
             then_block = self._new_block()
             else_block = self._new_block()
             merge_block = self._new_block()
 
+            current_block.branch_condition = stmt.condition
             current_block.successors.extend([then_block, else_block])
 
             t_curr = then_block
@@ -614,7 +621,8 @@ class SILToIRCompiler:
             exit_block = self._new_block()
 
             current_block.successors.append(header)
-            header.statements.append(stmt.condition)
+            # R-5: loop condition goes in branch_condition, not statements.
+            header.branch_condition = stmt.condition
             header.successors.extend([body, exit_block])
 
             b_curr = body

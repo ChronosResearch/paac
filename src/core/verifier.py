@@ -25,6 +25,8 @@ from src.core.sil_compiler import (
     UnaryExprNode,
     WhileStmtNode,
 )
+from src.core.exceptions import VerificationError  # noqa: F401 — re-exported for callers
+from src.core.tcb_protect import generate_ipc_token, verify_ipc_token
 
 # Constant verification window (paper §3.5).
 CONSTANT_VERIFICATION_TIME_S: float = 0.200
@@ -33,8 +35,8 @@ CONSTANT_VERIFICATION_TIME_S: float = 0.200
 _Z3_MEMORY_LIMIT_BYTES: int = 1 * 1024 * 1024 * 1024  # 1 GB address space
 _Z3_CPU_LIMIT_SECONDS: int = 5
 
-
-from src.core.exceptions import VerificationError  # noqa: F401 — re-exported for callers
+# Maximum consecutive Z3 subprocess crashes before giving up.
+_Z3_MAX_RETRIES: int = 3
 
 
 class CounterExample:
@@ -360,21 +362,25 @@ def _subprocess_worker(
     axioms: list[Axiom],
     timeout_ms: int,
     cache: dict[str, tuple[bool, str | None]],
+    ipc_token: bytes,
     conn: "multiprocessing.connection.Connection",
 ) -> None:
-    """Entry point for the isolated Z3 subprocess. Sends result over a Pipe."""
+    """Entry point for the isolated Z3 subprocess. Sends result over a Pipe.
+
+    R-3: Every message sent back to the parent is prefixed with the IPC token
+    so the parent can reject spoofed or corrupted responses.
+    """
     _apply_resource_limits()
     checker = BoundedModelChecker()
     checker._cache = dict(cache)
     try:
         safe, ce = checker._verify_inner(ast, axioms, timeout_ms)
-        # Convert Z3 model values to plain strings before pickling across the pipe.
         ce_dict = (
             {k: str(v) for k, v in ce.assignments.items()} if ce is not None else None
         )
-        conn.send((safe, ce_dict, checker._cache))
+        conn.send((ipc_token, safe, ce_dict, checker._cache))
     except Exception as exc:  # noqa: BLE001
-        conn.send(exc)
+        conn.send((ipc_token, exc))
     finally:
         conn.close()
 
@@ -450,45 +456,79 @@ class BoundedModelChecker:
         axioms: list[Axiom],
         timeout_ms: int,
     ) -> tuple[bool, "CounterExample | None"]:
-        """Run _verify_inner in an isolated subprocess with OS resource limits."""
-        parent_conn, child_conn = multiprocessing.Pipe(duplex=False)
-        proc = multiprocessing.Process(
-            target=_subprocess_worker,
-            args=(ast, axioms, timeout_ms, self._cache, child_conn),
-            daemon=True,
-        )
-        proc.start()
-        child_conn.close()  # parent does not write
-        timeout_s = (timeout_ms / 1000) + CONSTANT_VERIFICATION_TIME_S + 1.0
+        """Run _verify_inner in an isolated subprocess with OS resource limits.
 
-        try:
-            if not parent_conn.poll(timeout_s):
-                proc.kill()
-                proc.join()
-                raise VerificationError(
-                    "Z3 subprocess exceeded wall-clock timeout and was killed."
-                )
-            outcome = parent_conn.recv()
-        finally:
-            parent_conn.close()
+        R-3: A fresh IPC token is generated per call.  The subprocess echoes
+        it back; any response without a matching token is rejected.
 
-        proc.join()
-        if proc.exitcode not in (0, -9):  # -9 = SIGKILL from resource limit
-            raise VerificationError(
-                f"Z3 subprocess terminated with exit code {proc.exitcode}. "
-                "Possible memory or CPU limit exceeded."
+        Z3 crash recovery: if the subprocess exits non-zero, retry up to
+        _Z3_MAX_RETRIES times before raising VerificationError.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(1, _Z3_MAX_RETRIES + 1):
+            ipc_token = generate_ipc_token()
+            parent_conn, child_conn = multiprocessing.Pipe(duplex=False)
+            proc = multiprocessing.Process(
+                target=_subprocess_worker,
+                args=(ast, axioms, timeout_ms, self._cache, ipc_token, child_conn),
+                daemon=True,
             )
+            proc.start()
+            child_conn.close()
+            timeout_s = (timeout_ms / 1000) + CONSTANT_VERIFICATION_TIME_S + 1.0
 
-        if isinstance(outcome, Exception):
-            raise VerificationError(str(outcome)) from outcome
+            try:
+                if not parent_conn.poll(timeout_s):
+                    proc.kill()
+                    proc.join()
+                    raise VerificationError(
+                        "Z3 subprocess exceeded wall-clock timeout and was killed."
+                    )
+                outcome = parent_conn.recv()
+            finally:
+                parent_conn.close()
 
-        safe, ce_dict, cache_update = outcome
-        self._cache.update(cache_update)
-        if ce_dict is not None:
-            ce = CounterExample.__new__(CounterExample)
-            ce.assignments = ce_dict
-            return safe, ce
-        return safe, None
+            proc.join()
+
+            # Non-zero exit that is not SIGKILL from resource limit.
+            if proc.exitcode not in (0, -9):
+                last_exc = VerificationError(
+                    f"Z3 subprocess crashed (exit {proc.exitcode}), "
+                    f"attempt {attempt}/{_Z3_MAX_RETRIES}."
+                )
+                from loguru import logger as _log
+                _log.warning(str(last_exc))
+                continue  # retry
+
+            # R-3: validate IPC token.
+            if not isinstance(outcome, tuple) or len(outcome) < 2:
+                raise VerificationError("IPC: malformed response from subprocess.")
+            received_token = outcome[0]
+            if not isinstance(received_token, bytes) or not verify_ipc_token(
+                ipc_token, received_token
+            ):
+                raise VerificationError(
+                    "IPC: token mismatch — subprocess response rejected."
+                )
+
+            # Unpack the rest of the response.
+            rest = outcome[1:]
+            if len(rest) == 1 and isinstance(rest[0], Exception):
+                raise VerificationError(str(rest[0])) from rest[0]
+
+            safe, ce_dict, cache_update = rest
+            self._cache.update(cache_update)
+            if ce_dict is not None:
+                ce = CounterExample.__new__(CounterExample)
+                ce.assignments = ce_dict
+                return safe, ce
+            return safe, None
+
+        # All retries exhausted.
+        raise VerificationError(
+            f"Z3 subprocess crashed {_Z3_MAX_RETRIES} times consecutively. "
+            "Circuit breaker should open."
+        ) from last_exc
 
     def _verify_inner(
         self,
