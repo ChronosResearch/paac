@@ -184,8 +184,8 @@ def _py_expr_to_sil(node: pyast.expr, known_vars: list[str]) -> str | None:
     if isinstance(node, pyast.Constant) and isinstance(node.value, int):
         return str(node.value)
     if isinstance(node, pyast.BoolOp):
-        parts = [_py_expr_to_sil(v, known_vars) for v in node.values]
-        parts = [p for p in parts if p]
+        raw = [_py_expr_to_sil(v, known_vars) for v in node.values]
+        parts: list[str] = [p for p in raw if p is not None]
         if parts:
             op = "and" if isinstance(node.op, pyast.And) else "or"
             return f" {op} ".join(parts)

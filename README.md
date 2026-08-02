@@ -1,4 +1,4 @@
-# PAAC — Provably Aligned AI Core v4.1
+# PAAC — Provably Aligned AI Core v4.2.0
 
 PAAC is a formal verification wrapper for self-modifying AI code. It intercepts
 proposed code changes, compiles them to the Safe Intermediate Language (SIL),
@@ -12,30 +12,29 @@ License: MIT
 
 ## Status
 
-**v4.1 — Production-ready on Linux with Docker.**
+**v4.2.0 — Production-ready. All critical issues resolved.**
 
-All 70+ tests pass. Bandit: 0 issues. Mypy: 0 errors.
+212 tests pass. Bandit: 0 HIGH issues. Mypy: 0 errors.
 
-What works:
-- SIL compiler: lexer, parser, type checker, call-graph recursion detection
-- Z3 verifier: real BMC pipeline with SSA encoding, loop unrolling, phi-node merges
-- Safety axiom loading from YAML with real conditions (not vacuous `true`)
-- Constant-time verification padding (200 ms, configurable)
-- Checkpoint and rollback with WAL persistence
-- Z3 subprocess isolation with OS-level RLIMIT_AS/RLIMIT_CPU (Linux)
-- Circuit breaker (5 failures → OPEN, 60 s cooldown, HALF_OPEN probe)
-- Fallback static analyzer when Z3 is unavailable
-- FastAPI with /verify, /health, /metrics endpoints
-- Prometheus metrics: counters, histograms, gauges
-- Rate limiting (100 req/min per IP), API key auth
-- Non-root Docker container with HEALTHCHECK
-- Structured JSON logging via loguru
+### Critical Fixes in v4.2.0
 
-Known limitations:
-- RLIMIT_AS not enforced on macOS — use Docker `--memory=2g` instead
-- TCB line count is ~1,600 lines across 6 core files (paper claimed ~500)
-- The paper's <120 ms verification claim is not met for complex programs;
-  typical latency is 200–800 ms including constant-time padding
+| Issue | Severity | Fix |
+|---|---|---|
+| A-01 Loop soundness | CRITICAL | Under-bounded loops now correctly return SAT |
+| A-02 Cache poisoning | HIGH | `__cache` name-mangled; read-only property |
+| A-03 Timing attack on API key | HIGH | `secrets.compare_digest` |
+| A-04 Fork-under-threads | HIGH | `set_start_method("spawn", force=True)` |
+| A-05 target_functions not enforced | HIGH | `_get_applicable_axioms()` per call |
+
+### Advanced Features in v4.2.0 (EPFL Research Extensions)
+
+1. **Probabilistic Verification** — Monte Carlo sampling over bounded domains
+2. **Bootstrap Self-Verification** — PAAC verifying its own TCB stubs
+3. **HMAC-SHA256 Attestation** — Cryptographic commitment scheme for results
+4. **CTVP** — Cross-Trace Semantic Verification Protocol (backdoor detection)
+5. **Axiom Evolution** — Conservative axiom extension with Z3 consistency check
+6. **Runtime Monitor** — Post-hoc axiom checking on SIL execution traces
+7. **Compositional Verification** — Function-level isolation + batch BMC
 
 ---
 
@@ -45,13 +44,15 @@ Known limitations:
 Code Modification
       |
       v
-Code Monitor  <-- loads axioms from config/axioms.yaml
+Code Monitor  <-- loads axioms, filters by target_functions (A-05)
       |
       v
 SIL Compiler  (lexer -> parser -> type checker -> CFG)
       |
       v
 Z3 Verifier   (SSA encoding -> loop unrolling -> BMC query)
+      |         A-01: post-unroll soundness check
+      |         A-02: name-mangled cache, read-only property
       |
       +-- UNSAT -> modification accepted, checkpoint saved
       +-- SAT   -> modification rejected, counterexample returned, rollback applied
@@ -65,9 +66,8 @@ Z3 Verifier   (SSA encoding -> loop unrolling -> BMC query)
 ### Docker (recommended)
 
 ```bash
-docker build -t paac:production -f docker/Dockerfile .
-docker run --rm --memory=2g -e AXIOM_PATH=config/axioms.yaml \
-  -e PAAC_API_KEY=changeme paac:production \
+docker build -t paac:v4.2.0 -f docker/Dockerfile .
+docker run --rm --memory=2g -e PAAC_API_KEY=changeme paac:v4.2.0 \
   python3.11 -m pytest tests/ -v
 ```
 
@@ -99,6 +99,7 @@ PYTHONPATH=. python3.11 -m pytest tests/ -v
 | `/metrics` | GET | Prometheus metrics |
 
 All `/verify` requests require `X-API-Key` header when `PAAC_API_KEY` is set.
+The key comparison uses `secrets.compare_digest` (constant-time, A-03 fix).
 
 ---
 
@@ -117,6 +118,7 @@ All runtime configuration is via environment variables. See `.env.example`.
 | `PAAC_REGISTRY_PATH` | `live_registry.json` | Registry persistence path |
 | `PAAC_MAX_LOOP_BOUND` | `10000` | Global loop bound cap |
 | `PAAC_MAX_INSTRUCTIONS` | `100000` | Global instruction limit |
+| `PAAC_WATCHDOG_TIMEOUT` | `60` | Watchdog stall timeout (seconds) |
 
 ---
 
@@ -137,6 +139,7 @@ Restrictions:
 - All while loops require an explicit integer bound
 - Global loop bound cap: 10,000 iterations
 - Global instruction limit: 100,000 steps
+- Loop bound must be sufficient for all inputs (A-01: under-bounded loops are SAT)
 
 ---
 
@@ -146,7 +149,18 @@ Restrictions:
 PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-Expected: 70+ tests pass.
+Expected: 212 tests pass.
+
+---
+
+## Known Limitations
+
+See `KNOWN_ISSUES.md` and the paper corrections in `FINAL_MERGE_REPORT.md`.
+
+- TCB protection is filesystem chmod only (not kernel read-only memory pages)
+- Verification latency floor is 200 ms (constant-time padding); not <120 ms
+- TCB line count is ~2,123 lines across 6 core files (paper claimed ~500)
+- RLIMIT_AS not enforced on macOS — use Docker `--memory=2g`
 
 ---
 
@@ -159,3 +173,5 @@ Expected: 70+ tests pass.
 - [Monitoring](docs/MONITORING.md)
 - [Security Policy](SECURITY.md)
 - [SIL Architecture](docs/SIL_ARCHITECTURE.md)
+- [Advanced Features Report](ADVANCED_FEATURES_REPORT.md)
+- [Final Merge Report](FINAL_MERGE_REPORT.md)

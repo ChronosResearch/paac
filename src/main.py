@@ -5,7 +5,15 @@ Steps 76-85: Prometheus metrics, structured logging.
 """
 from __future__ import annotations
 
+import multiprocessing as _mp
+
+# A-04 fix: use spawn so Z3 subprocesses do not inherit open file descriptors
+# or partially-initialised thread state from the parent (fork-under-threads).
+if _mp.get_start_method(allow_none=True) != "spawn":
+    _mp.set_start_method("spawn", force=True)
+
 import os
+import secrets
 import sys
 import time
 import traceback
@@ -149,10 +157,10 @@ async def security_middleware(request: Request, call_next):
     if request.url.path in ("/health", "/metrics"):
         return await call_next(request)
 
-    # API key check
+    # API key check (A-03 fix: constant-time comparison via secrets.compare_digest)
     if _API_KEY:
         key = request.headers.get("X-API-Key", "")
-        if key != _API_KEY:
+        if not secrets.compare_digest(key, _API_KEY):
             return JSONResponse(
                 status_code=401,
                 content={"error": "Invalid or missing API key."},

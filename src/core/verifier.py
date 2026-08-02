@@ -286,6 +286,20 @@ class StmtEncoder:
                 iter_path = z3.And(current_path, loop_cond)
                 self.encode_stmts(stmt.body, iter_path)
                 current_path = iter_path
+            # A-01 fix: if the loop condition is still true after all K
+            # iterations the loop never exited within the declared bound —
+            # that is UNSAFE (runtime would raise LoopBoundExceeded).
+            self.expr_enc = ExprEncoder(self.ctx, self.env)
+            post_loop_cond = self.expr_enc.encode(stmt.condition)
+            still_running = z3.And(current_path, post_loop_cond)
+            self.violation_flags.append(still_running)
+            # A-01 fix: if the loop condition is still true after all K
+            # iterations the loop never exited within the declared bound --
+            # that is UNSAFE (runtime would raise LoopBoundExceeded).
+            self.expr_enc = ExprEncoder(self.ctx, self.env)
+            post_loop_cond = self.expr_enc.encode(stmt.condition)
+            still_running = z3.And(current_path, post_loop_cond)
+            self.violation_flags.append(still_running)
             self._loop_exit_path = z3.And(entry_path, z3.Not(entry_loop_cond))
 
         else:
@@ -432,7 +446,7 @@ def _subprocess_worker(
     """Entry point for the isolated Z3 subprocess."""
     _apply_resource_limits()
     checker = BoundedModelChecker()
-    checker._cache = dict(cache)
+    checker._cache_update(dict(cache))
     try:
         safe, ce = checker._verify_inner(ast, axioms, timeout_ms)
         ce_dict = (
@@ -452,7 +466,16 @@ def _subprocess_worker(
 
 class BoundedModelChecker:
     def __init__(self) -> None:
-        self._cache: dict[str, tuple[bool, str | None]] = {}
+        self.__cache: dict[str, tuple[bool, str | None]] = {}
+
+    @property
+    def _cache(self) -> dict[str, tuple[bool, str | None]]:
+        """Read-only view -- prevents external cache poisoning (A-02)."""
+        return dict(self.__cache)
+
+    def _cache_update(self, updates: dict[str, tuple[bool, str | None]]) -> None:
+        """Merge verified results into the internal cache."""
+        self.__cache.update(updates)
 
     def _hash_ast(self, ast: ProgramNode, axioms: list[Axiom]) -> str:
         def _node_to_dict(node: Any) -> Any:
@@ -594,7 +617,7 @@ class BoundedModelChecker:
                 raise VerificationError(str(rest[0])) from rest[0]
 
             safe, ce_dict, cache_update = rest
-            self._cache.update(cache_update)
+            self._cache_update(cache_update)
             if ce_dict is not None:
                 ce = CounterExample.__new__(CounterExample)
                 ce.assignments = ce_dict
@@ -612,8 +635,8 @@ class BoundedModelChecker:
         timeout_ms: int,
     ) -> tuple[bool, CounterExample | None]:
         cache_key = self._hash_ast(ast, axioms)
-        if cache_key in self._cache:
-            safe, _ce_str = self._cache[cache_key]
+        if cache_key in self.__cache:
+            safe, _ce_str = self.__cache[cache_key]
             return safe, None
 
         ctx = z3.Context()
@@ -650,18 +673,18 @@ class BoundedModelChecker:
                 stmt_enc.violation_flags.append(z3.Not(z3_cond))
 
         if not stmt_enc.violation_flags:
-            self._cache[cache_key] = (True, None)
+            self.__cache[cache_key] = (True, None)
             return True, None
 
         solver.add(z3.Or(*stmt_enc.violation_flags))
         result = solver.check()
 
         if result == z3.unsat:
-            self._cache[cache_key] = (True, None)
+            self.__cache[cache_key] = (True, None)
             return True, None
         elif result == z3.sat:
             ce = CounterExample(solver.model())
-            self._cache[cache_key] = (False, str(ce))
+            self.__cache[cache_key] = (False, str(ce))
             return False, ce
         else:
             raise VerificationError(f"Z3 solver returned unknown/timeout: {result}")

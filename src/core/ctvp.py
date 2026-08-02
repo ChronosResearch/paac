@@ -303,14 +303,14 @@ class CTVPEngine:
 
         # Detect backdoor: any variant disagrees with the original.
         original_safe = results[0].safe
-        anomalous = next(
+        anomalous: VariantResult | None = next(
             (r for r in results[1:] if r.safe != original_safe), None
         )
         backdoor = anomalous is not None
 
-        if backdoor:
+        if backdoor and anomalous is not None:
             msg = (
-                f"CTVP: semantic backdoor detected — variant '{anomalous.variant_name}' "
+                f"CTVP: semantic backdoor detected -- variant '{anomalous.variant_name}' "
                 f"disagrees with original. C={score:.2f}."
             )
             logger.warning(msg)

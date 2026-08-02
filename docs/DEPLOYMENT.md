@@ -1,4 +1,4 @@
-# PAAC Deployment Guide — v4.1
+# PAAC Deployment Guide — v4.2.0
 
 ## Prerequisites
 
@@ -7,13 +7,26 @@
 - Linux host (RLIMIT_AS enforcement and TCB file protection require Linux)
 - Redis 7.0+ with `appendonly yes` (provided by docker-compose)
 
+## What Changed in v4.2.0
+
+Five critical security issues fixed (see `SECURITY.md` for full details):
+
+| Fix | Description |
+|---|---|
+| A-01 Loop soundness | Under-bounded loops now correctly return SAT |
+| A-02 Cache hardening | `__cache` name-mangled; read-only property prevents poisoning |
+| A-03 Timing attack | API key comparison uses `secrets.compare_digest` |
+| A-04 Spawn start method | `multiprocessing.set_start_method("spawn")` prevents fork-under-threads |
+| A-05 Axiom scoping | `_get_applicable_axioms()` filters by `target_functions` |
+
+Seven advanced research features added (see `ADVANCED_FEATURES_REPORT.md`).
+
 ## Fail-Safe Systems
 
 ### Circuit Breaker
 Opens after 5 consecutive verification failures. All modifications are rejected
 with HTTP 503 for 60 s. After cooldown, one probe is allowed; success closes
-the circuit. The watchdog resets the circuit breaker if no heartbeat is received
-for 30 s.
+the circuit.
 
 ### Write-Ahead Log (WAL)
 Every accepted checkpoint is written to `checkpoints.wal` before Redis. On
@@ -30,38 +43,37 @@ If the Z3 subprocess exits with a non-zero code, the parent retries up to
 3 times. After 3 consecutive crashes, VerificationError is raised and the
 circuit breaker records a failure.
 
-### IPC Authentication (R-3)
+### IPC Authentication
 A random 32-byte token is generated per verification call. The subprocess
 echoes it back; the parent rejects any response with a wrong token.
 
-### TCB File Protection (R-2)
-On Linux, TCB source files are chmod'd read-only at startup. Deploy with
-`docker run --read-only` for full filesystem protection.
+### TCB File Protection
+On Linux, TCB source files are chmod'd read-only at startup. This is a
+filesystem-level protection only (not kernel read-only memory pages). Deploy
+with `docker run --read-only` and as a non-root user for stronger guarantees.
 
-## Prerequisites
-
-- Docker 24+ and Docker Compose v2+
-- 4 GB RAM minimum (2 GB reserved for the PAAC container)
-- Linux host recommended (RLIMIT_AS enforcement requires Linux)
-- Redis 7.0+ (provided by docker-compose)
+### Multiprocessing Safety (A-04)
+`multiprocessing.set_start_method("spawn", force=True)` is called at import
+time in `src/main.py`. This ensures Z3 subprocesses do not inherit open file
+descriptors or partially-initialised thread state from the parent process.
 
 ## Build
 
 ```bash
-docker build -t paac:latest -f docker/Dockerfile .
+docker build -t paac:v4.2.0 -f docker/Dockerfile .
 ```
 
 Verify Z3 is available inside the image:
 
 ```bash
-docker run --rm paac:latest python3.11 -c "import z3; print(z3.get_version_string())"
+docker run --rm paac:v4.2.0 python3.11 -c "import z3; print(z3.get_version_string())"
 ```
 
 ## Run
 
 ```bash
 cp .env.example .env
-# Edit .env if your Redis host differs from the default.
+# Edit .env — set PAAC_API_KEY to a strong random value
 docker-compose -f docker/docker-compose.yml up -d
 ```
 
@@ -81,69 +93,42 @@ docker-compose -f docker/docker-compose.yml logs -f paac_core
 | `REDIS_HOST` | Yes | `redis` | Redis hostname |
 | `REDIS_PORT` | No | `6379` | Redis port |
 | `AXIOM_PATH` | No | `config/axioms.yaml` | Axiom file path inside the container |
+| `PAAC_API_KEY` | Yes (prod) | `` | API key for X-API-Key header auth |
+| `PAAC_RATE_LIMIT` | No | `100` | Requests per minute per IP |
 | `VERIFICATION_TIMEOUT_MS` | No | `5000` | Z3 solver timeout per query in milliseconds |
 | `PAAC_WAL_PATH` | No | `checkpoints.wal` | Write-ahead log file path |
 | `PAAC_REGISTRY_PATH` | No | `live_registry.json` | Registry persistence file path |
-
-## Configuration
-
-Runtime configuration is in `config/default.yaml`. The file does not contain
-secrets or host-specific paths. All host-specific values are set via
-environment variables listed above.
+| `PAAC_WATCHDOG_TIMEOUT` | No | `60` | Watchdog stall timeout in seconds |
 
 ## Axiom Management
 
-Safety axioms are defined in `config/axioms.yaml`. The file uses a flat list
-format:
+Safety axioms are defined in `config/axioms.yaml`. The `target_functions` field
+is now enforced (A-05 fix): axioms are only applied to the functions they name.
 
 ```yaml
 axioms:
-  - id: "my_axiom"
-    description: "Human-readable description"
-    condition: "x >= 0"
-    target_functions: ["*"]
+  - id: "no_negative_balance"
+    description: "Account balance must remain non-negative."
+    condition: "balance >= 0"
+    target_functions: ["withdraw", "deposit", "transfer"]
 ```
 
-The `condition` field must be a valid SIL boolean expression. The verifier
-parses it at startup. If the condition cannot be parsed, the axiom is skipped
-and a warning is logged. If no axioms load successfully, the system refuses
-to start.
+Use `target_functions: ["*"]` or an empty list `[]` to apply an axiom globally.
 
-## Known Deployment Limitation (R-1)
+## Known Deployment Limitation
 
-Z3 runs in a subprocess. The subprocess has `RLIMIT_AS` (1 GB address space)
-and `RLIMIT_CPU` (5 seconds) set via `resource.setrlimit`. These limits are
-enforced on Linux. On macOS, `RLIMIT_AS` is not enforced by the kernel.
+Z3 runs in a subprocess with `RLIMIT_AS` (1 GB) and `RLIMIT_CPU` (5 s) on
+Linux. On macOS, `RLIMIT_AS` is not enforced by the kernel.
 
-For production deployments on any platform, run the PAAC service inside a
-container with a hard memory limit:
+For production deployments on any platform:
 
 ```bash
-docker run --memory=2g --cpus=2 paac:latest
+docker run --memory=2g --cpus=2 paac:v4.2.0
 ```
-
-This enforces the memory limit at the cgroup level, independent of the
-in-process resource limits.
-
-Until this is the standard deployment configuration, the system is
-CONDITIONALLY GO for development and internal testing only.
 
 ## Monitoring
 
-Logs are written to stdout in loguru format. To persist logs to a file:
-
-```bash
-docker run --memory=2g paac:latest 2>&1 | tee logs/paac.log
-```
-
-There is no built-in metrics endpoint in this prototype. Add a Prometheus
-exporter or structured log aggregation before production deployment.
-
-## Rollback
-
-On verification failure, the system attempts to restore the last verified
-checkpoint from Redis. If Redis is unavailable, it falls back to an in-memory
-checkpoint store. In-memory checkpoints are lost on process restart.
-
-For production, ensure Redis is highly available and persistent
-(`appendonly yes` in redis.conf).
+- `/health` — returns `healthy` / `degraded` / `unhealthy` with circuit breaker state
+- `/metrics` — Prometheus metrics (verifications_total, latency histogram, active gauge)
+- `audit.log` — append-only audit log of all accepted/rejected modifications
+- `paac_core.log` — structured JSON debug log (rotates at 10 MB)
