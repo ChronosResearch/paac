@@ -37,6 +37,8 @@ from ..core.verifier import BoundedModelChecker
 from ..core.verifier import (
     VerificationError as _VerifierError,  # same class via re-export
 )
+from ..pcm.proof_checker import ProofChecker
+from ..pcm.certificate import CertificateStore, generate_certificate
 
 # Audit logger — writes counterexamples and rejections to a persistent file.
 _audit_logger = logging.getLogger("paac.audit")
@@ -61,6 +63,9 @@ class CodeModification:
     pre_cond: str
     post_cond: str
     source_citation: str = ""
+    # PCM fields -- optional; only required when pcm_mode=True
+    proof: "dict | None" = None
+    agent_id: str = "unknown-agent"
 
 
 class CodeMonitor:
@@ -76,6 +81,10 @@ class CodeMonitor:
 
         self.compiler = SILCompiler()
         self.checker = BoundedModelChecker()
+        self.pcm_mode: bool = config.get("pcm_mode", False)
+        self._pcm_store = CertificateStore(
+            log_path=config.get("pcm_audit_log", "pcm_audit.jsonl")
+        )
         self.grounding_config = config.get("grounding", {})
         self.lock_path = os.path.join(os.getcwd(), "paac_monitor.lock")
         self.verified_checkpoints: list[CodeModification] = []
@@ -328,6 +337,11 @@ class CodeMonitor:
 
                 # A-05 fix: only pass axioms that target this function.
                 applicable = self._get_applicable_axioms(mod.func_name)
+
+                if self.pcm_mode:
+                    # PCM mode: verify the proof, not the code.
+                    return self._intercept_pcm(mod, applicable)
+
                 with _VERIFY_SEMAPHORE:
                     safe, counterexample = self.checker.verify(
                         ast, applicable, timeout_ms=self.timeout_ms
@@ -370,3 +384,78 @@ class CodeMonitor:
                 return {"status": "rejected", "error": f"Verification failed: {exc}"}
             except GroundingError as exc:
                 return {"status": "rejected", "error": f"Grounding failed: {exc}"}
+
+    # ------------------------------------------------------------------
+    # PCM mode interception
+    # ------------------------------------------------------------------
+
+    def _intercept_pcm(
+        self, mod: "CodeModification", applicable: list
+    ) -> dict[str, Any]:
+        """
+        PCM mode: verify the proof submitted with the modification.
+
+        The proof checker runs in pure Python (no Z3).  If the proof is
+        accepted, a PCM certificate is generated and appended to the
+        audit log.  The code is applied only after proof acceptance.
+        """
+        if mod.proof is None:
+            _audit_logger.warning(
+                f"PCM REJECTED func={mod.func_name}: no proof submitted."
+            )
+            return {
+                "status": "rejected",
+                "error": "PCM mode requires a proof. Submit a proof alongside the modification.",
+            }
+
+        axiom_dicts = [{"id": a.id, "condition": a.condition} for a in applicable]
+        checker = ProofChecker(axiom_dicts)
+        check_result = checker.check(mod.proof)
+
+        if not check_result.accepted:
+            CodeMonitor._circuit_breaker.record_failure()
+            _audit_logger.warning(
+                f"PCM REJECTED func={mod.func_name} "
+                f"reason={check_result.reason!r} "
+                f"failed_step={check_result.failed_step}"
+            )
+            safe_state = self._rollback(mod.func_name)
+            if safe_state:
+                self._restore_state(safe_state)
+            return {
+                "status": "rejected",
+                "error": f"Proof rejected: {check_result.reason}",
+                "failed_step": check_result.failed_step,
+                "proof_check_elapsed_ms": round(check_result.elapsed_ms, 3),
+            }
+
+        # Proof accepted -- generate certificate and apply modification
+        import time as _time
+        mod_id = f"{mod.func_name}:{int(_time.time())}"
+        cert = generate_certificate(
+            modification_id=mod_id,
+            code=mod.new_code,
+            proof=mod.proof,
+            agent_id=mod.agent_id,
+            axioms_covered=check_result.covered_axioms,
+        )
+        self._pcm_store.save(cert)
+
+        CodeMonitor._circuit_breaker.record_success()
+        CodeMonitor._live_registry[mod.func_name] = mod.new_code
+        registry_save(dict(CodeMonitor._live_registry))
+        self._save_checkpoint(mod)
+        _audit_logger.info(
+            f"PCM ACCEPTED func={mod.func_name} "
+            f"mod_id={mod_id} "
+            f"agent={mod.agent_id} "
+            f"axioms={check_result.covered_axioms} "
+            f"elapsed_ms={check_result.elapsed_ms:.2f}"
+        )
+        return {
+            "status": "accepted",
+            "message": "Proof verified and modification applied.",
+            "modification_id": mod_id,
+            "certificate": cert.to_dict(),
+            "proof_check_elapsed_ms": round(check_result.elapsed_ms, 3),
+        }

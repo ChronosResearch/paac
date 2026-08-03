@@ -251,11 +251,8 @@ class AxiomEvolutionEngine:
         if not vars_used:
             vars_used = {"x"}
 
-        param_str = ", ".join(f"{v}: int" for v in sorted(vars_used))
-
         # Encode: new_cond holds AND old_cond does NOT hold.
-        # (SIL wrappers are built for reference but Z3 encoding is done directly below.)
-
+        # Z3 encoding is done directly below using free variables.
         try:
             ctx = z3.Context()
             solver = z3.Solver(ctx=ctx)

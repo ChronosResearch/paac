@@ -419,8 +419,6 @@ async def verify_attestation_endpoint(record_data: dict):
 @app.get("/agents")
 async def list_agents():
     """List all registered agents and their status."""
-    from .core.compositional import CompositionalVerifier
-
     # Use a module-level verifier instance
     verifier = _get_compositional_verifier()
     statuses = verifier.agent_statuses()

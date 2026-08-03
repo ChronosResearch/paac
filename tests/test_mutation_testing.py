@@ -16,14 +16,12 @@ import pytest
 from src.axioms.axiom_parser import Axiom
 from src.mutation.axiom_mutator import (
     MutationKind,
-    MutatedAxiom,
     generate_mutations,
     _replace_first_op,
     _shift_first_const,
 )
 from src.mutation.mutation_runner import (
     AxiomMutationResult,
-    MutantResult,
     run_axiom_mutation,
     run_all_axioms,
     _build_probes_for_axiom,

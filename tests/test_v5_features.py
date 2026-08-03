@@ -9,14 +9,12 @@ Tests for PAAC v5.0.0 features:
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 import threading
 import time
 
 import pytest
 
-from src.axioms.axiom_parser import Axiom
 from src.core.sil_compiler import SILCompiler
 
 COMPILER = SILCompiler()
@@ -83,7 +81,7 @@ class TestBootstrapVerification:
 
     def test_self_verify_stage_2_on_failure(self):
         """Stage must be 2 when any stub fails."""
-        from src.core.self_verify import SelfVerifier, SELF_AXIOMS
+        from src.core.self_verify import SelfVerifier
 
         sv = SelfVerifier(timeout_ms=5000)
         # Inject a stub that violates an axiom (timeout_ms < 1)

@@ -40,7 +40,7 @@ import hmac
 import json
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 import z3
@@ -49,7 +49,6 @@ from loguru import logger
 from src.axioms.axiom_parser import Axiom
 from src.core.sil_compiler import ProgramNode, SILCompiler
 from src.core.verifier import (
-    ExprEncoder,
     SSAEnv,
     StmtEncoder,
     VerificationError,
@@ -303,12 +302,11 @@ class CertificateExporter:
         result = solver.check()
 
         if result == z3.unsat:
-            # Extract unsat core — which axioms were needed
+            # Extract unsat core — which axioms were needed (reserved for future use)
             try:
-                core = solver.unsat_core()
-                core_strs = [str(c) for c in core]
+                solver.unsat_core()
             except Exception:  # noqa: BLE001
-                core_strs = []
+                pass
 
             # Collect witness assertions as SMT2 strings
             witness: list[str] = []

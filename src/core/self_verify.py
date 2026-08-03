@@ -48,7 +48,6 @@ import inspect
 import textwrap
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
 from loguru import logger
 
@@ -211,7 +210,6 @@ def _translate_stmts(
 ) -> list[str]:
     """Translate a list of Python statements to SIL lines."""
     lines: list[str] = []
-    pad = "    " * indent
     for stmt in stmts:
         translated = _translate_stmt(stmt, known_vars, indent)
         lines.extend(translated)

@@ -477,9 +477,24 @@ class SILTypeChecker:
             self._check_function(func)
 
     def _check_function(self, func: FuncDefNode):
+        # H-02: detect duplicate parameter names
+        seen_params: set[str] = set()
+        for p in func.params:
+            if p.name in seen_params:
+                raise SILError(f"Duplicate parameter name '{p.name}' in function '{func.name}'")
+            seen_params.add(p.name)
         self.current_env = {p.name: p.type_name for p in func.params}
         for stmt in func.body:
             self._check_stmt(stmt, func.return_type)
+        # H-03: warn when no return statement is present
+        has_return = any(isinstance(s, ReturnStmtNode) for s in func.body)
+        if not has_return and func.return_type != "bool":
+            import warnings
+            warnings.warn(
+                f"Function '{func.name}' has no return statement.",
+                SyntaxWarning,
+                stacklevel=2,
+            )
 
     def _check_stmt(self, stmt: ASTNode, return_type: str):
         if isinstance(stmt, AssignmentStmtNode):
