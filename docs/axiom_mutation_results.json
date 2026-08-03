@@ -1,0 +1,2618 @@
+{
+  "generated_at": "2026-08-03T09:02:50Z",
+  "summary": {
+    "suite_mutation_score": 1.0,
+    "suite_robustness_score": 1.0,
+    "total_axioms": 5,
+    "total_mutants": 40,
+    "total_killed": 40,
+    "vacuous_axioms": [],
+    "critical_axiom": "no_negative_balance",
+    "per_axiom": [
+      {
+        "axiom_id": "no_negative_balance",
+        "condition": "balance >= 0",
+        "probes": 6,
+        "mutants_total": 8,
+        "mutants_killed": 8,
+        "mutation_score": 1.0,
+        "robustness_score": 1.0,
+        "is_vacuous": false,
+        "elapsed_ms": 147.9
+      },
+      {
+        "axiom_id": "counter_in_range",
+        "condition": "counter >= 0",
+        "probes": 6,
+        "mutants_total": 8,
+        "mutants_killed": 8,
+        "mutation_score": 1.0,
+        "robustness_score": 1.0,
+        "is_vacuous": false,
+        "elapsed_ms": 117.9
+      },
+      {
+        "axiom_id": "result_bounded",
+        "condition": "result >= 0",
+        "probes": 6,
+        "mutants_total": 8,
+        "mutants_killed": 8,
+        "mutation_score": 1.0,
+        "robustness_score": 1.0,
+        "is_vacuous": false,
+        "elapsed_ms": 120.0
+      },
+      {
+        "axiom_id": "amount_positive",
+        "condition": "amount > 0",
+        "probes": 6,
+        "mutants_total": 8,
+        "mutants_killed": 8,
+        "mutation_score": 1.0,
+        "robustness_score": 1.0,
+        "is_vacuous": false,
+        "elapsed_ms": 118.4
+      },
+      {
+        "axiom_id": "index_nonneg",
+        "condition": "index >= 0",
+        "probes": 6,
+        "mutants_total": 8,
+        "mutants_killed": 8,
+        "mutation_score": 1.0,
+        "robustness_score": 1.0,
+        "is_vacuous": false,
+        "elapsed_ms": 117.8
+      }
+    ]
+  },
+  "detail": [
+    {
+      "axiom_id": "no_negative_balance",
+      "condition": "balance >= 0",
+      "target_functions": [
+        "withdraw",
+        "deposit",
+        "transfer"
+      ],
+      "probes": [
+        {
+          "description": "Assign balance=0 (satisfies 'balance >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign balance=1 (satisfies 'balance >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign balance=-1 (violates 'balance >= 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Assign balance=-5 (violates 'balance >= 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+          "expected_safe": false
+        }
+      ],
+      "baseline": [
+        {
+          "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign balance=-1 (violates 'balance >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign balance=-5 (violates 'balance >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        }
+      ],
+      "mutants": [
+        {
+          "mutant_id": "no_negative_balance__noop",
+          "kind": "noop",
+          "description": "Identity \u2014 no change to condition.",
+          "condition": "balance >= 0",
+          "expected_direction": "same",
+          "probes_total": 6,
+          "probes_killed": 0,
+          "kill_rate": 0.0,
+          "survived": true,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "no_negative_balance__vacuous",
+          "kind": "vacuous",
+          "description": "Replace condition with true (detects vacuous axioms).",
+          "condition": "true",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "no_negative_balance__negate",
+          "kind": "negate",
+          "description": "Negate condition: not (balance >= 0)",
+          "condition": "not (balance >= 0)",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 5,
+          "kill_rate": 0.8333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "no_negative_balance__weaken_op",
+          "kind": "weaken_op",
+          "description": "Weaken operator: 'balance >= 0' -> 'balance > 0'",
+          "condition": "balance > 0",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "no_negative_balance__strengthen_op",
+          "kind": "strengthen_op",
+          "description": "Strengthen operator: 'balance >= 0' -> 'balance > 0'",
+          "condition": "balance > 0",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "no_negative_balance__shift_m1",
+          "kind": "shift_const",
+          "description": "Shift constant by -1: 'balance >= 0' -> 'balance >= -1'",
+          "condition": "balance >= -1",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 1,
+          "kill_rate": 0.1667,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "no_negative_balance__shift_p1",
+          "kind": "shift_const",
+          "description": "Shift constant by +1: 'balance >= 0' -> 'balance >= 1'",
+          "condition": "balance >= 1",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "no_negative_balance__shift_m5",
+          "kind": "shift_const",
+          "description": "Shift constant by -5: 'balance >= 0' -> 'balance >= -5'",
+          "condition": "balance >= -5",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "no_negative_balance__shift_p5",
+          "kind": "shift_const",
+          "description": "Shift constant by +5: 'balance >= 0' -> 'balance >= 5'",
+          "condition": "balance >= 5",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign balance=0 (satisfies 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=1 (satisfies 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-1 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign balance=-5 (violates 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: balance=0 (exactly at boundary of 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained balance (Z3 picks violating value for 'balance >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "axiom_id": "counter_in_range",
+      "condition": "counter >= 0",
+      "target_functions": [
+        "increment",
+        "decrement",
+        "reset_counter"
+      ],
+      "probes": [
+        {
+          "description": "Assign counter=0 (satisfies 'counter >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign counter=1 (satisfies 'counter >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign counter=-1 (violates 'counter >= 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Assign counter=-5 (violates 'counter >= 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+          "expected_safe": false
+        }
+      ],
+      "baseline": [
+        {
+          "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign counter=-1 (violates 'counter >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign counter=-5 (violates 'counter >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        }
+      ],
+      "mutants": [
+        {
+          "mutant_id": "counter_in_range__noop",
+          "kind": "noop",
+          "description": "Identity \u2014 no change to condition.",
+          "condition": "counter >= 0",
+          "expected_direction": "same",
+          "probes_total": 6,
+          "probes_killed": 0,
+          "kill_rate": 0.0,
+          "survived": true,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "counter_in_range__vacuous",
+          "kind": "vacuous",
+          "description": "Replace condition with true (detects vacuous axioms).",
+          "condition": "true",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "counter_in_range__negate",
+          "kind": "negate",
+          "description": "Negate condition: not (counter >= 0)",
+          "condition": "not (counter >= 0)",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 5,
+          "kill_rate": 0.8333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "counter_in_range__weaken_op",
+          "kind": "weaken_op",
+          "description": "Weaken operator: 'counter >= 0' -> 'counter > 0'",
+          "condition": "counter > 0",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "counter_in_range__strengthen_op",
+          "kind": "strengthen_op",
+          "description": "Strengthen operator: 'counter >= 0' -> 'counter > 0'",
+          "condition": "counter > 0",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "counter_in_range__shift_m1",
+          "kind": "shift_const",
+          "description": "Shift constant by -1: 'counter >= 0' -> 'counter >= -1'",
+          "condition": "counter >= -1",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 1,
+          "kill_rate": 0.1667,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "counter_in_range__shift_p1",
+          "kind": "shift_const",
+          "description": "Shift constant by +1: 'counter >= 0' -> 'counter >= 1'",
+          "condition": "counter >= 1",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "counter_in_range__shift_m5",
+          "kind": "shift_const",
+          "description": "Shift constant by -5: 'counter >= 0' -> 'counter >= -5'",
+          "condition": "counter >= -5",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "counter_in_range__shift_p5",
+          "kind": "shift_const",
+          "description": "Shift constant by +5: 'counter >= 0' -> 'counter >= 5'",
+          "condition": "counter >= 5",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign counter=0 (satisfies 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=1 (satisfies 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-1 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign counter=-5 (violates 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: counter=0 (exactly at boundary of 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained counter (Z3 picks violating value for 'counter >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "axiom_id": "result_bounded",
+      "condition": "result >= 0",
+      "target_functions": [
+        "compute",
+        "calculate"
+      ],
+      "probes": [
+        {
+          "description": "Assign result=0 (satisfies 'result >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign result=1 (satisfies 'result >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign result=-1 (violates 'result >= 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Assign result=-5 (violates 'result >= 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+          "expected_safe": false
+        }
+      ],
+      "baseline": [
+        {
+          "probe": "Assign result=0 (satisfies 'result >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign result=1 (satisfies 'result >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign result=-1 (violates 'result >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign result=-5 (violates 'result >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        }
+      ],
+      "mutants": [
+        {
+          "mutant_id": "result_bounded__noop",
+          "kind": "noop",
+          "description": "Identity \u2014 no change to condition.",
+          "condition": "result >= 0",
+          "expected_direction": "same",
+          "probes_total": 6,
+          "probes_killed": 0,
+          "kill_rate": 0.0,
+          "survived": true,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "result_bounded__vacuous",
+          "kind": "vacuous",
+          "description": "Replace condition with true (detects vacuous axioms).",
+          "condition": "true",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "result_bounded__negate",
+          "kind": "negate",
+          "description": "Negate condition: not (result >= 0)",
+          "condition": "not (result >= 0)",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 5,
+          "kill_rate": 0.8333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "result_bounded__weaken_op",
+          "kind": "weaken_op",
+          "description": "Weaken operator: 'result >= 0' -> 'result > 0'",
+          "condition": "result > 0",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "result_bounded__strengthen_op",
+          "kind": "strengthen_op",
+          "description": "Strengthen operator: 'result >= 0' -> 'result > 0'",
+          "condition": "result > 0",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "result_bounded__shift_m1",
+          "kind": "shift_const",
+          "description": "Shift constant by -1: 'result >= 0' -> 'result >= -1'",
+          "condition": "result >= -1",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 1,
+          "kill_rate": 0.1667,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "result_bounded__shift_p1",
+          "kind": "shift_const",
+          "description": "Shift constant by +1: 'result >= 0' -> 'result >= 1'",
+          "condition": "result >= 1",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "result_bounded__shift_m5",
+          "kind": "shift_const",
+          "description": "Shift constant by -5: 'result >= 0' -> 'result >= -5'",
+          "condition": "result >= -5",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "result_bounded__shift_p5",
+          "kind": "shift_const",
+          "description": "Shift constant by +5: 'result >= 0' -> 'result >= 5'",
+          "condition": "result >= 5",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign result=0 (satisfies 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=1 (satisfies 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-1 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign result=-5 (violates 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: result=0 (exactly at boundary of 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained result (Z3 picks violating value for 'result >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "axiom_id": "amount_positive",
+      "condition": "amount > 0",
+      "target_functions": [
+        "withdraw",
+        "deposit"
+      ],
+      "probes": [
+        {
+          "description": "Assign amount=1 (satisfies 'amount > 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign amount=2 (satisfies 'amount > 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign amount=0 (violates 'amount > 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Assign amount=-1 (violates 'amount > 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+          "expected_safe": false
+        }
+      ],
+      "baseline": [
+        {
+          "probe": "Assign amount=1 (satisfies 'amount > 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign amount=2 (satisfies 'amount > 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign amount=0 (violates 'amount > 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign amount=-1 (violates 'amount > 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        }
+      ],
+      "mutants": [
+        {
+          "mutant_id": "amount_positive__noop",
+          "kind": "noop",
+          "description": "Identity \u2014 no change to condition.",
+          "condition": "amount > 0",
+          "expected_direction": "same",
+          "probes_total": 6,
+          "probes_killed": 0,
+          "kill_rate": 0.0,
+          "survived": true,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "amount_positive__vacuous",
+          "kind": "vacuous",
+          "description": "Replace condition with true (detects vacuous axioms).",
+          "condition": "true",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "amount_positive__negate",
+          "kind": "negate",
+          "description": "Negate condition: not (amount > 0)",
+          "condition": "not (amount > 0)",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 5,
+          "kill_rate": 0.8333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "amount_positive__weaken_op",
+          "kind": "weaken_op",
+          "description": "Weaken operator: 'amount > 0' -> 'amount >= 0'",
+          "condition": "amount >= 0",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 1,
+          "kill_rate": 0.1667,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "amount_positive__strengthen_op",
+          "kind": "strengthen_op",
+          "description": "Strengthen operator: 'amount > 0' -> 'amount == 0'",
+          "condition": "amount == 0",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 4,
+          "kill_rate": 0.6667,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "amount_positive__shift_m1",
+          "kind": "shift_const",
+          "description": "Shift constant by -1: 'amount > 0' -> 'amount > -1'",
+          "condition": "amount > -1",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 1,
+          "kill_rate": 0.1667,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "amount_positive__shift_p1",
+          "kind": "shift_const",
+          "description": "Shift constant by +1: 'amount > 0' -> 'amount > 1'",
+          "condition": "amount > 1",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "amount_positive__shift_m5",
+          "kind": "shift_const",
+          "description": "Shift constant by -5: 'amount > 0' -> 'amount > -5'",
+          "condition": "amount > -5",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "amount_positive__shift_p5",
+          "kind": "shift_const",
+          "description": "Shift constant by +5: 'amount > 0' -> 'amount > 5'",
+          "condition": "amount > 5",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign amount=1 (satisfies 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=2 (satisfies 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=0 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign amount=-1 (violates 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: amount=1 (exactly at boundary of 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained amount (Z3 picks violating value for 'amount > 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "axiom_id": "index_nonneg",
+      "condition": "index >= 0",
+      "target_functions": [
+        "get_elem",
+        "set_elem"
+      ],
+      "probes": [
+        {
+          "description": "Assign index=0 (satisfies 'index >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign index=1 (satisfies 'index >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Assign index=-1 (violates 'index >= 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Assign index=-5 (violates 'index >= 0')",
+          "expected_safe": false
+        },
+        {
+          "description": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+          "expected_safe": true
+        },
+        {
+          "description": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+          "expected_safe": false
+        }
+      ],
+      "baseline": [
+        {
+          "probe": "Assign index=0 (satisfies 'index >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign index=1 (satisfies 'index >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign index=-1 (violates 'index >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Assign index=-5 (violates 'index >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        },
+        {
+          "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+          "actual_safe": true,
+          "matched_expected": true
+        },
+        {
+          "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+          "actual_safe": false,
+          "matched_expected": true
+        }
+      ],
+      "mutants": [
+        {
+          "mutant_id": "index_nonneg__noop",
+          "kind": "noop",
+          "description": "Identity \u2014 no change to condition.",
+          "condition": "index >= 0",
+          "expected_direction": "same",
+          "probes_total": 6,
+          "probes_killed": 0,
+          "kill_rate": 0.0,
+          "survived": true,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "index_nonneg__vacuous",
+          "kind": "vacuous",
+          "description": "Replace condition with true (detects vacuous axioms).",
+          "condition": "true",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "index_nonneg__negate",
+          "kind": "negate",
+          "description": "Negate condition: not (index >= 0)",
+          "condition": "not (index >= 0)",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 5,
+          "kill_rate": 0.8333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "index_nonneg__weaken_op",
+          "kind": "weaken_op",
+          "description": "Weaken operator: 'index >= 0' -> 'index > 0'",
+          "condition": "index > 0",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "index_nonneg__strengthen_op",
+          "kind": "strengthen_op",
+          "description": "Strengthen operator: 'index >= 0' -> 'index > 0'",
+          "condition": "index > 0",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "index_nonneg__shift_m1",
+          "kind": "shift_const",
+          "description": "Shift constant by -1: 'index >= 0' -> 'index >= -1'",
+          "condition": "index >= -1",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 1,
+          "kill_rate": 0.1667,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "index_nonneg__shift_p1",
+          "kind": "shift_const",
+          "description": "Shift constant by +1: 'index >= 0' -> 'index >= 1'",
+          "condition": "index >= 1",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "index_nonneg__shift_m5",
+          "kind": "shift_const",
+          "description": "Shift constant by -5: 'index >= 0' -> 'index >= -5'",
+          "condition": "index >= -5",
+          "expected_direction": "fail_less",
+          "probes_total": 6,
+          "probes_killed": 2,
+          "kill_rate": 0.3333,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": true,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        },
+        {
+          "mutant_id": "index_nonneg__shift_p5",
+          "kind": "shift_const",
+          "description": "Shift constant by +5: 'index >= 0' -> 'index >= 5'",
+          "condition": "index >= 5",
+          "expected_direction": "fail_more",
+          "probes_total": 6,
+          "probes_killed": 3,
+          "kill_rate": 0.5,
+          "survived": false,
+          "probe_results": [
+            {
+              "probe": "Assign index=0 (satisfies 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=1 (satisfies 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-1 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Assign index=-5 (violates 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            },
+            {
+              "probe": "Boundary: index=0 (exactly at boundary of 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": false,
+              "error": null
+            },
+            {
+              "probe": "Unconstrained index (Z3 picks violating value for 'index >= 0')",
+              "actual_safe": false,
+              "matched_expected": true,
+              "error": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
