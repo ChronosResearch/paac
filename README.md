@@ -1,4 +1,4 @@
-# PAAC — Provably Aligned AI Core v4.2.0
+# PAAC — Provably Aligned AI Core v5.0.0
 
 PAAC is a formal verification wrapper for self-modifying AI code. It intercepts
 proposed code changes, compiles them to the Safe Intermediate Language (SIL),
@@ -12,11 +12,11 @@ License: MIT
 
 ## Status
 
-**v4.2.0. All critical issues resolved.**
+**v5.0.0 — Production-ready. All critical issues resolved. Three novel features integrated.**
 
-212 tests pass. Bandit: 0 HIGH issues. Mypy: 0 errors.
+260 tests pass. Bandit: 0 HIGH issues. Mypy: 0 errors.
 
-### Critical Fixes in v4.2.0
+### Critical Fixes in v4.2.0 (carried forward)
 
 | Issue | Severity | Fix |
 |---|---|---|
@@ -26,15 +26,15 @@ License: MIT
 | A-04 Fork-under-threads | HIGH | `set_start_method("spawn", force=True)` |
 | A-05 target_functions not enforced | HIGH | `_get_applicable_axioms()` per call |
 
-### Advanced Features in v4.2.0 
+### Novel Features in v5.0.0 (EPFL Research Extensions)
 
-1. **Probabilistic Verification** — Monte Carlo sampling over bounded domains
-2. **Bootstrap Self-Verification** — PAAC verifying its own TCB stubs
-3. **HMAC-SHA256 Attestation** — Cryptographic commitment scheme for results
-4. **CTVP** — Cross-Trace Semantic Verification Protocol (backdoor detection)
-5. **Axiom Evolution** — Conservative axiom extension with Z3 consistency check
-6. **Runtime Monitor** — Post-hoc axiom checking on SIL execution traces
-7. **Compositional Verification** — Function-level isolation + batch BMC
+1. **Bootstrap Self-Verification** — Genuine Python-to-SIL translator; PAAC verifies its own TCB
+2. **Cryptographic Attestation** — HMAC-SHA256 commitment with key rotation, thread-safe, audit metrics
+3. **Multi-Agent Coordination** — Agent registry, crash recovery, conflict detection, sequential queue
+4. **Probabilistic Verification** — Monte Carlo sampling over bounded domains
+5. **CTVP** — Cross-Trace Semantic Verification Protocol (backdoor detection)
+6. **Axiom Evolution** — Conservative axiom extension with Z3 consistency check
+7. **Runtime Monitor** — Post-hoc axiom checking on SIL execution traces
 
 ---
 
@@ -66,8 +66,8 @@ Z3 Verifier   (SSA encoding -> loop unrolling -> BMC query)
 ### Docker (recommended)
 
 ```bash
-docker build -t paac:v4.2.0 -f docker/Dockerfile .
-docker run --rm --memory=2g -e PAAC_API_KEY=changeme paac:v4.2.0 \
+docker build -t paac:v5.0.0 -f docker/Dockerfile .
+docker run --rm --memory=2g -e PAAC_API_KEY=changeme paac:v5.0.0 \
   python3.11 -m pytest tests/ -v
 ```
 
@@ -97,6 +97,10 @@ PYTHONPATH=. python3.11 -m pytest tests/ -v
 | `/verify` | POST | Submit a code modification for verification |
 | `/health` | GET | Service health (healthy/degraded/unhealthy) |
 | `/metrics` | GET | Prometheus metrics |
+| `/self-verify` | POST | Bootstrap self-verification of the TCB |
+| `/attest/{id}` | GET | Retrieve attestation record by modification ID |
+| `/attest/verify` | POST | Verify an attestation commitment |
+| `/agents` | GET | List registered agents and their status |
 
 All `/verify` requests require `X-API-Key` header when `PAAC_API_KEY` is set.
 The key comparison uses `secrets.compare_digest` (constant-time, A-03 fix).
@@ -149,7 +153,7 @@ Restrictions:
 PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-Expected: 212 tests pass.
+Expected: 260 tests pass.
 
 ---
 
