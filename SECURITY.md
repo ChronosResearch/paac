@@ -1,11 +1,11 @@
-# PAAC Security Policy — v4.2.0
+# PAAC Security Policy — v5.0.0
 
 ## Supported Versions
 
 | Version | Supported |
 |---|---|
-| v4.2.0 (release-v4.0 branch) | ✅ Active |
-| v4.1 | ✅ Security fixes only |
+| v5.0.0 (branch 5.1) | ✅ Active |
+| v4.2.0 (release-v4.0 branch) | ✅ Security fixes only |
 | < v4.1 | ❌ End of life |
 
 ## Reporting a Vulnerability
@@ -88,7 +88,7 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
 
 ---
 
-## Security Controls (v4.2.0 Status)
+## Security Controls (v5.0.0 Status)
 
 | Control | Status | Notes |
 |---|---|---|
@@ -115,7 +115,9 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
 | Non-root Docker container | ✅ Complete | `paac` user |
 | Docker HEALTHCHECK | ✅ Complete | /health endpoint |
 | Structured audit log | ✅ Complete | audit.log, append-only |
-| Prometheus metrics | ✅ Complete | /metrics endpoint |
+| **Bootstrap Self-Verification (v5.0.0)** | ✅ **New v5.0.0** | Python-to-SIL translator; TCB stubs verified |
+| **Cryptographic Attestation (v5.0.0)** | ✅ **New v5.0.0** | HMAC-SHA256, key rotation, thread-safe |
+| **Multi-Agent Coordination (v5.0.0)** | ✅ **New v5.0.0** | Agent registry, crash recovery, conflict detection |
 
 ---
 
