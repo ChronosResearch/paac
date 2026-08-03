@@ -40,6 +40,7 @@ Stages
   Stage 2 — verify each stub against SELF_AXIOMS
   Stage 3 — if all pass, record attestation and mark TCB as trusted
 """
+
 from __future__ import annotations
 
 import ast as pyast
@@ -217,9 +218,7 @@ def _translate_stmts(
     return lines
 
 
-def _translate_stmt(
-    stmt: pyast.stmt, known_vars: list[str], indent: int
-) -> list[str]:
+def _translate_stmt(stmt: pyast.stmt, known_vars: list[str], indent: int) -> list[str]:
     pad = "    " * indent
     lines: list[str] = []
 
@@ -266,7 +265,9 @@ def _translate_stmt(
             lines.append(f"{pad}{iter_var} = 0;")
             body_lines = _translate_stmts(stmt.body, known_vars, indent + 1)
             body_lines.append(f"{'    ' * (indent + 1)}{iter_var} = {iter_var} + 1;")
-            lines.append(f"{pad}while ({iter_var} < {_STUB_LOOP_BOUND}) bound {_STUB_LOOP_BOUND} {{")
+            lines.append(
+                f"{pad}while ({iter_var} < {_STUB_LOOP_BOUND}) bound {_STUB_LOOP_BOUND} {{"
+            )
             lines.extend(body_lines)
             lines.append(f"{pad}}}")
         elif isinstance(stmt, pyast.While):
@@ -345,6 +346,7 @@ def _py_expr_to_sil(node: pyast.expr, known_vars: list[str]) -> str | None:
 # Result dataclass
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class StubResult:
     name: str
@@ -356,10 +358,10 @@ class StubResult:
 
 @dataclass
 class SelfVerifyResult:
-    stage: int                              # 1, 2, or 3
+    stage: int  # 1, 2, or 3
     passed: bool
-    stub_results: dict[str, bool]           # stub_name -> safe
-    counterexamples: dict[str, str]         # stub_name -> ce string
+    stub_results: dict[str, bool]  # stub_name -> safe
+    counterexamples: dict[str, str]  # stub_name -> ce string
     message: str
     elapsed_ms: float = 0.0
     detail: list[StubResult] = field(default_factory=list)
@@ -368,6 +370,7 @@ class SelfVerifyResult:
 # ---------------------------------------------------------------------------
 # Self-verifier
 # ---------------------------------------------------------------------------
+
 
 class SelfVerifier:
     """
@@ -414,10 +417,14 @@ class SelfVerifier:
             except Exception as exc:  # noqa: BLE001
                 stub_results[name] = False
                 counterexamples[name] = f"Compilation failed: {exc}"
-                detail.append(StubResult(
-                    name=name, safe=False, error=f"Compilation failed: {exc}",
-                    elapsed_ms=(time.monotonic() - t0) * 1000,
-                ))
+                detail.append(
+                    StubResult(
+                        name=name,
+                        safe=False,
+                        error=f"Compilation failed: {exc}",
+                        elapsed_ms=(time.monotonic() - t0) * 1000,
+                    )
+                )
                 continue
 
             try:
@@ -426,17 +433,25 @@ class SelfVerifier:
                 ce_str = str(ce) if ce else None
                 if ce_str:
                     counterexamples[name] = ce_str
-                detail.append(StubResult(
-                    name=name, safe=safe, counterexample=ce_str,
-                    elapsed_ms=(time.monotonic() - t0) * 1000,
-                ))
+                detail.append(
+                    StubResult(
+                        name=name,
+                        safe=safe,
+                        counterexample=ce_str,
+                        elapsed_ms=(time.monotonic() - t0) * 1000,
+                    )
+                )
             except VerificationError as exc:
                 stub_results[name] = False
                 counterexamples[name] = f"VerificationError: {exc}"
-                detail.append(StubResult(
-                    name=name, safe=False, error=str(exc),
-                    elapsed_ms=(time.monotonic() - t0) * 1000,
-                ))
+                detail.append(
+                    StubResult(
+                        name=name,
+                        safe=False,
+                        error=str(exc),
+                        elapsed_ms=(time.monotonic() - t0) * 1000,
+                    )
+                )
 
         all_passed = all(stub_results.values())
         stage = 3 if all_passed else 2

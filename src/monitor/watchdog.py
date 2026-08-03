@@ -9,7 +9,9 @@ import time
 from loguru import logger
 
 # Configurable via environment variables.
-_DEFAULT_HEARTBEAT_INTERVAL = int(os.environ.get("PAAC_WATCHDOG_HEARTBEAT_INTERVAL", "1"))
+_DEFAULT_HEARTBEAT_INTERVAL = int(
+    os.environ.get("PAAC_WATCHDOG_HEARTBEAT_INTERVAL", "1")
+)
 _DEFAULT_MONITOR_INTERVAL = int(os.environ.get("PAAC_WATCHDOG_MONITOR_INTERVAL", "5"))
 _DEFAULT_TIMEOUT = int(os.environ.get("PAAC_WATCHDOG_TIMEOUT", "60"))
 
@@ -46,8 +48,8 @@ class Watchdog:
         self._last_heartbeat: float = time.monotonic()
         self._lock = threading.Lock()
         self.running: bool = False
-        self._liveness_running: bool = False   # controls liveness thread only
-        self._monitor_running: bool = False    # controls monitor thread only
+        self._liveness_running: bool = False  # controls liveness thread only
+        self._monitor_running: bool = False  # controls monitor thread only
         self._liveness_thread: threading.Thread | None = None
         self._monitor_thread: threading.Thread | None = None
         self._heartbeat_count: int = 0
@@ -112,9 +114,7 @@ class Watchdog:
                 self._heartbeat_count += 1
                 count = self._heartbeat_count
             if count % 10 == 0:
-                logger.debug(
-                    f"Watchdog liveness thread alive — heartbeat #{count}."
-                )
+                logger.debug(f"Watchdog liveness thread alive — heartbeat #{count}.")
 
     def _monitor_loop(self) -> None:
         """Checks elapsed time since last heartbeat every monitor_interval

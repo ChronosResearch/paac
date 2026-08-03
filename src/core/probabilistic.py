@@ -25,6 +25,7 @@ Configuration
   PAAC_PROB_DOMAIN   : int  — half-width of per-parameter domain (default 100)
   PAAC_PROB_SAMPLES  : int  — number of random samples (default 200)
 """
+
 from __future__ import annotations
 
 import os
@@ -47,12 +48,13 @@ _SAMPLES: int = int(os.environ.get("PAAC_PROB_SAMPLES", "200"))
 # Data model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ProbabilisticAxiom:
     id: str
     description: str
     condition: str
-    confidence_threshold: float          # 0.0 – 1.0
+    confidence_threshold: float  # 0.0 – 1.0
     target_functions: list[str] = field(default_factory=lambda: ["*"])
 
     def to_axiom(self) -> Axiom:
@@ -68,8 +70,8 @@ class ProbabilisticAxiom:
 @dataclass
 class ProbabilisticResult:
     safe: bool
-    probability: float          # estimated P(all axioms hold)
-    threshold: float            # minimum required
+    probability: float  # estimated P(all axioms hold)
+    threshold: float  # minimum required
     samples_checked: int
     violating_axiom: str | None = None
     reason: str | None = None
@@ -78,6 +80,7 @@ class ProbabilisticResult:
 # ---------------------------------------------------------------------------
 # YAML loader
 # ---------------------------------------------------------------------------
+
 
 def load_probabilistic_axioms(path: str) -> list[ProbabilisticAxiom]:
     if not os.path.exists(path):
@@ -94,13 +97,15 @@ def load_probabilistic_axioms(path: str) -> list[ProbabilisticAxiom]:
         if not 0.0 <= t <= 1.0:
             logger.warning(f"Axiom {ax['id']}: threshold {t} out of [0,1], skipping.")
             continue
-        axioms.append(ProbabilisticAxiom(
-            id=ax["id"],
-            description=ax.get("description", ""),
-            condition=ax["condition"],
-            confidence_threshold=t,
-            target_functions=ax.get("target_functions", ["*"]),
-        ))
+        axioms.append(
+            ProbabilisticAxiom(
+                id=ax["id"],
+                description=ax.get("description", ""),
+                condition=ax["condition"],
+                confidence_threshold=t,
+                target_functions=ax.get("target_functions", ["*"]),
+            )
+        )
     logger.info(f"Loaded {len(axioms)} probabilistic axiom(s) from '{path}'.")
     return axioms
 
@@ -108,6 +113,7 @@ def load_probabilistic_axioms(path: str) -> list[ProbabilisticAxiom]:
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
+
 
 class ProbabilisticVerifier:
     """
@@ -138,8 +144,11 @@ class ProbabilisticVerifier:
         """
         if not prob_axioms:
             return ProbabilisticResult(
-                safe=True, probability=1.0, threshold=0.0,
-                samples_checked=0, reason="no probabilistic axioms defined",
+                safe=True,
+                probability=1.0,
+                threshold=0.0,
+                samples_checked=0,
+                reason="no probabilistic axioms defined",
             )
 
         # Collect parameter names from the AST.

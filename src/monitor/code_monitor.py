@@ -172,6 +172,7 @@ class CodeMonitor:
         logger.warning("Watchdog: circuit breaker reset. Service resuming.")
 
     def stop_watchdog(self) -> None:
+        """Signal the internal watchdog thread to stop on its next iteration."""
         self._watchdog_running = False
 
     # ------------------------------------------------------------------
@@ -230,7 +231,9 @@ class CodeMonitor:
                 self.redis_client.lpush(key, json.dumps(mod.__dict__))
                 self.redis_client.ltrim(key, 0, 9)
             except redis.ConnectionError:
-                logger.error("Failed to store checkpoint in Redis; WAL is the fallback.")
+                logger.error(
+                    "Failed to store checkpoint in Redis; WAL is the fallback."
+                )
                 self._save_checkpoint_memory(mod)
         else:
             self._save_checkpoint_memory(mod)
@@ -291,6 +294,17 @@ class CodeMonitor:
     # ------------------------------------------------------------------
 
     def intercept_modification(self, mod: CodeModification) -> dict[str, Any]:
+        """Verify a proposed code modification and apply it if safe.
+
+        Compiles the new SIL code, runs the BMC pipeline with applicable axioms,
+        and either accepts (checkpoints + updates registry) or rejects (rollback).
+
+        Args:
+            mod: The proposed modification containing func_name, old_code, new_code.
+
+        Returns:
+            A dict with keys: status (accepted/rejected/error), message, counterexample.
+        """
         self.heartbeat()
         with FileLock(self.lock_path, timeout=60):
             try:

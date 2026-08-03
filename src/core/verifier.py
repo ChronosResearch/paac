@@ -71,12 +71,14 @@ class SSAEnv:
         return f"{name}_{self._counters.get(name, 0)}"
 
     def read(self, name: str) -> z3.ExprRef:
+        """Return the current Z3 expression for variable *name*, creating a fresh Int if unseen."""
         key = self._versioned(name)
         if key not in self._exprs:
             self._exprs[key] = z3.Int(key, ctx=self.ctx)
         return self._exprs[key]
 
     def write(self, name: str, expr: z3.ExprRef) -> z3.ExprRef:
+        """Bump the SSA version of *name*, bind it to *expr*, and return the new expression."""
         self._counters[name] = self._counters.get(name, 0) + 1
         key = self._versioned(name)
         self._exprs[key] = expr
@@ -95,9 +97,11 @@ class SSAEnv:
         return v
 
     def snapshot(self) -> dict[str, int]:
+        """Return a shallow copy of the current SSA version counters for later restore."""
         return dict(self._counters)
 
     def restore(self, snap: dict[str, int]) -> None:
+        """Restore SSA version counters to a previously taken snapshot."""
         self._counters = snap
 
     def merge(
@@ -144,6 +148,7 @@ class ExprEncoder:
         self.env = env
 
     def encode(self, node: ASTNode) -> z3.ExprRef:
+        """Recursively translate a SIL expression AST node into a Z3 expression."""
         if isinstance(node, LiteralNode):
             if node.type == "int":
                 return z3.IntVal(int(node.value), ctx=self.ctx)
@@ -225,6 +230,7 @@ class StmtEncoder:
         self._loop_exit_path: z3.BoolRef | None = None
 
     def encode_stmts(self, stmts: list[ASTNode], path_cond: z3.BoolRef) -> None:
+        """Encode a list of SIL statements under *path_cond*, threading loop-exit paths."""
         current_path = path_cond
         for stmt in stmts:
             self._loop_exit_path = None
@@ -341,8 +347,10 @@ def _encode_axiom(
         return enc.encode(assert_stmt.condition)
     except SILError as exc:
         _inapplicable_markers = (
-            "Undefined variable", "Undefined function",
-            "Type mismatch", "Arity mismatch",
+            "Undefined variable",
+            "Undefined function",
+            "Type mismatch",
+            "Arity mismatch",
         )
         if any(m in str(exc) for m in _inapplicable_markers):
             logger.debug(f"Axiom '{axiom.id}' inapplicable to current function: {exc}")
@@ -369,9 +377,13 @@ def _static_fallback_check(ast: ProgramNode) -> tuple[bool, str | None]:
     and unbounded arithmetic on constants.
     Returns (safe, reason_if_unsafe).
     """
+
     def _check_node(node: ASTNode) -> str | None:
         if isinstance(node, AssertStmtNode):
-            if isinstance(node.condition, LiteralNode) and node.condition.value is False:
+            if (
+                isinstance(node.condition, LiteralNode)
+                and node.condition.value is False
+            ):
                 return "assert false detected"
         if isinstance(node, BinaryExprNode):
             if node.operator == "/" and isinstance(node.right, LiteralNode):
@@ -416,6 +428,7 @@ def _apply_resource_limits() -> None:
         return
     try:
         import resource
+
         resource.setrlimit(
             resource.RLIMIT_AS,
             (_Z3_MEMORY_LIMIT_BYTES, _Z3_MEMORY_LIMIT_BYTES),
@@ -476,6 +489,8 @@ class BoundedModelChecker:
         self.__cache.update(updates)
 
     def _hash_ast(self, ast: ProgramNode, axioms: list[Axiom]) -> str:
+        """Compute a canonical SHA-256 cache key from the AST and axiom set."""
+
         def _node_to_dict(node: Any) -> Any:
             if isinstance(node, list):
                 return [_node_to_dict(n) for n in node]
@@ -545,7 +560,11 @@ class BoundedModelChecker:
             safe, reason = _static_fallback_check(ast)
             logger.warning(
                 f"Static fallback result: safe={safe}, reason={reason}",
-                extra={"event": "static_fallback_result", "safe": safe, "reason": reason},
+                extra={
+                    "event": "static_fallback_result",
+                    "safe": safe,
+                    "reason": reason,
+                },
             )
             if not safe:
                 ce = CounterExample.__new__(CounterExample)
@@ -632,6 +651,16 @@ class BoundedModelChecker:
         axioms: list[Axiom],
         timeout_ms: int,
     ) -> tuple[bool, CounterExample | None]:
+        """Core BMC query: encode AST + axioms into Z3, run solver, return (safe, ce).
+
+        Args:
+            ast: Compiled SIL program AST.
+            axioms: Safety axioms to enforce as additional constraints.
+            timeout_ms: Z3 solver timeout in milliseconds.
+
+        Returns:
+            (True, None) if UNSAT (safe), (False, CounterExample) if SAT (unsafe).
+        """
         cache_key = self._hash_ast(ast, axioms)
         if cache_key in self.__cache:
             safe, _ce_str = self.__cache[cache_key]
@@ -653,9 +682,7 @@ class BoundedModelChecker:
             stmt_enc.encode_stmts(func.body, func_path)
 
         declared_params = list(env._counters.keys()) + [
-            k.rsplit("_", 1)[0]
-            for k in env._exprs
-            if k not in env._counters
+            k.rsplit("_", 1)[0] for k in env._exprs if k not in env._counters
         ]
         seen: set[str] = set()
         param_names: list[str] = []
@@ -707,6 +734,7 @@ class Verifier:
         pre_cond: str,
         axioms: list[Axiom] | None = None,
     ) -> dict[str, Any]:
+        """Verify a SIL AST and return a result dict with 'safe' and 'counterexample' keys."""
         axioms = axioms or []
         safe, ce = self._bmc.verify(ast, axioms, timeout_ms=self._timeout_ms)
         return {"safe": safe, "counterexample": str(ce) if ce else None}

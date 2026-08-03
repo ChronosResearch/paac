@@ -1,6 +1,7 @@
 """
 Comprehensive production-readiness tests covering Steps 10-20 and fail-safe scenarios.
 """
+
 import os
 import time
 
@@ -32,6 +33,7 @@ def compile_sil(code: str):
 # Step 10: Quicksort verifies as UNSAT
 # ---------------------------------------------------------------------------
 
+
 def test_quicksort_verifies_safe():
     """Iterative sort with invariant assertions must be UNSAT (safe=True)."""
     with open("examples/quicksort.sil") as f:
@@ -50,6 +52,7 @@ def test_quicksort_verifies_safe():
 # Step 11: Backdoor is rejected with counterexample
 # ---------------------------------------------------------------------------
 
+
 def test_backdoor_rejected_with_counterexample():
     """Backdoor function must be SAT (safe=False) with a counterexample."""
     with open("examples/backdoor.sil") as f:
@@ -66,6 +69,7 @@ def test_backdoor_rejected_with_counterexample():
 # ---------------------------------------------------------------------------
 # Step 12: Array index bounds checking in runtime
 # ---------------------------------------------------------------------------
+
 
 def test_array_access_in_runtime():
     """Array access via arr[i] must be evaluable in the runtime."""
@@ -91,6 +95,7 @@ def test_array_access_in_runtime():
 # ---------------------------------------------------------------------------
 # Step 13: Unary minus and not — parse and evaluate correctly
 # ---------------------------------------------------------------------------
+
 
 def test_unary_minus_runtime():
     code = """
@@ -119,6 +124,7 @@ def test_unary_not_runtime():
 # ---------------------------------------------------------------------------
 # Step 14: Array sum test
 # ---------------------------------------------------------------------------
+
 
 def test_array_sum_verifies():
     """Array sum function with invariant must verify as UNSAT."""
@@ -169,6 +175,7 @@ def test_array_sum_runtime():
 # Step 15: Mutual recursion detected
 # ---------------------------------------------------------------------------
 
+
 def test_mutual_recursion_detected():
     code = """
     func a(x: int) -> int { return b(x); }
@@ -181,6 +188,7 @@ def test_mutual_recursion_detected():
 # ---------------------------------------------------------------------------
 # Step 16: Direct recursion rejected
 # ---------------------------------------------------------------------------
+
 
 def test_direct_recursion_rejected():
     code = """
@@ -197,6 +205,7 @@ def test_direct_recursion_rejected():
 # Step 17: All loops must have a bound
 # ---------------------------------------------------------------------------
 
+
 def test_loop_without_bound_rejected():
     code = """
     func f() -> int {
@@ -212,6 +221,7 @@ def test_loop_without_bound_rejected():
 # ---------------------------------------------------------------------------
 # Step 18: Global loop bound limit > 10,000 rejected
 # ---------------------------------------------------------------------------
+
 
 def test_loop_bound_over_10000_rejected_in_verifier():
     """Verifier must reject loop bound > MAX_LOOP_BOUND."""
@@ -242,6 +252,7 @@ def test_loop_bound_over_10000_rejected_in_runtime():
     """
     ast = compile_sil(code)
     from src.core.sil_compiler import WhileStmtNode
+
     for stmt in ast.functions[0].body:
         if isinstance(stmt, WhileStmtNode):
             stmt.bound = MAX_LOOP_BOUND + 1
@@ -254,8 +265,10 @@ def test_loop_bound_over_10000_rejected_in_runtime():
 # Step 19: Global instruction limit
 # ---------------------------------------------------------------------------
 
+
 def test_instruction_limit_enforced():
     import src.core.sil_runtime as rt_module
+
     original = rt_module.MAX_INSTRUCTIONS
     rt_module.MAX_INSTRUCTIONS = 5
     try:
@@ -279,6 +292,7 @@ def test_instruction_limit_enforced():
 # ---------------------------------------------------------------------------
 # Step 20: Assert statements checked during execution
 # ---------------------------------------------------------------------------
+
 
 def test_assert_checked_at_runtime():
     code = """
@@ -313,6 +327,7 @@ def test_assert_false_raises_at_runtime():
 # Step 22: Axiom encoding raises on failure (never silently skips)
 # ---------------------------------------------------------------------------
 
+
 def test_axiom_encoding_raises_on_invalid_condition():
     """An axiom with an invalid SIL condition must raise VerificationError."""
     import z3
@@ -322,13 +337,16 @@ def test_axiom_encoding_raises_on_invalid_condition():
     ctx = z3.Context()
     env = SSAEnv(ctx)
     bad_axiom = Axiom("bad", "", "@ invalid @", [])
-    with pytest.raises(VerificationError, match="invalid SIL syntax|could not be encoded"):
+    with pytest.raises(
+        VerificationError, match="invalid SIL syntax|could not be encoded"
+    ):
         _encode_axiom(bad_axiom, ctx, env, [])
 
 
 # ---------------------------------------------------------------------------
 # Step 33: Fallback static analyzer
 # ---------------------------------------------------------------------------
+
 
 def test_static_fallback_detects_assert_false():
     ast = compile_sil("func bad() -> int { assert false; return 0; }")
@@ -355,6 +373,7 @@ def test_static_fallback_safe_program():
 # Step 55: Simulate Redis down — WAL fallback
 # ---------------------------------------------------------------------------
 
+
 def test_wal_fallback_on_redis_down(tmp_path, monkeypatch):
     """When Redis is down, WAL must be used for checkpoint storage."""
     from src.core.failsafe import WALEntry, wal_append, wal_load_latest
@@ -362,7 +381,9 @@ def test_wal_fallback_on_redis_down(tmp_path, monkeypatch):
     wal_file = str(tmp_path / "test.wal")
     monkeypatch.setattr("src.core.failsafe._WAL_PATH", wal_file)
 
-    entry = WALEntry("test_func", "old", "new", "", "", "https://example.com/v1", 1000.0)
+    entry = WALEntry(
+        "test_func", "old", "new", "", "", "https://example.com/v1", 1000.0
+    )
     wal_append(entry)
 
     latest = wal_load_latest()
@@ -373,6 +394,7 @@ def test_wal_fallback_on_redis_down(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # Step 55: Simulate circuit breaker open — all requests rejected
 # ---------------------------------------------------------------------------
+
 
 def test_circuit_breaker_open_rejects_all():
     cb = CircuitBreaker(failure_threshold=2, cooldown_s=60)
@@ -388,6 +410,7 @@ def test_circuit_breaker_open_rejects_all():
 # ---------------------------------------------------------------------------
 # Step 55: Simulate Z3 crash — static fallback activates
 # ---------------------------------------------------------------------------
+
 
 def test_z3_fallback_on_verification_error(monkeypatch):
     """When _verify_subprocess raises, static fallback must be used."""
@@ -423,6 +446,7 @@ def test_z3_fallback_catches_assert_false(monkeypatch):
 # Step 65: Env var overrides for config constants
 # ---------------------------------------------------------------------------
 
+
 def test_env_var_overrides_max_loop_bound(monkeypatch):
     """PAAC_MAX_LOOP_BOUND env var must be readable."""
     monkeypatch.setenv("PAAC_MAX_LOOP_BOUND", "500")
@@ -440,8 +464,10 @@ def test_env_var_overrides_max_instructions(monkeypatch):
 # Step 66: OS detection
 # ---------------------------------------------------------------------------
 
+
 def test_os_detection():
     import platform
+
     system = platform.system()
     assert system in ("Linux", "Darwin", "Windows")
 
@@ -450,11 +476,14 @@ def test_os_detection():
 # Step 67: Windows/macOS graceful degradation of resource limits
 # ---------------------------------------------------------------------------
 
+
 def test_resource_limits_graceful_on_non_linux(monkeypatch):
     """_apply_resource_limits must not raise on non-Linux platforms."""
     import platform
+
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     from src.core import verifier
+
     # Re-import to pick up monkeypatch
     verifier._apply_resource_limits()  # must not raise
 
@@ -462,6 +491,7 @@ def test_resource_limits_graceful_on_non_linux(monkeypatch):
 # ---------------------------------------------------------------------------
 # Step 68: All paths use pathlib-compatible strings
 # ---------------------------------------------------------------------------
+
 
 def test_wal_path_is_configurable_via_env(tmp_path, monkeypatch):
     wal_file = str(tmp_path / "custom.wal")
@@ -474,8 +504,10 @@ def test_wal_path_is_configurable_via_env(tmp_path, monkeypatch):
 # Step 88: Input sanitization rejects non-SIL characters
 # ---------------------------------------------------------------------------
 
+
 def test_input_sanitization_rejects_null_bytes():
     from src.core.sil_compiler import SILCompiler, SILError
+
     compiler = SILCompiler()
     with pytest.raises(SILError, match="Illegal character"):
         compiler.compile("func f() -> int { return 0\x00; }")
@@ -483,6 +515,7 @@ def test_input_sanitization_rejects_null_bytes():
 
 def test_input_sanitization_rejects_control_chars():
     from src.core.sil_compiler import SILCompiler, SILError
+
     compiler = SILCompiler()
     with pytest.raises(SILError, match="Illegal character"):
         compiler.compile("func f() -> int { return 0\x01; }")

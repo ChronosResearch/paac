@@ -6,6 +6,7 @@ Tests for the five critical security fixes:
   A-04 -- spawn start method for multiprocessing
   A-05 -- target_functions enforcement
 """
+
 import multiprocessing
 import secrets
 
@@ -25,6 +26,7 @@ def compile_sil(code: str):
 # A-01: Under-bounded loop soundness
 # ---------------------------------------------------------------------------
 
+
 def test_under_bounded_loop_is_unsafe():
     """while (x < 5) bound 3 starting from x=0 never exits in 3 steps -- must be SAT."""
     ast = compile_sil("""
@@ -38,9 +40,9 @@ def test_under_bounded_loop_is_unsafe():
     """)
     bmc = BoundedModelChecker()
     safe, ce = bmc.verify(ast, [])
-    assert safe is False, (
-        "Under-bounded loop (x<5, bound=3, x starts at 0) must be detected as UNSAFE"
-    )
+    assert (
+        safe is False
+    ), "Under-bounded loop (x<5, bound=3, x starts at 0) must be detected as UNSAFE"
     assert ce is not None
 
 
@@ -96,6 +98,7 @@ def test_loop_that_never_runs_is_safe():
 # A-02: Cache poisoning prevention
 # ---------------------------------------------------------------------------
 
+
 def test_cache_not_poisonable_via_direct_assignment():
     """External code must not be able to inject a (True, None) entry."""
     bmc = BoundedModelChecker()
@@ -103,9 +106,9 @@ def test_cache_not_poisonable_via_direct_assignment():
     # Writing to the returned dict must NOT affect the internal cache.
     cache_copy = bmc._cache
     cache_copy["fake_key"] = (True, None)
-    assert "fake_key" not in bmc._cache, (
-        "Writing to _cache copy must not affect internal state"
-    )
+    assert (
+        "fake_key" not in bmc._cache
+    ), "Writing to _cache copy must not affect internal state"
 
 
 def test_cache_not_poisonable_via_attribute_set():
@@ -150,16 +153,17 @@ def test_different_programs_use_different_cache_entries():
 # A-03: Constant-time API key comparison
 # ---------------------------------------------------------------------------
 
+
 def test_main_uses_compare_digest():
     """src/main.py must use secrets.compare_digest for API key comparison."""
     with open("src/main.py") as f:
         source = f.read()
-    assert "secrets.compare_digest" in source, (
-        "main.py must use secrets.compare_digest (A-03)"
-    )
-    assert "key != _API_KEY" not in source, (
-        "main.py must not use != for API key comparison (timing attack)"
-    )
+    assert (
+        "secrets.compare_digest" in source
+    ), "main.py must use secrets.compare_digest (A-03)"
+    assert (
+        "key != _API_KEY" not in source
+    ), "main.py must not use != for API key comparison (timing attack)"
 
 
 def test_compare_digest_correct_key_passes():
@@ -178,27 +182,28 @@ def test_compare_digest_wrong_key_fails():
 # A-04: spawn start method
 # ---------------------------------------------------------------------------
 
+
 def test_spawn_start_method_configured():
     """multiprocessing start method must be 'spawn' after importing main."""
     import src.main  # noqa: F401 -- side-effect: sets start method
+
     method = multiprocessing.get_start_method(allow_none=True)
-    assert method == "spawn", (
-        f"Expected start method 'spawn', got '{method}' (A-04)"
-    )
+    assert method == "spawn", f"Expected start method 'spawn', got '{method}' (A-04)"
 
 
 def test_main_source_sets_spawn():
     """src/main.py source must contain set_start_method('spawn')."""
     with open("src/main.py") as f:
         source = f.read()
-    assert 'set_start_method("spawn"' in source or "set_start_method('spawn'" in source, (
-        "main.py must call set_start_method('spawn') (A-04)"
-    )
+    assert (
+        'set_start_method("spawn"' in source or "set_start_method('spawn'" in source
+    ), "main.py must call set_start_method('spawn') (A-04)"
 
 
 # ---------------------------------------------------------------------------
 # A-05: target_functions enforcement
 # ---------------------------------------------------------------------------
+
 
 def test_axiom_not_applied_to_non_target_function():
     """An axiom targeting 'withdraw' must NOT be applied to 'deposit'."""
@@ -211,9 +216,9 @@ def test_axiom_not_applied_to_non_target_function():
     ]
 
     deposit_axioms = monitor._get_applicable_axioms("deposit")
-    assert len(deposit_axioms) == 0, (
-        "No axioms should apply to 'deposit' when none target it"
-    )
+    assert (
+        len(deposit_axioms) == 0
+    ), "No axioms should apply to 'deposit' when none target it"
 
 
 def test_axiom_applied_to_target_function():

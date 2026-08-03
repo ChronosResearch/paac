@@ -1,4 +1,5 @@
 """tests/test_compositional.py — Feature 7: Multi-Agent Coordination Verification"""
+
 from src.axioms.axiom_parser import Axiom
 from src.core.compositional import (
     AgentModification,
@@ -13,6 +14,7 @@ COMPILER = SILCompiler()
 # ---------------------------------------------------------------------------
 # Dependency graph
 # ---------------------------------------------------------------------------
+
 
 def test_dependency_graph_register_and_query():
     """Register a dependency and query it."""
@@ -53,6 +55,7 @@ def test_dependency_graph_update_from_ast():
 # Independent functions
 # ---------------------------------------------------------------------------
 
+
 def test_two_independent_functions_both_accepted():
     """Two agents modifying independent functions — both must be accepted."""
     verifier = CompositionalVerifier()
@@ -85,6 +88,7 @@ def test_empty_batch_accepted():
 # ---------------------------------------------------------------------------
 # Dependent functions
 # ---------------------------------------------------------------------------
+
 
 def test_dependent_functions_verified_together():
     """g and f are both safe — both must be verified together successfully."""
@@ -138,6 +142,7 @@ def test_unsafe_function_rejects_batch():
 # Sequential queue (same function, two agents)
 # ---------------------------------------------------------------------------
 
+
 def test_same_function_queued_sequentially():
     """Two agents modifying the same function — processed sequentially."""
     verifier = CompositionalVerifier()
@@ -182,14 +187,17 @@ def test_second_modification_rejected_if_unsafe():
 # Compilation failure
 # ---------------------------------------------------------------------------
 
+
 def test_compilation_failure_rejects_batch():
     """A batch with invalid SIL must be rejected at compilation."""
     verifier = CompositionalVerifier()
-    mods = [AgentModification(
-        agent_id="agent_a",
-        func_name="bad",
-        new_code="this is not valid SIL",
-    )]
+    mods = [
+        AgentModification(
+            agent_id="agent_a",
+            func_name="bad",
+            new_code="this is not valid SIL",
+        )
+    ]
     result = verifier.verify_batch(mods)
     assert result.accepted is False
     assert "Compilation failed" in result.message
@@ -198,6 +206,7 @@ def test_compilation_failure_rejects_batch():
 # ---------------------------------------------------------------------------
 # Result fields
 # ---------------------------------------------------------------------------
+
 
 def test_result_func_names_populated():
     """Result must list all function names in the batch."""

@@ -32,6 +32,7 @@ Thresholds (configurable via env vars):
   PAAC_CTVP_T_STRICT : float (default 0.6)
   PAAC_CTVP_T_SOFT   : float (default 0.9)
 """
+
 from __future__ import annotations
 
 import copy
@@ -64,6 +65,7 @@ _T_SOFT: float = float(os.environ.get("PAAC_CTVP_T_SOFT", "0.9"))
 # Data model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class VariantResult:
     variant_name: str
@@ -85,6 +87,7 @@ class CTVPResult:
 # ---------------------------------------------------------------------------
 # Variant generators
 # ---------------------------------------------------------------------------
+
 
 def _rename_vars(prog: ProgramNode) -> ProgramNode:
     """Rename all local variables to canonical names v0, v1, …"""
@@ -151,15 +154,31 @@ def _algebraic_simplify(prog: ProgramNode) -> ProgramNode:
             left = _simplify(node.left)
             right = _simplify(node.right)
             # x + 0 → x,  x - 0 → x
-            if node.operator in ("+", "-") and isinstance(right, LiteralNode) and right.value == 0:
+            if (
+                node.operator in ("+", "-")
+                and isinstance(right, LiteralNode)
+                and right.value == 0
+            ):
                 return left
             # 0 + x → x
-            if node.operator == "+" and isinstance(left, LiteralNode) and left.value == 0:
+            if (
+                node.operator == "+"
+                and isinstance(left, LiteralNode)
+                and left.value == 0
+            ):
                 return right
             # x * 1 → x,  1 * x → x
-            if node.operator == "*" and isinstance(right, LiteralNode) and right.value == 1:
+            if (
+                node.operator == "*"
+                and isinstance(right, LiteralNode)
+                and right.value == 1
+            ):
                 return left
-            if node.operator == "*" and isinstance(left, LiteralNode) and left.value == 1:
+            if (
+                node.operator == "*"
+                and isinstance(left, LiteralNode)
+                and left.value == 1
+            ):
                 return right
             return BinaryExprNode(left, node.operator, right)
         if isinstance(node, UnaryExprNode):
@@ -195,10 +214,13 @@ def _increase_loop_bound(prog: ProgramNode, delta: int = 1) -> ProgramNode:
 
     def _bump(node: ASTNode) -> ASTNode:
         if isinstance(node, WhileStmtNode):
-            new_bound = min(node.bound + delta, BoundedModelChecker.__class__.__dict__.get(
-                "MAX_LOOP_BOUND", 10_000
-            ))
-            return WhileStmtNode(node.condition, new_bound, [_bump(s) for s in node.body])
+            new_bound = min(
+                node.bound + delta,
+                BoundedModelChecker.__class__.__dict__.get("MAX_LOOP_BOUND", 10_000),
+            )
+            return WhileStmtNode(
+                node.condition, new_bound, [_bump(s) for s in node.body]
+            )
         if isinstance(node, IfStmtNode):
             return IfStmtNode(
                 node.condition,
@@ -222,19 +244,25 @@ def _split_conjunctive_asserts(prog: ProgramNode) -> ProgramNode:
         if isinstance(stmt, AssertStmtNode):
             cond = stmt.condition
             if isinstance(cond, BinaryExprNode) and cond.operator == "and":
-                return _expand(AssertStmtNode(cond.left)) + _expand(AssertStmtNode(cond.right))
+                return _expand(AssertStmtNode(cond.left)) + _expand(
+                    AssertStmtNode(cond.right)
+                )
         if isinstance(stmt, IfStmtNode):
-            return [IfStmtNode(
-                stmt.condition,
-                [s for sub in stmt.then_branch for s in _expand(sub)],
-                [s for sub in stmt.else_branch for s in _expand(sub)],
-            )]
+            return [
+                IfStmtNode(
+                    stmt.condition,
+                    [s for sub in stmt.then_branch for s in _expand(sub)],
+                    [s for sub in stmt.else_branch for s in _expand(sub)],
+                )
+            ]
         if isinstance(stmt, WhileStmtNode):
-            return [WhileStmtNode(
-                stmt.condition,
-                stmt.bound,
-                [s for sub in stmt.body for s in _expand(sub)],
-            )]
+            return [
+                WhileStmtNode(
+                    stmt.condition,
+                    stmt.bound,
+                    [s for sub in stmt.body for s in _expand(sub)],
+                )
+            ]
         return [stmt]
 
     for func in prog.functions:
@@ -245,6 +273,7 @@ def _split_conjunctive_asserts(prog: ProgramNode) -> ProgramNode:
 # ---------------------------------------------------------------------------
 # CTVP engine
 # ---------------------------------------------------------------------------
+
 
 class CTVPEngine:
     """
@@ -281,17 +310,21 @@ class CTVPEngine:
             try:
                 variant = transform(ast)
                 safe, ce = self._bmc._verify_inner(variant, axioms, self._timeout_ms)
-                results.append(VariantResult(
-                    variant_name=name,
-                    safe=safe,
-                    counterexample=str(ce) if ce else None,
-                ))
+                results.append(
+                    VariantResult(
+                        variant_name=name,
+                        safe=safe,
+                        counterexample=str(ce) if ce else None,
+                    )
+                )
             except Exception as exc:
-                results.append(VariantResult(
-                    variant_name=name,
-                    safe=True,   # fail-open for transform errors
-                    error=str(exc),
-                ))
+                results.append(
+                    VariantResult(
+                        variant_name=name,
+                        safe=True,  # fail-open for transform errors
+                        error=str(exc),
+                    )
+                )
 
         # Compute consistency: fraction of pairs that agree.
         n = len(results)

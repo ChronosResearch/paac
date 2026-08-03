@@ -6,6 +6,7 @@ Tests for PAAC v5.0.0 features:
   - Cryptographic attestation (Phase 2)
   - Multi-agent coordination (Phase 3)
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,11 +31,13 @@ def compile_sil(code: str):
 # Phase 1: Bootstrap Self-Verification
 # ===========================================================================
 
+
 class TestBootstrapVerification:
 
     def test_self_verifier_runs_without_error(self):
         """SelfVerifier.run() must complete without raising."""
         from src.core.self_verify import SelfVerifier
+
         sv = SelfVerifier(timeout_ms=5000)
         result = sv.run()
         assert result is not None
@@ -49,6 +52,7 @@ class TestBootstrapVerification:
         demonstrate that PAAC can verify its own structural contracts.
         """
         from src.core.self_verify import SelfVerifier, TCB_STUBS
+
         sv = SelfVerifier(timeout_ms=5000)
         result = sv.run()
         # All stubs must produce a result (no compilation errors)
@@ -61,6 +65,7 @@ class TestBootstrapVerification:
     def test_self_verify_result_has_detail(self):
         """Result must include per-stub detail with elapsed_ms."""
         from src.core.self_verify import SelfVerifier
+
         sv = SelfVerifier(timeout_ms=5000)
         result = sv.run()
         assert len(result.detail) > 0
@@ -70,6 +75,7 @@ class TestBootstrapVerification:
     def test_self_verify_stage_3_on_pass(self):
         """Stage must be 3 when all stubs pass."""
         from src.core.self_verify import SelfVerifier
+
         sv = SelfVerifier(timeout_ms=5000)
         result = sv.run()
         if result.passed:
@@ -78,6 +84,7 @@ class TestBootstrapVerification:
     def test_self_verify_stage_2_on_failure(self):
         """Stage must be 2 when any stub fails."""
         from src.core.self_verify import SelfVerifier, SELF_AXIOMS
+
         sv = SelfVerifier(timeout_ms=5000)
         # Inject a stub that violates an axiom (timeout_ms < 1)
         bad_stub = "func bad_timeout(timeout_ms: int) -> int { assert false; return timeout_ms; }"
@@ -90,6 +97,7 @@ class TestBootstrapVerification:
     def test_python_to_sil_stub_simple_function(self):
         """python_to_sil_stub must produce valid SIL for a simple function."""
         from src.core.self_verify import python_to_sil_stub
+
         python_src = """
 def check_timeout(timeout_ms):
     assert timeout_ms >= 1
@@ -105,6 +113,7 @@ def check_timeout(timeout_ms):
     def test_python_to_sil_stub_with_loop(self):
         """python_to_sil_stub must handle for loops."""
         from src.core.self_verify import python_to_sil_stub
+
         python_src = """
 def count_items(n):
     total = 0
@@ -120,6 +129,7 @@ def count_items(n):
     def test_python_to_sil_stub_fallback_on_syntax_error(self):
         """python_to_sil_stub must return a tautological stub on syntax error."""
         from src.core.self_verify import python_to_sil_stub
+
         stub = python_to_sil_stub("broken", "def broken(: invalid syntax !!!")
         assert "func broken" in stub
         # Must be valid SIL
@@ -129,6 +139,7 @@ def count_items(n):
     def test_verify_from_python_source(self):
         """verify_from_python_source must translate and verify a Python function."""
         from src.core.self_verify import SelfVerifier
+
         sv = SelfVerifier(timeout_ms=5000)
         python_src = """
 def safe_func(timeout_ms):
@@ -142,6 +153,7 @@ def safe_func(timeout_ms):
     def test_malicious_modification_rejected(self):
         """A stub that asserts false must be detected as unsafe."""
         from src.core.self_verify import SelfVerifier
+
         sv = SelfVerifier(timeout_ms=5000)
         malicious = "func malicious(x: int) -> int { assert false; return x; }"
         result = sv.run(extra_stubs={"malicious": malicious})
@@ -150,6 +162,7 @@ def safe_func(timeout_ms):
     def test_self_verifier_singleton(self):
         """get_self_verifier must return the same instance."""
         from src.core.self_verify import get_self_verifier
+
         sv1 = get_self_verifier()
         sv2 = get_self_verifier()
         assert sv1 is sv2
@@ -157,6 +170,7 @@ def safe_func(timeout_ms):
     def test_self_verify_elapsed_ms_positive(self):
         """Elapsed time must be positive."""
         from src.core.self_verify import SelfVerifier
+
         sv = SelfVerifier(timeout_ms=5000)
         result = sv.run()
         assert result.elapsed_ms > 0
@@ -170,27 +184,31 @@ def safe_func(timeout_ms):
         across runs (no non-determinism or memory leaks).
         """
         from src.core.self_verify import SelfVerifier
+
         sv = SelfVerifier(timeout_ms=5000)
         first_result = sv.run()
         for i in range(9):
             result = sv.run()
-            assert result.passed == first_result.passed, (
-                f"Run {i+1} result differs from run 0"
+            assert (
+                result.passed == first_result.passed
+            ), f"Run {i+1} result differs from run 0"
+            assert set(result.stub_results.keys()) == set(
+                first_result.stub_results.keys()
             )
-            assert set(result.stub_results.keys()) == set(first_result.stub_results.keys())
 
     def test_self_axioms_are_valid_sil(self):
         """All SELF_AXIOMS conditions must be parseable as SIL expressions."""
         from src.core.self_verify import SELF_AXIOMS
         from src.core.verifier import _encode_axiom, SSAEnv
         import z3
+
         ctx = z3.Context()
         env = SSAEnv(ctx)
         for axiom in SELF_AXIOMS:
             # Each axiom condition must encode without raising
-            result = _encode_axiom(axiom, ctx, env, [
-                "timeout_ms", "loop_limit", "safe_flag", "key_len"
-            ])
+            result = _encode_axiom(
+                axiom, ctx, env, ["timeout_ms", "loop_limit", "safe_flag", "key_len"]
+            )
             # May return None if vars not in scope, but must not raise
             assert result is not None or True  # just checking no exception
 
@@ -199,11 +217,13 @@ def safe_func(timeout_ms):
 # Phase 2: Cryptographic Attestation
 # ===========================================================================
 
+
 class TestCryptographicAttestation:
 
     def test_attest_generates_record(self):
         """attest() must return an AttestationRecord with a non-empty commitment."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         record = engine.attest("mod1", "abc123", "def456", True, None)
         assert record.commitment
@@ -213,6 +233,7 @@ class TestCryptographicAttestation:
     def test_attest_sat_result(self):
         """attest() with safe=False must record result='SAT'."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         record = engine.attest("mod2", "abc", "def", False, "x=-1")
         assert record.result == "SAT"
@@ -221,6 +242,7 @@ class TestCryptographicAttestation:
     def test_verify_valid_attestation(self):
         """verify() must return True for an unmodified record."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         record = engine.attest("mod3", "abc", "def", True, None)
         assert engine.verify(record) is True
@@ -228,6 +250,7 @@ class TestCryptographicAttestation:
     def test_verify_tampered_result_fails(self):
         """verify() must return False if the result field is tampered."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         record = engine.attest("mod4", "abc", "def", True, None)
         record.result = "SAT"  # tamper
@@ -236,6 +259,7 @@ class TestCryptographicAttestation:
     def test_verify_tampered_program_hash_fails(self):
         """verify() must return False if program_hash is tampered."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         record = engine.attest("mod5", "abc", "def", True, None)
         record.program_hash = "tampered"
@@ -244,6 +268,7 @@ class TestCryptographicAttestation:
     def test_verify_tampered_commitment_fails(self):
         """verify() must return False if commitment is tampered."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         record = engine.attest("mod6", "abc", "def", True, None)
         record.commitment = "a" * 64
@@ -252,6 +277,7 @@ class TestCryptographicAttestation:
     def test_key_rotation(self):
         """After key rotation, old attestations fail with new key."""
         from src.core.attestation import AttestationEngine
+
         old_key = secrets.token_bytes(32)
         new_key = secrets.token_bytes(32)
         engine = AttestationEngine(key=old_key)
@@ -266,6 +292,7 @@ class TestCryptographicAttestation:
     def test_key_rotation_rejects_short_key(self):
         """rotate_key must reject keys shorter than 16 bytes."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         with pytest.raises(ValueError, match="16 bytes"):
             engine.rotate_key(b"short")
@@ -273,6 +300,7 @@ class TestCryptographicAttestation:
     def test_attestation_store_and_retrieve(self):
         """Attestations must be retrievable by modification_id."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         engine.attest("retrieve_test", "abc", "def", True, None)
         record = engine.get("retrieve_test")
@@ -282,12 +310,14 @@ class TestCryptographicAttestation:
     def test_attestation_not_found_returns_none(self):
         """get() must return None for unknown modification_id."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         assert engine.get("nonexistent") is None
 
     def test_attestation_metrics(self):
         """metrics() must track generation and verification counts."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         engine.attest("m1", "a", "b", True, None)
         engine.attest("m2", "c", "d", False, "ce")
@@ -301,6 +331,7 @@ class TestCryptographicAttestation:
     def test_attestation_failure_counted(self):
         """Failed verifications must increment attestation_failures."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         record = engine.attest("m3", "a", "b", True, None)
         record.result = "SAT"  # tamper
@@ -311,6 +342,7 @@ class TestCryptographicAttestation:
     def test_hash_program_deterministic(self):
         """hash_program must be deterministic."""
         from src.core.attestation import AttestationEngine
+
         h1 = AttestationEngine.hash_program("func f() -> int { return 0; }")
         h2 = AttestationEngine.hash_program("func f() -> int { return 0; }")
         assert h1 == h2
@@ -319,6 +351,7 @@ class TestCryptographicAttestation:
     def test_hash_axioms_deterministic(self):
         """hash_axioms must be deterministic regardless of input order."""
         from src.core.attestation import AttestationEngine
+
         h1 = AttestationEngine.hash_axioms(["x >= 0", "y >= 0"])
         h2 = AttestationEngine.hash_axioms(["y >= 0", "x >= 0"])
         assert h1 == h2
@@ -326,6 +359,7 @@ class TestCryptographicAttestation:
     def test_attestation_record_roundtrip(self):
         """AttestationRecord.to_dict() / from_dict() must roundtrip."""
         from src.core.attestation import AttestationEngine, AttestationRecord
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         record = engine.attest("rt", "abc", "def", True, None)
         d = record.to_dict()
@@ -336,6 +370,7 @@ class TestCryptographicAttestation:
     def test_concurrent_attestations_thread_safe(self):
         """Concurrent attest() calls must not corrupt the store."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         errors = []
 
@@ -357,6 +392,7 @@ class TestCryptographicAttestation:
     def test_stress_1000_attestations(self):
         """Generate and verify 1000 attestations; all must be valid."""
         from src.core.attestation import AttestationEngine
+
         engine = AttestationEngine(key=secrets.token_bytes(32))
         records = []
         for i in range(1000):
@@ -370,6 +406,7 @@ class TestCryptographicAttestation:
 # Phase 3: Multi-Agent Coordination
 # ===========================================================================
 
+
 class TestMultiAgentCoordination:
 
     def _safe_func(self, name: str) -> str:
@@ -381,6 +418,7 @@ class TestMultiAgentCoordination:
     def test_single_agent_safe_modification(self):
         """A single safe modification must be accepted."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         mod = AgentModification(
             agent_id="agent_0",
@@ -393,6 +431,7 @@ class TestMultiAgentCoordination:
     def test_single_agent_unsafe_modification_rejected(self):
         """A single unsafe modification must be rejected."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         mod = AgentModification(
             agent_id="agent_0",
@@ -405,6 +444,7 @@ class TestMultiAgentCoordination:
     def test_two_agents_independent_functions_accepted(self):
         """Two agents modifying independent functions must both be accepted."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         mods = [
             AgentModification("agent_0", "func_a", self._safe_func("func_a")),
@@ -418,6 +458,7 @@ class TestMultiAgentCoordination:
     def test_two_agents_one_unsafe_rejected(self):
         """If one of two agents submits an unsafe modification, batch is rejected."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         mods = [
             AgentModification("agent_0", "func_a", self._safe_func("func_a")),
@@ -429,9 +470,14 @@ class TestMultiAgentCoordination:
     def test_conflict_detection_queues_second_modification(self):
         """Two agents modifying the same function must be queued."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
-        mod1 = AgentModification("agent_0", "shared_func", self._safe_func("shared_func"))
-        mod2 = AgentModification("agent_1", "shared_func", self._safe_func("shared_func"))
+        mod1 = AgentModification(
+            "agent_0", "shared_func", self._safe_func("shared_func")
+        )
+        mod2 = AgentModification(
+            "agent_1", "shared_func", self._safe_func("shared_func")
+        )
         cv.submit(mod1)
         cv.submit(mod2)
         assert cv.metrics()["total_conflicts"] == 1
@@ -439,6 +485,7 @@ class TestMultiAgentCoordination:
     def test_queue_processing_sequential(self):
         """process_queue must process modifications sequentially."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         for i in range(3):
             mod = AgentModification(
@@ -452,6 +499,7 @@ class TestMultiAgentCoordination:
     def test_queue_stops_on_rejection(self):
         """process_queue must stop after the first rejected modification."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         cv.submit(AgentModification("a0", "stop_func", self._safe_func("stop_func")))
         cv.submit(AgentModification("a1", "stop_func", self._unsafe_func("stop_func")))
@@ -464,6 +512,7 @@ class TestMultiAgentCoordination:
     def test_agent_registration(self):
         """register_agent must be idempotent."""
         from src.core.compositional import CompositionalVerifier
+
         cv = CompositionalVerifier()
         cv.register_agent("agent_x")
         cv.register_agent("agent_x")  # idempotent
@@ -474,6 +523,7 @@ class TestMultiAgentCoordination:
     def test_agent_heartbeat(self):
         """heartbeat() must update last_seen timestamp."""
         from src.core.compositional import CompositionalVerifier
+
         cv = CompositionalVerifier()
         cv.register_agent("hb_agent")
         t0 = time.time()
@@ -485,8 +535,13 @@ class TestMultiAgentCoordination:
     def test_agent_crash_marks_modifications_abandoned(self):
         """mark_agent_crashed must abandon all queued modifications."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
-        cv.submit(AgentModification("crash_agent", "crash_func", self._safe_func("crash_func")))
+        cv.submit(
+            AgentModification(
+                "crash_agent", "crash_func", self._safe_func("crash_func")
+            )
+        )
         cv.mark_agent_crashed("crash_agent")
         results = cv.process_queue("crash_func", [])
         # All modifications abandoned — empty or accepted (abandoned = skipped)
@@ -495,6 +550,7 @@ class TestMultiAgentCoordination:
     def test_dependency_graph_registers_calls(self):
         """update_from_ast must register function call dependencies."""
         from src.core.compositional import CompositionalVerifier
+
         cv = CompositionalVerifier()
         # func_caller calls func_callee
         code = """
@@ -509,6 +565,7 @@ func func_caller(x: int) -> int { return func_callee(x); }
     def test_five_agents_concurrent(self):
         """5 agents modifying different functions concurrently must all be accepted."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         results = []
         errors = []
@@ -524,7 +581,9 @@ func func_caller(x: int) -> int { return func_callee(x); }
             except Exception as exc:  # noqa: BLE001
                 errors.append(exc)
 
-        threads = [threading.Thread(target=_submit_and_verify, args=(i,)) for i in range(5)]
+        threads = [
+            threading.Thread(target=_submit_and_verify, args=(i,)) for i in range(5)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -536,6 +595,7 @@ func func_caller(x: int) -> int { return func_callee(x); }
     def test_metrics_tracking(self):
         """metrics() must track verifications, accepted, rejected, conflicts."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         cv.verify_batch([AgentModification("a", "f1", self._safe_func("f1"))])
         cv.verify_batch([AgentModification("b", "f2", self._unsafe_func("f2"))])
@@ -547,6 +607,7 @@ func func_caller(x: int) -> int { return func_callee(x); }
     def test_empty_batch_accepted(self):
         """An empty batch must be accepted trivially."""
         from src.core.compositional import CompositionalVerifier
+
         cv = CompositionalVerifier()
         result = cv.verify_batch([])
         assert result.accepted is True
@@ -554,6 +615,7 @@ func func_caller(x: int) -> int { return func_callee(x); }
     def test_abandoned_modification_skipped(self):
         """An abandoned modification must be skipped in verify_batch."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         mod = AgentModification("a", "f", self._unsafe_func("f"))
         mod.abandoned = True
@@ -563,8 +625,11 @@ func func_caller(x: int) -> int { return func_callee(x); }
     def test_rollback_on_rejection(self):
         """A rejected modification must not update the dependency graph."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
-        mod = AgentModification("a", "rollback_func", self._unsafe_func("rollback_func"))
+        mod = AgentModification(
+            "a", "rollback_func", self._unsafe_func("rollback_func")
+        )
         result = cv.verify_batch([mod])
         assert result.accepted is False
         # The function should not appear in the dependency graph as a caller
@@ -575,6 +640,7 @@ func func_caller(x: int) -> int { return func_callee(x); }
     def test_10_agents_100_mods_stress(self):
         """Stress test: 10 agents, 10 mods each, all safe — all accepted."""
         from src.core.compositional import AgentModification, CompositionalVerifier
+
         cv = CompositionalVerifier(timeout_ms=5000)
         all_results = []
         for agent_idx in range(10):
@@ -585,6 +651,6 @@ func func_caller(x: int) -> int { return func_callee(x); }
                 )
                 result = cv.verify_batch([mod])
                 all_results.append(result)
-        assert all(r.accepted for r in all_results), (
-            f"{sum(1 for r in all_results if not r.accepted)} rejections in stress test"
-        )
+        assert all(
+            r.accepted for r in all_results
+        ), f"{sum(1 for r in all_results if not r.accepted)} rejections in stress test"

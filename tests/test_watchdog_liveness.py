@@ -8,6 +8,7 @@ Pass criteria:
   - heartbeat() resets the timestamp (supplementary, not required).
   - Watchdog stops cleanly.
 """
+
 import threading
 import time
 
@@ -17,7 +18,10 @@ from src.monitor.watchdog import Watchdog
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_watchdog(timeout: int = 4, heartbeat_interval: int = 1, monitor_interval: int = 1) -> Watchdog:
+
+def _make_watchdog(
+    timeout: int = 4, heartbeat_interval: int = 1, monitor_interval: int = 1
+) -> Watchdog:
     config = {
         "self_healing": {
             "enabled": True,
@@ -33,6 +37,7 @@ def _make_watchdog(timeout: int = 4, heartbeat_interval: int = 1, monitor_interv
 # Core correctness
 # ---------------------------------------------------------------------------
 
+
 def test_idle_does_not_trigger_recovery():
     """Watchdog must NOT fire during idle periods (no requests sent).
 
@@ -43,13 +48,15 @@ def test_idle_does_not_trigger_recovery():
     recovery_calls = []
 
     original = wd._trigger_recovery
+
     def patched():
         recovery_calls.append(time.monotonic())
         original()
+
     wd._trigger_recovery = patched
 
     wd.start()
-    time.sleep(6)   # 1.5× timeout — liveness thread should keep it alive
+    time.sleep(6)  # 1.5× timeout — liveness thread should keep it alive
     wd.stop()
 
     assert recovery_calls == [], (
@@ -68,9 +75,11 @@ def test_recovery_fires_when_liveness_thread_stalls():
     recovery_event = threading.Event()
 
     original = wd._trigger_recovery
+
     def patched():
         recovery_event.set()
         original()
+
     wd._trigger_recovery = patched
 
     wd.start()
@@ -131,17 +140,18 @@ def test_heartbeat_count_increments():
     """Liveness thread must increment _heartbeat_count every interval."""
     wd = _make_watchdog(timeout=60, heartbeat_interval=1)
     wd.start()
-    time.sleep(3.5)   # expect ~3 ticks
+    time.sleep(3.5)  # expect ~3 ticks
     wd.stop()
 
-    assert wd._heartbeat_count >= 2, (
-        f"Expected ≥2 heartbeat ticks, got {wd._heartbeat_count}."
-    )
+    assert (
+        wd._heartbeat_count >= 2
+    ), f"Expected ≥2 heartbeat ticks, got {wd._heartbeat_count}."
 
 
 # ---------------------------------------------------------------------------
 # CodeMonitor embedded watchdog
 # ---------------------------------------------------------------------------
+
 
 def test_code_monitor_idle_does_not_trigger(tmp_path, monkeypatch):
     """CodeMonitor's embedded watchdog must not fire during idle."""
@@ -165,9 +175,9 @@ def test_code_monitor_idle_does_not_trigger(tmp_path, monkeypatch):
         "grounding": {"require_source_citations": False},
     }
     monitor = CodeMonitor(config)
-    time.sleep(6)   # 1.5× timeout — liveness thread must keep it alive
+    time.sleep(6)  # 1.5× timeout — liveness thread must keep it alive
     monitor.stop_watchdog()
 
-    assert recovery_calls == [], (
-        f"CodeMonitor watchdog fired {len(recovery_calls)} time(s) during idle."
-    )
+    assert (
+        recovery_calls == []
+    ), f"CodeMonitor watchdog fired {len(recovery_calls)} time(s) during idle."

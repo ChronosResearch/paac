@@ -1,4 +1,5 @@
 """tests/test_attestation.py — Feature 3: Cryptographic Attestation"""
+
 import json
 
 from src.core.attestation import (
@@ -12,6 +13,7 @@ from src.core.attestation import (
 # Basic generation and verification
 # ---------------------------------------------------------------------------
 
+
 def test_attest_safe_program():
     """Attestation for a safe (UNSAT) result must be generated and verify."""
     engine = AttestationEngine()
@@ -24,7 +26,7 @@ def test_attest_safe_program():
     )
     assert record.result == "UNSAT"
     assert record.ce_hash is None
-    assert len(record.commitment) == 64   # SHA-256 hex = 64 chars
+    assert len(record.commitment) == 64  # SHA-256 hex = 64 chars
     assert engine.verify(record) is True
 
 
@@ -53,7 +55,7 @@ def test_tampered_result_fails_verification():
         modification_id=record.modification_id,
         program_hash=record.program_hash,
         axiom_hash=record.axiom_hash,
-        result="SAT",           # changed from UNSAT
+        result="SAT",  # changed from UNSAT
         ce_hash=record.ce_hash,
         timestamp=record.timestamp,
         commitment=record.commitment,
@@ -80,6 +82,7 @@ def test_tampered_program_hash_fails():
 def test_different_keys_produce_different_commitments():
     """Two engines with different keys must produce different commitments."""
     import secrets
+
     engine1 = AttestationEngine(key=secrets.token_bytes(32))
     engine2 = AttestationEngine(key=secrets.token_bytes(32))
     r1 = engine1.attest("mod_e1", "h", "a", True, None)
@@ -90,6 +93,7 @@ def test_different_keys_produce_different_commitments():
 def test_cross_engine_verification_fails():
     """A record from engine1 must not verify under engine2."""
     import secrets
+
     engine1 = AttestationEngine(key=secrets.token_bytes(32))
     engine2 = AttestationEngine(key=secrets.token_bytes(32))
     record = engine1.attest("mod_e1b", "h", "a", True, None)
@@ -129,6 +133,7 @@ def test_record_to_dict_serializable():
 def test_timestamp_is_recent():
     """Attestation timestamp must be a recent Unix timestamp."""
     import time
+
     engine = AttestationEngine()
     record = engine.attest("mod_safe", "h", "a", True, None)
     assert abs(record.timestamp - time.time()) < 5.0

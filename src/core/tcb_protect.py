@@ -95,9 +95,7 @@ def protect_tcb() -> None:
 
     _TCB_PROTECTED = True
     if protected > 0:
-        logger.info(
-            f"R-2: TCB source files marked read-only ({protected} file(s))."
-        )
+        logger.info(f"R-2: TCB source files marked read-only ({protected} file(s)).")
     else:
         logger.warning(
             "R-2: TCB file protection applied but no files were chmod'd. "

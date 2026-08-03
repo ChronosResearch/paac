@@ -4,6 +4,7 @@ Steps 39-50: health, metrics, rate limiting, API key auth, request validation.
 Steps 76-85: Prometheus metrics, structured logging.
 v5.0.0: bootstrap self-verification, cryptographic attestation, multi-agent.
 """
+
 from __future__ import annotations
 
 import multiprocessing as _mp
@@ -60,6 +61,7 @@ try:
         Gauge,
         Histogram,
     )
+
     _PROM_AVAILABLE = True
     _verifications_total = Counter(
         "verifications_total", "Total verification requests", ["outcome"]
@@ -68,7 +70,9 @@ try:
         "verification_errors_total", "Total verification errors"
     )
     _circuit_breaker_state = Counter(
-        "circuit_breaker_state_changes_total", "Circuit breaker state changes", ["state"]
+        "circuit_breaker_state_changes_total",
+        "Circuit breaker state changes",
+        ["state"],
     )
     _verification_latency = Histogram(
         "verification_latency_seconds",
@@ -78,8 +82,11 @@ try:
     _active_verifications = Gauge(
         "active_verifications", "Currently active verification requests"
     )
-    _attestations_total = Counter(
-        "attestations_total", "Total attestations generated"
+    _attestations_total = Counter("attestations_total", "Total attestations generated")
+    _attestation_latency = Histogram(
+        "attestation_latency_seconds",
+        "Attestation generation latency in seconds",
+        buckets=[0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5],
     )
     _self_verify_total = Counter(
         "self_verify_total", "Total self-verification runs", ["result"]
@@ -125,7 +132,7 @@ def _check_rate_limit(ip: str) -> bool:
 # Input sanitization: reject non-SIL characters
 # ---------------------------------------------------------------------------
 
-_SIL_SAFE_RE = _re.compile(r'^[\x20-\x7E\n\r\t]*$')
+_SIL_SAFE_RE = _re.compile(r"^[\x20-\x7E\n\r\t]*$")
 
 
 def _sanitize_sil(code: str) -> str:
@@ -155,9 +162,7 @@ if _bootstrap_cfg.get("run_on_startup", False):
         sv = get_self_verifier()
         _sv_result = sv.run()
         if not _sv_result.passed:
-            logger.error(
-                f"Startup self-verification FAILED: {_sv_result.message}"
-            )
+            logger.error(f"Startup self-verification FAILED: {_sv_result.message}")
         else:
             logger.info(f"Startup self-verification PASSED: {_sv_result.message}")
     except Exception as _sv_exc:  # noqa: BLE001
@@ -167,6 +172,7 @@ if _bootstrap_cfg.get("run_on_startup", False):
 # ---------------------------------------------------------------------------
 # Middleware: rate limiting + API key
 # ---------------------------------------------------------------------------
+
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
@@ -198,6 +204,7 @@ async def security_middleware(request: Request, call_next):
 # Request models
 # ---------------------------------------------------------------------------
 
+
 class ModificationRequest(BaseModel):
     func_name: str
     old_code: str
@@ -226,6 +233,7 @@ class ModificationRequest(BaseModel):
 # Core endpoints
 # ---------------------------------------------------------------------------
 
+
 @app.post("/verify")
 async def verify_modification(req: ModificationRequest, request: Request):
     """Verify and apply a proposed code modification."""
@@ -252,17 +260,19 @@ async def verify_modification(req: ModificationRequest, request: Request):
         if attest_cfg.get("enabled", True) and result.get("status") == "accepted":
             try:
                 import hashlib
+
                 engine = get_attest_engine()
                 prog_hash = hashlib.sha256(req.new_code.encode()).hexdigest()
-                axiom_hash = engine.hash_axioms(
-                    [a.condition for a in monitor.axioms]
-                )
+                axiom_hash = engine.hash_axioms([a.condition for a in monitor.axioms])
                 mod_id = f"{req.func_name}:{int(time.time())}"
+                t_attest = time.monotonic()
                 record = engine.attest(mod_id, prog_hash, axiom_hash, True, None)
+                attest_elapsed = time.monotonic() - t_attest
                 result["attestation_id"] = mod_id
                 result["attestation_commitment"] = record.commitment[:16] + "..."
                 if _PROM_AVAILABLE:
                     _attestations_total.inc()
+                    _attestation_latency.observe(attest_elapsed)
             except Exception as _ae:  # noqa: BLE001
                 logger.warning(f"Attestation generation failed (non-fatal): {_ae}")
 
@@ -298,9 +308,9 @@ async def health():
     sv = get_self_verifier()
     sv_result = sv.last_result
     sv_status = (
-        "passed" if sv_result and sv_result.passed
-        else "failed" if sv_result and not sv_result.passed
-        else "not_run"
+        "passed"
+        if sv_result and sv_result.passed
+        else "failed" if sv_result and not sv_result.passed else "not_run"
     )
 
     attest_metrics = get_attest_engine().metrics()
@@ -327,6 +337,7 @@ async def metrics():
             "# prometheus_client not installed\n", media_type="text/plain"
         )
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
     data = generate_latest()
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
@@ -334,6 +345,7 @@ async def metrics():
 # ---------------------------------------------------------------------------
 # Bootstrap self-verification endpoint
 # ---------------------------------------------------------------------------
+
 
 @app.post("/self-verify")
 async def self_verify_endpoint():
@@ -364,6 +376,7 @@ async def self_verify_endpoint():
 # Attestation endpoints
 # ---------------------------------------------------------------------------
 
+
 @app.get("/attest/{modification_id}")
 async def get_attestation(modification_id: str):
     """
@@ -387,22 +400,27 @@ async def verify_attestation_endpoint(record_data: dict):
     Returns {valid: true/false}.
     """
     from .core.attestation import AttestationRecord, verify_attestation
+
     try:
         record = AttestationRecord.from_dict(record_data)
         valid = verify_attestation(record)
         return {"valid": valid}
     except (KeyError, TypeError) as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid attestation record: {exc}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid attestation record: {exc}"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Multi-agent endpoints
 # ---------------------------------------------------------------------------
 
+
 @app.get("/agents")
 async def list_agents():
     """List all registered agents and their status."""
     from .core.compositional import CompositionalVerifier
+
     # Use a module-level verifier instance
     verifier = _get_compositional_verifier()
     statuses = verifier.agent_statuses()
@@ -431,6 +449,7 @@ def _get_compositional_verifier():
     with _cv_lock:
         if _compositional_verifier is None:
             from .core.compositional import CompositionalVerifier
+
             _compositional_verifier = CompositionalVerifier(
                 timeout_ms=config.get("verification_timeout_ms", 5000)
             )
@@ -440,6 +459,7 @@ def _get_compositional_verifier():
 # ---------------------------------------------------------------------------
 # Exception handler and shutdown
 # ---------------------------------------------------------------------------
+
 
 @app.exception_handler(Exception)
 async def panic_hook(request: Request, exc: Exception):

@@ -35,6 +35,7 @@ History
 Every accepted change is appended to an in-memory log (and optionally to a
 JSON file).  Rollback restores any previous version.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -57,6 +58,7 @@ _HISTORY_PATH = os.environ.get("PAAC_AXIOM_HISTORY_PATH", "axiom_history.jsonl")
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class AxiomModification:
@@ -90,6 +92,7 @@ class AxiomHistoryEntry:
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
+
 
 class AxiomEvolutionEngine:
     """
@@ -242,7 +245,9 @@ class AxiomEvolutionEngine:
         """
         # Build a dummy SIL program that asserts both conditions.
         # We need to discover the variable names used in the conditions.
-        vars_used = self._extract_vars(old_condition) | self._extract_vars(new_condition)
+        vars_used = self._extract_vars(old_condition) | self._extract_vars(
+            new_condition
+        )
         if not vars_used:
             vars_used = {"x"}
 
@@ -325,6 +330,7 @@ class AxiomEvolutionEngine:
     def _extract_vars(condition: str) -> set[str]:
         """Extract identifier-like tokens from a condition string."""
         import re
+
         keywords = {"and", "or", "not", "true", "false"}
         tokens = re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", condition)
         return {t for t in tokens if t not in keywords}

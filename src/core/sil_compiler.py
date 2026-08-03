@@ -38,9 +38,8 @@ class SILLexer:
         self.tokens: list[Token] = []
 
     def tokenize(self) -> list[Token]:
-        tok_regex = "|".join(
-            f"(?P<{name}>{pat})" for name, pat in self.TOKEN_SPEC
-        )
+        """Lex the SIL source string into a flat list of Token objects."""
+        tok_regex = "|".join(f"(?P<{name}>{pat})" for name, pat in self.TOKEN_SPEC)
         line_num = 1
         line_start = 0
         for mo in re.finditer(tok_regex, self.code):
@@ -160,6 +159,7 @@ class SILParser:
         self.pos = 0
 
     def peek(self) -> Token | None:
+        """Return the current token without advancing the position, or None at EOF."""
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
         return None
@@ -169,6 +169,7 @@ class SILParser:
         expected_type: str | None = None,
         expected_value: str | None = None,
     ) -> Token:
+        """Advance past the current token and return it, raising SILError on mismatch."""
         tok = self.peek()
         if not tok:
             raise SILError("Unexpected end of input")
@@ -188,6 +189,7 @@ class SILParser:
         expected_type: str | None = None,
         expected_value: str | None = None,
     ) -> bool:
+        """Advance past the current token if it matches; return True on match, False otherwise."""
         tok = self.peek()
         if not tok:
             return False
@@ -199,6 +201,7 @@ class SILParser:
         return True
 
     def parse_program(self) -> ProgramNode:
+        """Parse a complete SIL program (zero or more function definitions) into a ProgramNode."""
         funcs = []
         while self.peek():
             funcs.append(self.parse_function())
@@ -248,6 +251,7 @@ class SILParser:
         in_stack: set = set()
 
         def dfs(name: str, path: list[str]) -> None:
+            """Depth-first search helper for call-graph cycle detection."""
             if name not in graph:
                 return  # call to external / stdlib — not our concern here
             if name in in_stack:
@@ -269,6 +273,7 @@ class SILParser:
         pass  # superseded by _check_call_graph
 
     def parse_function(self) -> FuncDefNode:
+        """Parse a single SIL function definition into a FuncDefNode."""
         self.consume("KEYWORD", "func")
         name = self.consume("IDENTIFIER").value
         self.consume("SYMBOL", "(")
@@ -287,12 +292,14 @@ class SILParser:
         return FuncDefNode(name, params, ret_type, body)
 
     def parse_param(self) -> ParamNode:
+        """Parse a single parameter declaration (name: type) into a ParamNode."""
         name = self.consume("IDENTIFIER").value
         self.consume("SYMBOL", ":")
         type_name = self.consume("KEYWORD").value
         return ParamNode(name, type_name)
 
     def parse_stmt(self) -> ASTNode:
+        """Dispatch to the appropriate statement parser based on the current token."""
         tok = self.peek()
         if tok is None:
             raise SILError("Unexpected end of input in statement")
@@ -308,6 +315,7 @@ class SILParser:
             return self.parse_assignment()
 
     def parse_if(self) -> IfStmtNode:
+        """Parse an if/else statement into an IfStmtNode."""
         self.consume("KEYWORD", "if")
         cond = self.parse_expr()
         self.consume("SYMBOL", "{")
@@ -322,6 +330,7 @@ class SILParser:
         return IfStmtNode(cond, then_branch, else_branch)
 
     def parse_while(self) -> WhileStmtNode:
+        """Parse a bounded while loop into a WhileStmtNode."""
         self.consume("KEYWORD", "while")
         self.consume("SYMBOL", "(")
         cond = self.parse_expr()
@@ -338,18 +347,21 @@ class SILParser:
         return WhileStmtNode(cond, bound, body)
 
     def parse_return(self) -> ReturnStmtNode:
+        """Parse a return statement into a ReturnStmtNode."""
         self.consume("KEYWORD", "return")
         val = self.parse_expr()
         self.consume("SYMBOL", ";")
         return ReturnStmtNode(val)
 
     def parse_assert(self) -> AssertStmtNode:
+        """Parse an assert statement into an AssertStmtNode."""
         self.consume("KEYWORD", "assert")
         val = self.parse_expr()
         self.consume("SYMBOL", ";")
         return AssertStmtNode(val)
 
     def parse_assignment(self) -> AssignmentStmtNode:
+        """Parse a variable assignment statement into an AssignmentStmtNode."""
         target = self.consume("IDENTIFIER").value
         self.consume("OPERATOR", "=")
         val = self.parse_expr()
@@ -357,9 +369,11 @@ class SILParser:
         return AssignmentStmtNode(target, val)
 
     def parse_expr(self) -> ASTNode:
+        """Entry point for expression parsing; delegates to parse_binary_expr."""
         return self.parse_binary_expr(0)
 
     def parse_binary_expr(self, precedence: int) -> ASTNode:
+        """Pratt-style binary expression parser; handles operators by precedence level."""
         # Simple Pratt-like parsing for binary ops
         left = self.parse_primary()
         while True:
@@ -401,6 +415,7 @@ class SILParser:
         return 0
 
     def parse_primary(self) -> ASTNode:
+        """Parse a primary expression: literal, identifier, array access, call, or parenthesised expr."""
         tok = self.peek()
         if tok is None:
             raise SILError("Unexpected end of input in expression")
@@ -452,6 +467,7 @@ class SILTypeChecker:
         self.current_env: dict[str, str] = {}
 
     def check(self):
+        """Type-check the AST: detect duplicate functions, undefined variables, and type mismatches."""
         for func in self.ast.functions:
             if func.name in self.functions:
                 raise SILError(f"Duplicate function: {func.name}")
@@ -576,6 +592,7 @@ class SILToIRCompiler:
         self.block_counter = 0
 
     def compile(self) -> dict[str, BasicBlock]:
+        """Build a CFG (basic-block map) for every function in the AST."""
         cfgs = {}
         for func in self.ast.functions:
             cfgs[func.name] = self._compile_function(func)
@@ -637,6 +654,17 @@ class SILToIRCompiler:
 
 class SILCompiler:
     def compile(self, code: str) -> tuple[ProgramNode, dict[str, BasicBlock]]:
+        """Lex, parse, type-check, and CFG-compile a SIL source string.
+
+        Args:
+            code: Raw SIL source text.
+
+        Returns:
+            (ProgramNode, cfg_map) where cfg_map maps function names to BasicBlock dicts.
+
+        Raises:
+            SILError: On any lexical, parse, or type error.
+        """
         lexer = SILLexer(code)
         tokens = lexer.tokenize()
         parser = SILParser(tokens)
