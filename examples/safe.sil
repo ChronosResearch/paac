@@ -1,0 +1,4 @@
+func withdraw(balance: int, amount: int) -> int {
+    balance = 10;
+    return balance - amount;
+}
