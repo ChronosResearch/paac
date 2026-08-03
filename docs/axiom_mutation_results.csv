@@ -1,0 +1,46 @@
+axiom_id,condition,mutant_id,kind,mutant_condition,expected_direction,probes_total,probes_killed,kill_rate,survived
+no_negative_balance,balance >= 0,no_negative_balance__noop,noop,balance >= 0,same,6,0,0.0000,True
+no_negative_balance,balance >= 0,no_negative_balance__vacuous,vacuous,true,fail_less,6,3,0.5000,False
+no_negative_balance,balance >= 0,no_negative_balance__negate,negate,not (balance >= 0),fail_more,6,5,0.8333,False
+no_negative_balance,balance >= 0,no_negative_balance__weaken_op,weaken_op,balance > 0,fail_less,6,2,0.3333,False
+no_negative_balance,balance >= 0,no_negative_balance__strengthen_op,strengthen_op,balance > 0,fail_more,6,2,0.3333,False
+no_negative_balance,balance >= 0,no_negative_balance__shift_m1,shift_const,balance >= -1,fail_less,6,1,0.1667,False
+no_negative_balance,balance >= 0,no_negative_balance__shift_p1,shift_const,balance >= 1,fail_more,6,2,0.3333,False
+no_negative_balance,balance >= 0,no_negative_balance__shift_m5,shift_const,balance >= -5,fail_less,6,2,0.3333,False
+no_negative_balance,balance >= 0,no_negative_balance__shift_p5,shift_const,balance >= 5,fail_more,6,3,0.5000,False
+counter_in_range,counter >= 0,counter_in_range__noop,noop,counter >= 0,same,6,0,0.0000,True
+counter_in_range,counter >= 0,counter_in_range__vacuous,vacuous,true,fail_less,6,3,0.5000,False
+counter_in_range,counter >= 0,counter_in_range__negate,negate,not (counter >= 0),fail_more,6,5,0.8333,False
+counter_in_range,counter >= 0,counter_in_range__weaken_op,weaken_op,counter > 0,fail_less,6,2,0.3333,False
+counter_in_range,counter >= 0,counter_in_range__strengthen_op,strengthen_op,counter > 0,fail_more,6,2,0.3333,False
+counter_in_range,counter >= 0,counter_in_range__shift_m1,shift_const,counter >= -1,fail_less,6,1,0.1667,False
+counter_in_range,counter >= 0,counter_in_range__shift_p1,shift_const,counter >= 1,fail_more,6,2,0.3333,False
+counter_in_range,counter >= 0,counter_in_range__shift_m5,shift_const,counter >= -5,fail_less,6,2,0.3333,False
+counter_in_range,counter >= 0,counter_in_range__shift_p5,shift_const,counter >= 5,fail_more,6,3,0.5000,False
+result_bounded,result >= 0,result_bounded__noop,noop,result >= 0,same,6,0,0.0000,True
+result_bounded,result >= 0,result_bounded__vacuous,vacuous,true,fail_less,6,3,0.5000,False
+result_bounded,result >= 0,result_bounded__negate,negate,not (result >= 0),fail_more,6,5,0.8333,False
+result_bounded,result >= 0,result_bounded__weaken_op,weaken_op,result > 0,fail_less,6,2,0.3333,False
+result_bounded,result >= 0,result_bounded__strengthen_op,strengthen_op,result > 0,fail_more,6,2,0.3333,False
+result_bounded,result >= 0,result_bounded__shift_m1,shift_const,result >= -1,fail_less,6,1,0.1667,False
+result_bounded,result >= 0,result_bounded__shift_p1,shift_const,result >= 1,fail_more,6,2,0.3333,False
+result_bounded,result >= 0,result_bounded__shift_m5,shift_const,result >= -5,fail_less,6,2,0.3333,False
+result_bounded,result >= 0,result_bounded__shift_p5,shift_const,result >= 5,fail_more,6,3,0.5000,False
+amount_positive,amount > 0,amount_positive__noop,noop,amount > 0,same,6,0,0.0000,True
+amount_positive,amount > 0,amount_positive__vacuous,vacuous,true,fail_less,6,3,0.5000,False
+amount_positive,amount > 0,amount_positive__negate,negate,not (amount > 0),fail_more,6,5,0.8333,False
+amount_positive,amount > 0,amount_positive__weaken_op,weaken_op,amount >= 0,fail_less,6,1,0.1667,False
+amount_positive,amount > 0,amount_positive__strengthen_op,strengthen_op,amount == 0,fail_more,6,4,0.6667,False
+amount_positive,amount > 0,amount_positive__shift_m1,shift_const,amount > -1,fail_less,6,1,0.1667,False
+amount_positive,amount > 0,amount_positive__shift_p1,shift_const,amount > 1,fail_more,6,2,0.3333,False
+amount_positive,amount > 0,amount_positive__shift_m5,shift_const,amount > -5,fail_less,6,2,0.3333,False
+amount_positive,amount > 0,amount_positive__shift_p5,shift_const,amount > 5,fail_more,6,3,0.5000,False
+index_nonneg,index >= 0,index_nonneg__noop,noop,index >= 0,same,6,0,0.0000,True
+index_nonneg,index >= 0,index_nonneg__vacuous,vacuous,true,fail_less,6,3,0.5000,False
+index_nonneg,index >= 0,index_nonneg__negate,negate,not (index >= 0),fail_more,6,5,0.8333,False
+index_nonneg,index >= 0,index_nonneg__weaken_op,weaken_op,index > 0,fail_less,6,2,0.3333,False
+index_nonneg,index >= 0,index_nonneg__strengthen_op,strengthen_op,index > 0,fail_more,6,2,0.3333,False
+index_nonneg,index >= 0,index_nonneg__shift_m1,shift_const,index >= -1,fail_less,6,1,0.1667,False
+index_nonneg,index >= 0,index_nonneg__shift_p1,shift_const,index >= 1,fail_more,6,2,0.3333,False
+index_nonneg,index >= 0,index_nonneg__shift_m5,shift_const,index >= -5,fail_less,6,2,0.3333,False
+index_nonneg,index >= 0,index_nonneg__shift_p5,shift_const,index >= 5,fail_more,6,3,0.5000,False
