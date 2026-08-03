@@ -119,9 +119,7 @@ def test_wal_keeps_latest_entry(tmp_path, monkeypatch):
     monkeypatch.setattr("src.core.failsafe._WAL_PATH", wal_file)
 
     for i, ts in enumerate([1000.0, 2000.0, 500.0]):
-        wal_append(
-            WALEntry("bar", "", f"code_v{i}", "", "", "https://x.com", ts)
-        )
+        wal_append(WALEntry("bar", "", f"code_v{i}", "", "", "https://x.com", ts))
 
     latest = wal_load_latest()
     # Timestamp 2000.0 is the most recent.
@@ -150,9 +148,7 @@ def test_registry_save_and_load(tmp_path, monkeypatch):
 
 
 def test_registry_load_missing_returns_empty(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "src.core.failsafe._REGISTRY_PATH", str(tmp_path / "no.json")
-    )
+    monkeypatch.setattr("src.core.failsafe._REGISTRY_PATH", str(tmp_path / "no.json"))
     assert registry_load() == {}
 
 
@@ -307,8 +303,12 @@ def test_citation_no_dot_rejected():
     monitor = CodeMonitor(config)
     monitor.stop_watchdog()
     mod = CodeModification(
-        "f", "", "func f(x: int) -> int { return x; }", "", "",
-        "averylongcitationwithoutadot"
+        "f",
+        "",
+        "func f(x: int) -> int { return x; }",
+        "",
+        "",
+        "averylongcitationwithoutadot",
     )
     result = monitor.intercept_modification(mod)
     assert result["status"] == "rejected"
@@ -325,8 +325,12 @@ def test_citation_valid_url_accepted():
     monitor = CodeMonitor(config)
     monitor.stop_watchdog()
     mod = CodeModification(
-        "sq", "", "func sq(x: int) -> int { y = x * x; assert y >= 0; return y; }",
-        "", "", "https://doi.org/10.1234/example"
+        "sq",
+        "",
+        "func sq(x: int) -> int { y = x * x; assert y >= 0; return y; }",
+        "",
+        "",
+        "https://doi.org/10.1234/example",
     )
     result = monitor.intercept_modification(mod)
     assert result["status"] == "accepted"

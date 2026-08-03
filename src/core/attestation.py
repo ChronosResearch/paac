@@ -40,6 +40,7 @@ Limitations (documented honestly)
 - Timestamps are wall-clock time (not monotonic) and can be manipulated
   by a compromised system clock.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -58,6 +59,7 @@ from loguru import logger
 # Key management
 # ---------------------------------------------------------------------------
 
+
 def _load_key() -> bytes:
     """Load attestation key from env var or generate a process-local one."""
     raw = os.environ.get("PAAC_ATTEST_KEY", "")
@@ -68,7 +70,9 @@ def _load_key() -> bytes:
                 raise ValueError("Key too short (minimum 16 bytes)")
             return key
         except (ValueError, Exception) as exc:  # noqa: BLE001
-            logger.warning(f"PAAC_ATTEST_KEY invalid ({exc}); generating ephemeral key.")
+            logger.warning(
+                f"PAAC_ATTEST_KEY invalid ({exc}); generating ephemeral key."
+            )
     key = secrets.token_bytes(32)
     logger.warning(
         "No PAAC_ATTEST_KEY set — using ephemeral key. "
@@ -81,15 +85,16 @@ def _load_key() -> bytes:
 # Data model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AttestationRecord:
-    modification_id: str    # caller-supplied ID (e.g., func_name + timestamp)
-    program_hash: str       # SHA-256 of canonical AST JSON
-    axiom_hash: str         # SHA-256 of sorted axiom conditions
-    result: str             # "UNSAT" | "SAT" | "ERROR"
-    ce_hash: str | None     # SHA-256 of counterexample string, or None
-    timestamp: float        # Unix timestamp of attestation generation
-    commitment: str         # HMAC-SHA256 hex digest (64 hex chars = 32 bytes)
+    modification_id: str  # caller-supplied ID (e.g., func_name + timestamp)
+    program_hash: str  # SHA-256 of canonical AST JSON
+    axiom_hash: str  # SHA-256 of sorted axiom conditions
+    result: str  # "UNSAT" | "SAT" | "ERROR"
+    ce_hash: str | None  # SHA-256 of counterexample string, or None
+    timestamp: float  # Unix timestamp of attestation generation
+    commitment: str  # HMAC-SHA256 hex digest (64 hex chars = 32 bytes)
     version: str = "paac-attest-v1"
 
     def to_dict(self) -> dict[str, Any]:
@@ -103,6 +108,7 @@ class AttestationRecord:
 # ---------------------------------------------------------------------------
 # Attestation engine
 # ---------------------------------------------------------------------------
+
 
 class AttestationEngine:
     """

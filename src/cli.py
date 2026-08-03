@@ -7,6 +7,7 @@ Commands:
   attest        Generate a cryptographic attestation for a SIL file.
   multi-agent   Run a multi-agent coordination demo.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,14 +30,21 @@ def cli() -> None:
 # verify
 # ---------------------------------------------------------------------------
 
+
 @cli.command()
 @click.argument("sil_file", type=click.Path(exists=True))
 @click.option("--config", default="config/default.yaml", show_default=True)
 @click.option("--axioms", default="config/axioms.yaml", show_default=True)
 @click.option("--func-name", default="cli_func", show_default=True)
-@click.option("--attest", is_flag=True, default=False,
-              help="Generate a cryptographic attestation after verification.")
-def verify(sil_file: str, config: str, axioms: str, func_name: str, attest: bool) -> None:
+@click.option(
+    "--attest",
+    is_flag=True,
+    default=False,
+    help="Generate a cryptographic attestation after verification.",
+)
+def verify(
+    sil_file: str, config: str, axioms: str, func_name: str, attest: bool
+) -> None:
     """Verify a SIL file for safety violations."""
     try:
         with open(config) as f:
@@ -70,13 +78,23 @@ def verify(sil_file: str, config: str, axioms: str, func_name: str, attest: bool
 # self-verify
 # ---------------------------------------------------------------------------
 
+
 @cli.command("self-verify")
-@click.option("--timeout-ms", default=5000, show_default=True,
-              help="Z3 solver timeout per stub in milliseconds.")
-@click.option("--live", is_flag=True, default=False,
-              help="Also translate and verify live TCB source files.")
-@click.option("--json-output", is_flag=True, default=False,
-              help="Output results as JSON.")
+@click.option(
+    "--timeout-ms",
+    default=5000,
+    show_default=True,
+    help="Z3 solver timeout per stub in milliseconds.",
+)
+@click.option(
+    "--live",
+    is_flag=True,
+    default=False,
+    help="Also translate and verify live TCB source files.",
+)
+@click.option(
+    "--json-output", is_flag=True, default=False, help="Output results as JSON."
+)
 def self_verify(timeout_ms: int, live: bool, json_output: bool) -> None:
     """
     Run bootstrap self-verification of the PAAC TCB.
@@ -139,12 +157,17 @@ def self_verify(timeout_ms: int, live: bool, json_output: bool) -> None:
 # attest
 # ---------------------------------------------------------------------------
 
+
 @cli.command()
 @click.argument("sil_file", type=click.Path(exists=True))
 @click.option("--axioms", default="config/axioms.yaml", show_default=True)
 @click.option("--func-name", default="cli_func", show_default=True)
-@click.option("--verify-only", is_flag=True, default=False,
-              help="Verify an existing attestation from stdin (JSON).")
+@click.option(
+    "--verify-only",
+    is_flag=True,
+    default=False,
+    help="Verify an existing attestation from stdin (JSON).",
+)
 def attest(sil_file: str, axioms: str, func_name: str, verify_only: bool) -> None:
     """
     Generate a cryptographic attestation for a SIL verification result.
@@ -164,6 +187,7 @@ def attest(sil_file: str, axioms: str, func_name: str, verify_only: bool) -> Non
             click.echo(f"Error: invalid JSON: {exc}", err=True)
             sys.exit(1)
         from .core.attestation import AttestationRecord, verify_attestation
+
         record = AttestationRecord.from_dict(data)
         valid = verify_attestation(record)
         click.echo(json.dumps({"valid": valid}, indent=2))
@@ -172,9 +196,7 @@ def attest(sil_file: str, axioms: str, func_name: str, verify_only: bool) -> Non
     _run_attest(func_name, code, axioms, safe=None)
 
 
-def _run_attest(
-    func_name: str, code: str, axioms_path: str, safe: bool | None
-) -> None:
+def _run_attest(func_name: str, code: str, axioms_path: str, safe: bool | None) -> None:
     """Generate and print an attestation record."""
     import hashlib
     from .core.attestation import AttestationEngine, get_engine
@@ -187,17 +209,21 @@ def _run_attest(
     try:
         ast, _ = compiler.compile(code)
         import json as _json
+
         def _node_to_dict(n):
             if isinstance(n, list):
                 return [_node_to_dict(x) for x in n]
             if hasattr(n, "__dataclass_fields__"):
                 return {k: _node_to_dict(getattr(n, k)) for k in n.__dataclass_fields__}
             return n
+
         ast_json = _json.dumps(_node_to_dict(ast), sort_keys=True, default=str)
         program_hash = engine.hash_program(ast_json)
     except Exception as exc:  # noqa: BLE001
         program_hash = hashlib.sha256(code.encode()).hexdigest()
-        click.echo(f"Warning: compilation failed ({exc}); hashing raw source.", err=True)
+        click.echo(
+            f"Warning: compilation failed ({exc}); hashing raw source.", err=True
+        )
 
     try:
         with open(axioms_path) as f:
@@ -218,11 +244,14 @@ def _run_attest(
 # multi-agent
 # ---------------------------------------------------------------------------
 
+
 @cli.command("multi-agent")
-@click.option("--agents", default=3, show_default=True,
-              help="Number of simulated agents.")
-@click.option("--mods-per-agent", default=2, show_default=True,
-              help="Modifications per agent.")
+@click.option(
+    "--agents", default=3, show_default=True, help="Number of simulated agents."
+)
+@click.option(
+    "--mods-per-agent", default=2, show_default=True, help="Modifications per agent."
+)
 @click.option("--json-output", is_flag=True, default=False)
 def multi_agent(agents: int, mods_per_agent: int, json_output: bool) -> None:
     """
@@ -243,16 +272,16 @@ func agent_{agent_id}_func_{mod_idx}(x: int) -> int {{
 }}
 """
 
-    click.echo(f"Running multi-agent demo: {agents} agents, {mods_per_agent} mods each...")
+    click.echo(
+        f"Running multi-agent demo: {agents} agents, {mods_per_agent} mods each..."
+    )
 
     for agent_idx in range(agents):
         agent_id = f"agent_{agent_idx}"
         verifier.register_agent(agent_id)
         for mod_idx in range(mods_per_agent):
             func_name = f"agent_{agent_idx}_func_{mod_idx}"
-            code = safe_func_template.format(
-                agent_id=agent_idx, mod_idx=mod_idx
-            )
+            code = safe_func_template.format(agent_id=agent_idx, mod_idx=mod_idx)
             mod = AgentModification(
                 agent_id=agent_id,
                 func_name=func_name,

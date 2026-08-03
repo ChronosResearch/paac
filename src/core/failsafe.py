@@ -25,8 +25,8 @@ from loguru import logger
 # Circuit Breaker
 # ---------------------------------------------------------------------------
 
-_CB_FAILURE_THRESHOLD = 5   # consecutive failures before opening
-_CB_COOLDOWN_S = 60.0       # seconds to wait before half-open probe
+_CB_FAILURE_THRESHOLD = 5  # consecutive failures before opening
+_CB_COOLDOWN_S = 60.0  # seconds to wait before half-open probe
 
 
 class CircuitOpenError(Exception):
@@ -57,6 +57,7 @@ class CircuitBreaker:
 
     @property
     def state(self) -> str:
+        """Return the current circuit breaker state: CLOSED, OPEN, or HALF_OPEN."""
         return self._state
 
     def allow_request(self) -> None:
@@ -77,6 +78,7 @@ class CircuitBreaker:
             # HALF_OPEN: allow the probe through (no raise)
 
     def record_success(self) -> None:
+        """Record a successful verification; reset failure counter and close the circuit."""
         with self._lock:
             self._consecutive_failures = 0
             if self._state != "CLOSED":
@@ -84,6 +86,7 @@ class CircuitBreaker:
             self._state = "CLOSED"
 
     def record_failure(self) -> None:
+        """Record a failed verification; open the circuit after threshold consecutive failures."""
         with self._lock:
             self._consecutive_failures += 1
             if self._state == "HALF_OPEN" or (
@@ -175,7 +178,5 @@ def registry_load() -> dict[str, str]:
         return {}
     with _REGISTRY_LOCK, open(_REGISTRY_PATH) as fh:
         data: dict[str, Any] = json.load(fh)
-    logger.info(
-        f"Registry: loaded {len(data)} function(s) from '{_REGISTRY_PATH}'."
-    )
+    logger.info(f"Registry: loaded {len(data)} function(s) from '{_REGISTRY_PATH}'.")
     return {k: str(v) for k, v in data.items()}

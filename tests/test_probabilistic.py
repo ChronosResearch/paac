@@ -1,4 +1,5 @@
 """tests/test_probabilistic.py — Feature 1: Probabilistic Verification"""
+
 from src.core.probabilistic import (
     ProbabilisticAxiom,
     ProbabilisticVerifier,
@@ -11,7 +12,9 @@ COMPILER = SILCompiler()
 
 def _axiom(condition: str, threshold: float) -> ProbabilisticAxiom:
     return ProbabilisticAxiom(
-        id="test_ax", description="test", condition=condition,
+        id="test_ax",
+        description="test",
+        condition=condition,
         confidence_threshold=threshold,
     )
 
@@ -19,6 +22,7 @@ def _axiom(condition: str, threshold: float) -> ProbabilisticAxiom:
 # ---------------------------------------------------------------------------
 # Core correctness
 # ---------------------------------------------------------------------------
+
 
 def test_always_safe_program_accepted():
     """A program that always satisfies the axiom should be accepted."""
@@ -109,7 +113,7 @@ def test_multiple_axioms_most_restrictive_wins():
     ast, _ = COMPILER.compile("func f(x: int) -> int { return x; }")
     verifier = ProbabilisticVerifier(domain=100, samples=300)
     axioms = [
-        _axiom("x >= 0", 0.30),   # easy
+        _axiom("x >= 0", 0.30),  # easy
         ProbabilisticAxiom("ax2", "", "x >= 0", 0.99),  # very hard
     ]
     result = verifier.verify(ast, axioms)

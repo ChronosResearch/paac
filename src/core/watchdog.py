@@ -64,7 +64,11 @@ class Checkpointer:
         if self.redis_client:
             try:
                 val = self.redis_client.get(key)
-                return val.decode("utf-8") if isinstance(val, bytes) else val if val else None
+                return (
+                    val.decode("utf-8")
+                    if isinstance(val, bytes)
+                    else val if val else None
+                )
             except redis.ConnectionError:
                 self.redis_client = None
                 return self.memory_store.get(key)

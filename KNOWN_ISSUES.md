@@ -1,5 +1,36 @@
 # Known Issues
 
+## Compiler Gaps
+
+### KI-002: Duplicate SIL parameter names silently accepted (Low)
+The SIL type checker does not detect duplicate parameter names in a function
+signature. For example, `func f(x: int, x: int) -> int` compiles without
+error. The second parameter silently shadows the first in the SSA environment.
+Mitigation: avoid duplicate parameter names. A compile-time check is planned
+for a future release.
+Status: Open.
+
+### KI-003: Missing return statement silently accepted (Low)
+A SIL function that falls off the end without a `return` statement is not
+rejected at compile time. The verifier will still encode the function body
+correctly, but the absence of a return value is not flagged.
+Mitigation: always include an explicit `return` statement. A compile-time
+check is planned for a future release.
+Status: Open.
+
+## Verification
+
+### KI-004: Loop bound must be sufficient for all reachable inputs (Medium)
+The BMC pipeline unrolls loops exactly K times (the declared `bound`). If the
+loop requires more than K iterations for some input, the A-01 post-unroll
+check will classify the program as UNSAFE (SAT). There is no automated bound
+inference — the developer must choose a bound large enough to cover all
+reachable inputs. Choosing too small a bound produces a false-positive
+unsafety result; choosing too large a bound increases verification time.
+Automated loop bound inference (e.g., via widening or template-based
+approaches) is future work.
+Status: Open.
+
 ## Static Analysis
 
 ### KI-001: `safety check` requires API key (Low)

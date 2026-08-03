@@ -1,4 +1,5 @@
 """tests/test_ctvp.py — Feature 4: Cross-Trace Semantic Verification (CTVP)"""
+
 from src.core.ctvp import (
     CTVPEngine,
     _algebraic_simplify,
@@ -15,11 +16,10 @@ COMPILER = SILCompiler()
 # Variant generators
 # ---------------------------------------------------------------------------
 
+
 def test_rename_vars_produces_valid_ast():
     """Variable renaming must produce a compilable-equivalent AST."""
-    ast, _ = COMPILER.compile(
-        "func f(x: int) -> int { y = x + 1; return y; }"
-    )
+    ast, _ = COMPILER.compile("func f(x: int) -> int { y = x + 1; return y; }")
     renamed = _rename_vars(ast)
     # v0 should replace y (x is a param, kept as-is).
     assert renamed.functions[0].name == "f"
@@ -37,18 +37,23 @@ def test_algebraic_simplify_removes_identity():
         ProgramNode,
         ReturnStmtNode,
     )
-    ast = ProgramNode(functions=[FuncDefNode(
-        name="f",
-        params=[ParamNode("x", "int")],
-        return_type="int",
-        body=[
-            AssignmentStmtNode(
-                "y",
-                BinaryExprNode(IdentifierNode("x"), "+", LiteralNode(0, "int")),
-            ),
-            ReturnStmtNode(IdentifierNode("y")),
-        ],
-    )])
+
+    ast = ProgramNode(
+        functions=[
+            FuncDefNode(
+                name="f",
+                params=[ParamNode("x", "int")],
+                return_type="int",
+                body=[
+                    AssignmentStmtNode(
+                        "y",
+                        BinaryExprNode(IdentifierNode("x"), "+", LiteralNode(0, "int")),
+                    ),
+                    ReturnStmtNode(IdentifierNode("y")),
+                ],
+            )
+        ]
+    )
     simplified = _algebraic_simplify(ast)
     assign = simplified.functions[0].body[0]
     # After simplification, y = x (not x + 0).
@@ -64,6 +69,7 @@ def test_increase_loop_bound():
     )
     bumped = _increase_loop_bound(ast, delta=1)
     from src.core.sil_compiler import WhileStmtNode
+
     while_stmt = next(
         s for s in bumped.functions[0].body if isinstance(s, WhileStmtNode)
     )
@@ -82,19 +88,30 @@ def test_split_conjunctive_asserts():
         ProgramNode,
         ReturnStmtNode,
     )
-    ast = ProgramNode(functions=[FuncDefNode(
-        name="f",
-        params=[ParamNode("x", "int"), ParamNode("y", "int")],
-        return_type="int",
-        body=[
-            AssertStmtNode(BinaryExprNode(
-                BinaryExprNode(IdentifierNode("x"), ">=", LiteralNode(0, "int")),
-                "and",
-                BinaryExprNode(IdentifierNode("y"), ">=", LiteralNode(0, "int")),
-            )),
-            ReturnStmtNode(IdentifierNode("x")),
-        ],
-    )])
+
+    ast = ProgramNode(
+        functions=[
+            FuncDefNode(
+                name="f",
+                params=[ParamNode("x", "int"), ParamNode("y", "int")],
+                return_type="int",
+                body=[
+                    AssertStmtNode(
+                        BinaryExprNode(
+                            BinaryExprNode(
+                                IdentifierNode("x"), ">=", LiteralNode(0, "int")
+                            ),
+                            "and",
+                            BinaryExprNode(
+                                IdentifierNode("y"), ">=", LiteralNode(0, "int")
+                            ),
+                        )
+                    ),
+                    ReturnStmtNode(IdentifierNode("x")),
+                ],
+            )
+        ]
+    )
     split = _split_conjunctive_asserts(ast)
     asserts = [s for s in split.functions[0].body if isinstance(s, AssertStmtNode)]
     assert len(asserts) == 2
@@ -104,11 +121,10 @@ def test_split_conjunctive_asserts():
 # CTVP engine
 # ---------------------------------------------------------------------------
 
+
 def test_safe_program_consistent():
     """A safe program should produce consistent results across all variants."""
-    ast, _ = COMPILER.compile(
-        "func f(x: int) -> int { assert x == x; return x; }"
-    )
+    ast, _ = COMPILER.compile("func f(x: int) -> int { assert x == x; return x; }")
     engine = CTVPEngine(timeout_ms=5000)
     result = engine.verify(ast, [])
     assert result.consistency_score == 1.0

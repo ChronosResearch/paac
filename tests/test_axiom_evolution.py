@@ -1,4 +1,5 @@
 """tests/test_axiom_evolution.py — Feature 5: Verified Self-Evolving Axioms"""
+
 from src.axioms.axiom_parser import Axiom
 from src.core.axiom_evolution import (
     AxiomEvolutionEngine,
@@ -17,12 +18,13 @@ def _base_axioms() -> list[Axiom]:
 # Conservative extension check
 # ---------------------------------------------------------------------------
 
+
 def test_strengthen_axiom_accepted():
     """Strengthening balance >= 0 to balance >= 1 must be accepted."""
     engine = AxiomEvolutionEngine(_base_axioms())
     mod = AxiomModification(
         old_axiom_id="balance_nonneg",
-        new_condition="balance >= 1",   # strictly stronger
+        new_condition="balance >= 1",  # strictly stronger
         justification="Require positive balance",
     )
     result = engine.propose_change(mod)
@@ -48,7 +50,7 @@ def test_equivalent_axiom_accepted():
     engine = AxiomEvolutionEngine(_base_axioms())
     mod = AxiomModification(
         old_axiom_id="balance_nonneg",
-        new_condition="balance >= 0",   # identical
+        new_condition="balance >= 0",  # identical
         justification="No change",
     )
     result = engine.propose_change(mod)
@@ -87,6 +89,7 @@ def test_unknown_axiom_id_rejected():
 # ---------------------------------------------------------------------------
 # Monotonicity and history
 # ---------------------------------------------------------------------------
+
 
 def test_axiom_set_updated_after_acceptance():
     """After an accepted change, the axiom set must reflect the new condition."""

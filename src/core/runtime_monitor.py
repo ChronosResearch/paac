@@ -27,6 +27,7 @@ RuntimeSafetyViolation triggers:
   2. Audit log entry
   3. Rollback to last checkpoint (via callback)
 """
+
 from __future__ import annotations
 
 import time
@@ -65,6 +66,7 @@ class RuntimeSafetyViolation(SafetyViolationError):
 # Trace record
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RuntimeTrace:
     func_name: str
@@ -83,6 +85,7 @@ class RuntimeTrace:
 # Axiom evaluator (pure Python, no Z3)
 # ---------------------------------------------------------------------------
 
+
 def _eval_axiom_condition(condition: str, env: dict[str, Any]) -> bool:
     """
     Evaluate a SIL axiom condition string against a concrete environment.
@@ -92,8 +95,7 @@ def _eval_axiom_condition(condition: str, env: dict[str, Any]) -> bool:
     """
     # Map SIL operators to Python.
     py_cond = (
-        condition
-        .replace(" and ", " and ")
+        condition.replace(" and ", " and ")
         .replace(" or ", " or ")
         .replace(" not ", " not ")
     )
@@ -107,6 +109,7 @@ def _eval_axiom_condition(condition: str, env: dict[str, Any]) -> bool:
 # ---------------------------------------------------------------------------
 # Instrumented runtime
 # ---------------------------------------------------------------------------
+
 
 class RuntimeMonitor:
     """
@@ -128,9 +131,7 @@ class RuntimeMonitor:
         self._ast = ast
         self._axioms = axioms or []
         self._on_violation = on_violation
-        self._functions: dict[str, FuncDefNode] = {
-            f.name: f for f in ast.functions
-        }
+        self._functions: dict[str, FuncDefNode] = {f.name: f for f in ast.functions}
 
     def execute(self, func_name: str, args: list[Any]) -> RuntimeTrace:
         """

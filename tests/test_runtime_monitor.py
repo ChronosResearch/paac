@@ -1,4 +1,5 @@
 """tests/test_runtime_monitor.py — Feature 6: Runtime Verification"""
+
 import pytest
 
 from src.axioms.axiom_parser import Axiom
@@ -19,11 +20,10 @@ def _axiom(condition: str) -> Axiom:
 # Basic execution
 # ---------------------------------------------------------------------------
 
+
 def test_safe_program_no_violations():
     """A safe program must execute without violations."""
-    ast, _ = COMPILER.compile(
-        "func f(x: int) -> int { assert x >= 0; return x; }"
-    )
+    ast, _ = COMPILER.compile("func f(x: int) -> int { assert x >= 0; return x; }")
     monitor = RuntimeMonitor(ast)
     trace = monitor.execute("f", [5])
     assert trace.safe is True
@@ -34,9 +34,7 @@ def test_safe_program_no_violations():
 
 def test_assertion_failure_raises():
     """A failing assert must raise RuntimeSafetyViolation."""
-    ast, _ = COMPILER.compile(
-        "func f(x: int) -> int { assert x > 0; return x; }"
-    )
+    ast, _ = COMPILER.compile("func f(x: int) -> int { assert x > 0; return x; }")
     monitor = RuntimeMonitor(ast)
     with pytest.raises(RuntimeSafetyViolation):
         monitor.execute("f", [0])
@@ -49,7 +47,7 @@ def test_axiom_violation_raises():
     )
     monitor = RuntimeMonitor(ast, axioms=[_axiom("balance >= 0")])
     with pytest.raises(RuntimeSafetyViolation):
-        monitor.execute("f", [5])   # 5 - 10 = -5 → violates balance >= 0
+        monitor.execute("f", [5])  # 5 - 10 = -5 → violates balance >= 0
 
 
 def test_axiom_satisfied_no_violation():
@@ -64,10 +62,9 @@ def test_axiom_satisfied_no_violation():
 
 def test_on_violation_callback_called():
     """on_violation callback must be called on violation."""
-    ast, _ = COMPILER.compile(
-        "func f(x: int) -> int { assert x > 0; return x; }"
-    )
+    ast, _ = COMPILER.compile("func f(x: int) -> int { assert x > 0; return x; }")
     calls = []
+
     def cb(msg, env):
         calls.append(msg)
 
@@ -81,11 +78,10 @@ def test_on_violation_callback_called():
 # Trace fields
 # ---------------------------------------------------------------------------
 
+
 def test_trace_steps_counted():
     """Trace must count executed steps."""
-    ast, _ = COMPILER.compile(
-        "func f(x: int) -> int { y = x + 1; return y; }"
-    )
+    ast, _ = COMPILER.compile("func f(x: int) -> int { y = x + 1; return y; }")
     monitor = RuntimeMonitor(ast)
     trace = monitor.execute("f", [3])
     assert trace.steps >= 1
@@ -101,9 +97,7 @@ def test_trace_elapsed_ms_positive():
 
 def test_trace_axioms_checked_counted():
     """Axioms checked counter must be incremented."""
-    ast, _ = COMPILER.compile(
-        "func f(x: int) -> int { y = x + 1; return y; }"
-    )
+    ast, _ = COMPILER.compile("func f(x: int) -> int { y = x + 1; return y; }")
     monitor = RuntimeMonitor(ast, axioms=[_axiom("x >= 0")])
     trace = monitor.execute("f", [1])
     assert trace.axioms_checked >= 1
@@ -112,6 +106,7 @@ def test_trace_axioms_checked_counted():
 # ---------------------------------------------------------------------------
 # Control flow
 # ---------------------------------------------------------------------------
+
 
 def test_if_branch_monitored():
     """Both branches of an if must be monitored."""
@@ -143,6 +138,7 @@ def test_while_loop_monitored():
 def test_unknown_function_raises():
     """Calling an unknown function must raise SILRuntimeError."""
     from src.core.sil_runtime import SILRuntimeError
+
     ast, _ = COMPILER.compile("func f(x: int) -> int { return x; }")
     monitor = RuntimeMonitor(ast)
     with pytest.raises(SILRuntimeError):
@@ -153,9 +149,11 @@ def test_unknown_function_raises():
 # Hybrid verification
 # ---------------------------------------------------------------------------
 
+
 def test_static_safe_runtime_safe():
     """Program safe statically and at runtime — both must agree."""
     from src.core.verifier import BoundedModelChecker
+
     code = "func f(x: int) -> int { assert x == x; return x; }"
     ast, _ = COMPILER.compile(code)
 

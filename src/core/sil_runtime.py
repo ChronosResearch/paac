@@ -42,12 +42,26 @@ class SILRuntime:
     def _tick(self) -> None:
         self._instruction_count += 1
         import src.core.sil_runtime as _rt
+
         if self._instruction_count > _rt.MAX_INSTRUCTIONS:
             raise SILRuntimeError(
                 f"Instruction limit {_rt.MAX_INSTRUCTIONS} exceeded. Possible infinite loop."
             )
 
     def execute(self, func_name: str, args: list[Any]) -> Any:
+        """Execute a compiled SIL function by name with the given argument list.
+
+        Args:
+            func_name: Name of the SIL function to call.
+            args: Positional argument values matching the function's parameter list.
+
+        Returns:
+            The value returned by the SIL function.
+
+        Raises:
+            SILRuntimeError: If the function is not found, argument count mismatches,
+                             an assertion fails, or the instruction limit is exceeded.
+        """
         if func_name not in self.functions:
             raise SILRuntimeError(f"Function {func_name} not found")
         func = self.functions[func_name]

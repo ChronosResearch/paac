@@ -1,4 +1,5 @@
 """tests/test_self_verify.py — Feature 2: Bootstrap Self-Verification"""
+
 from src.core.self_verify import (
     SELF_AXIOMS,
     TCB_STUBS,
@@ -13,6 +14,7 @@ COMPILER = SILCompiler()
 # ---------------------------------------------------------------------------
 # SIL stub generation
 # ---------------------------------------------------------------------------
+
 
 def test_python_to_sil_stub_basic():
     """Translate a simple Python function to a SIL stub."""
@@ -59,6 +61,7 @@ def test_python_to_sil_stub_no_asserts():
 # TCB stub verification
 # ---------------------------------------------------------------------------
 
+
 def test_all_tcb_stubs_compile():
     """All built-in TCB stubs must compile."""
     for name, sil in TCB_STUBS.items():
@@ -92,11 +95,7 @@ def test_self_verifier_stub_results_populated():
 
 def test_self_verifier_rejects_malicious_stub():
     """A stub containing assert false must be rejected."""
-    malicious_stub = (
-        "func malicious(x: int) -> int { "
-        "assert false; "
-        "return x; }"
-    )
+    malicious_stub = "func malicious(x: int) -> int { " "assert false; " "return x; }"
     sv = SelfVerifier()
     result = sv.run(extra_stubs={"malicious": malicious_stub})
     assert "malicious" in result.stub_results

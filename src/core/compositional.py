@@ -40,6 +40,7 @@ Limitations (documented honestly)
 - Crash recovery is best-effort: if the process dies, queued modifications
   are lost.  Use the WAL for durability.
 """
+
 from __future__ import annotations
 
 import threading
@@ -67,16 +68,16 @@ from src.core.sil_compiler import (
 )
 from src.core.verifier import BoundedModelChecker
 
-
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class AgentModification:
     agent_id: str
     func_name: str
-    new_code: str           # full SIL program containing the function
+    new_code: str  # full SIL program containing the function
     axioms: list[Axiom] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     abandoned: bool = False  # set True if agent crashed before completion
@@ -86,7 +87,7 @@ class AgentModification:
 class CompositionalResult:
     accepted: bool
     func_names: list[str]
-    isolation_results: dict[str, bool]      # func_name -> safe
+    isolation_results: dict[str, bool]  # func_name -> safe
     compositional_safe: bool
     counterexample: str | None = None
     message: str = ""
@@ -106,6 +107,7 @@ class AgentStatus:
 # Dependency graph
 # ---------------------------------------------------------------------------
 
+
 class FunctionDependencyGraph:
     """
     Tracks which functions call which.
@@ -113,7 +115,7 @@ class FunctionDependencyGraph:
     """
 
     def __init__(self) -> None:
-        self._deps: dict[str, set[str]] = defaultdict(set)   # caller -> callees
+        self._deps: dict[str, set[str]] = defaultdict(set)  # caller -> callees
         self._rdeps: dict[str, set[str]] = defaultdict(set)  # callee -> callers
         self._lock = threading.Lock()
 
@@ -189,6 +191,7 @@ def _collect_calls_in_func(func: FuncDefNode) -> list[str]:
 # Compositional verifier
 # ---------------------------------------------------------------------------
 
+
 class CompositionalVerifier:
     """
     Verifies a set of agent modifications collectively.
@@ -203,7 +206,9 @@ class CompositionalVerifier:
         self._bmc = BoundedModelChecker()
         self._timeout_ms = timeout_ms
         self._dep_graph = FunctionDependencyGraph()
-        self._modification_queue: dict[str, deque[AgentModification]] = defaultdict(deque)
+        self._modification_queue: dict[str, deque[AgentModification]] = defaultdict(
+            deque
+        )
         self._agent_registry: dict[str, AgentStatus] = {}
         self._lock = threading.Lock()
         self._total_verifications = 0

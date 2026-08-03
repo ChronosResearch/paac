@@ -3,6 +3,7 @@ Fail-safe simulation tests (Step 98).
 Simulates: Redis down, Z3 crash, circuit breaker open, WAL corruption.
 All scenarios must recover gracefully.
 """
+
 import tempfile
 import time
 
@@ -26,6 +27,7 @@ COMPILER = SILCompiler()
 # ---------------------------------------------------------------------------
 # Scenario 1: Redis down — WAL fallback
 # ---------------------------------------------------------------------------
+
 
 def test_failsafe_redis_down_wal_fallback(tmp_path, monkeypatch):
     """When Redis is unavailable, WAL must preserve checkpoints."""
@@ -55,6 +57,7 @@ def test_failsafe_redis_down_wal_fallback(tmp_path, monkeypatch):
 # Scenario 2: WAL corruption — skip bad lines, continue
 # ---------------------------------------------------------------------------
 
+
 def test_failsafe_wal_corruption_recovery(tmp_path, monkeypatch):
     """Corrupt WAL lines must be skipped; valid entries must be recovered."""
     wal_file = str(tmp_path / "corrupt.wal")
@@ -64,6 +67,7 @@ def test_failsafe_wal_corruption_recovery(tmp_path, monkeypatch):
     with open(wal_file, "w") as f:
         import json
         from dataclasses import asdict
+
         good1 = WALEntry("func_a", "", "code_a", "", "", "https://x.com", 1000.0)
         f.write(json.dumps(asdict(good1)) + "\n")
         f.write("THIS IS CORRUPT JSON {{{\n")
@@ -81,6 +85,7 @@ def test_failsafe_wal_corruption_recovery(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # Scenario 3: Circuit breaker open — rejects all, recovers after cooldown
 # ---------------------------------------------------------------------------
+
 
 def test_failsafe_circuit_breaker_full_cycle():
     """Full circuit breaker cycle: CLOSED -> OPEN -> HALF_OPEN -> CLOSED."""
@@ -130,6 +135,7 @@ def test_failsafe_circuit_breaker_half_open_failure():
 # Scenario 4: Z3 crash — retry and fallback
 # ---------------------------------------------------------------------------
 
+
 def test_failsafe_z3_crash_static_fallback(monkeypatch):
     """Z3 crash must trigger static fallback for obvious violations."""
     ast, _ = COMPILER.compile("func bad() -> int { assert false; return 0; }")
@@ -154,6 +160,7 @@ def test_failsafe_z3_crash_static_fallback(monkeypatch):
 # Scenario 5: Registry persistence — survives restart
 # ---------------------------------------------------------------------------
 
+
 def test_failsafe_registry_survives_restart(tmp_path, monkeypatch):
     """Registry must be loadable after a simulated process restart."""
     reg_file = str(tmp_path / "registry.json")
@@ -172,9 +179,11 @@ def test_failsafe_registry_survives_restart(tmp_path, monkeypatch):
 # Scenario 6: Concurrent circuit breaker access (thread safety)
 # ---------------------------------------------------------------------------
 
+
 def test_failsafe_circuit_breaker_thread_safety():
     """Circuit breaker must be thread-safe under concurrent access."""
     import threading
+
     cb = CircuitBreaker(failure_threshold=20, cooldown_s=60)
     errors = []
 
@@ -200,9 +209,11 @@ def test_failsafe_circuit_breaker_thread_safety():
 # Scenario 7: IPC token prevents spoofed responses
 # ---------------------------------------------------------------------------
 
+
 def test_failsafe_ipc_token_rejects_wrong_token():
     """IPC token mismatch must raise VerificationError."""
     from src.core.tcb_protect import generate_ipc_token, verify_ipc_token
+
     t1 = generate_ipc_token()
     t2 = generate_ipc_token()
     assert not verify_ipc_token(t1, t2)
