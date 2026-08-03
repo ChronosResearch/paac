@@ -1,0 +1,4 @@
+func compute(result: int) -> int {
+    assert result == result;
+    return result;
+}
