@@ -24,7 +24,7 @@ from typing import NamedTuple
 
 from src.axioms.axiom_parser import Axiom
 from src.core.sil_compiler import SILCompiler
-from src.core.verifier import BoundedModelChecker, VerificationError
+from src.core.verifier import BoundedModelChecker
 from src.mutation.axiom_mutator import MutatedAxiom, MutationKind, generate_mutations
 
 _COMPILER = SILCompiler()

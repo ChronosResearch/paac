@@ -89,21 +89,36 @@ class RuntimeTrace:
 def _eval_axiom_condition(condition: str, env: dict[str, Any]) -> bool:
     """
     Evaluate a SIL axiom condition string against a concrete environment.
-    Uses a restricted eval with only the variables in env.
+    Uses the SIL compiler + runtime evaluator — no eval() call.
     Returns True if the condition holds, False otherwise.
-    Fails closed (returns False) on any error.
+    Fails open (returns True) when the axiom references variables not in env
+    (axiom inapplicable to this call site).
     """
-    # Map SIL operators to Python.
-    py_cond = (
-        condition.replace(" and ", " and ")
-        .replace(" or ", " or ")
-        .replace(" not ", " not ")
+    from src.core.sil_compiler import SILCompiler
+    from src.core.sil_runtime import SILRuntime, SILRuntimeError
+
+    # Build a minimal SIL wrapper so we can reuse the existing evaluator.
+    param_names = [k for k in env if isinstance(k, str) and k.isidentifier()]
+    if not param_names:
+        return True
+    param_str = ", ".join(f"{p}: int" for p in param_names)
+    sil_src = (
+        f"func _axiom_eval({param_str}) -> int {{\n"
+        f"    assert {condition};\n"
+        f"    return 0;\n"
+        f"}}"
     )
     try:
-        result = eval(py_cond, {"__builtins__": {}}, dict(env))
-        return bool(result)
-    except Exception:
-        return True  # variable not in scope → axiom inapplicable → skip
+        compiler = SILCompiler()
+        ast, _ = compiler.compile(sil_src)
+        runtime = SILRuntime(ast)
+        args = [int(env[p]) for p in param_names]
+        runtime.execute("_axiom_eval", args)
+        return True
+    except SILRuntimeError:
+        return False  # assertion failed → axiom violated
+    except Exception:  # noqa: BLE001
+        return True  # variable not in scope or compile error → inapplicable
 
 
 # ---------------------------------------------------------------------------
@@ -268,8 +283,7 @@ class RuntimeMonitor:
             return arr.get(idx, 0) if isinstance(arr, dict) else 0
         if isinstance(expr, CallExprNode):
             args = [self._eval_expr(a, env) for a in expr.args]
-            # Inline call via a fresh monitor instance.
             sub = RuntimeMonitor(self._ast, self._axioms, self._on_violation)
-            trace = sub.execute(expr.func_name, args)
+            sub.execute(expr.func_name, args)
             return 0  # return value captured via SILReturn exception above
         raise SILRuntimeError(f"Unknown expression type {type(expr)}")

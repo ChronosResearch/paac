@@ -14,12 +14,11 @@ from __future__ import annotations
 import csv
 import json
 import time
-from dataclasses import asdict
 from io import StringIO
 from typing import Any
 
 from src.mutation.axiom_mutator import MutationKind
-from src.mutation.mutation_runner import AxiomMutationResult, MutantResult
+from src.mutation.mutation_runner import AxiomMutationResult
 
 # ---------------------------------------------------------------------------
 # Aggregate metrics
@@ -214,8 +213,8 @@ def to_markdown(results: list[AxiomMutationResult]) -> str:
     # Executive summary
     lines.append("## Executive Summary")
     lines.append("")
-    lines.append(f"| Metric | Value |")
-    lines.append(f"|--------|-------|")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
     lines.append(f"| Axioms tested | {metrics['total_axioms']} |")
     lines.append(f"| Total mutants | {metrics['total_mutants']} |")
     lines.append(f"| Mutants killed | {metrics['total_killed']} |")

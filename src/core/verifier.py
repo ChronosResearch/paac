@@ -297,13 +297,6 @@ class StmtEncoder:
             post_loop_cond = self.expr_enc.encode(stmt.condition)
             still_running = z3.And(current_path, post_loop_cond)
             self.violation_flags.append(still_running)
-            # A-01 fix: if the loop condition is still true after all K
-            # iterations the loop never exited within the declared bound --
-            # that is UNSAFE (runtime would raise LoopBoundExceeded).
-            self.expr_enc = ExprEncoder(self.ctx, self.env)
-            post_loop_cond = self.expr_enc.encode(stmt.condition)
-            still_running = z3.And(current_path, post_loop_cond)
-            self.violation_flags.append(still_running)
             self._loop_exit_path = z3.And(entry_path, z3.Not(entry_loop_cond))
 
         else:

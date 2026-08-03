@@ -41,11 +41,9 @@ class SILRuntime:
 
     def _tick(self) -> None:
         self._instruction_count += 1
-        import src.core.sil_runtime as _rt
-
-        if self._instruction_count > _rt.MAX_INSTRUCTIONS:
+        if self._instruction_count > MAX_INSTRUCTIONS:
             raise SILRuntimeError(
-                f"Instruction limit {_rt.MAX_INSTRUCTIONS} exceeded. Possible infinite loop."
+                f"Instruction limit {MAX_INSTRUCTIONS} exceeded. Possible infinite loop."
             )
 
     def execute(self, func_name: str, args: list[Any]) -> Any:

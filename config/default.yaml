@@ -71,3 +71,10 @@ multi_agent:
   agent_timeout_s: 30                  # PAAC_MULTI_AGENT_TIMEOUT_S
   # If an agent has not sent a heartbeat in agent_timeout_s seconds,
   # its queued modifications are marked as abandoned.
+
+# Proof-Carrying Modification (PCM)
+pcm:
+  enabled: false                       # PAAC_PCM_MODE — set true to require proofs
+  audit_log: "pcm_audit.jsonl"         # PAAC_PCM_LOG
+  # HMAC key for certificates loaded from PAAC_CERT_KEY env var (hex 32 bytes)
+  # If not set, a default key is used (insecure — change in production)

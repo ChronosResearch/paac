@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         if metrics["vacuous_axioms"]:
             print(f"  ⚠️  Vacuous axioms     : {metrics['vacuous_axioms']}")
         else:
-            print(f"  No vacuous axioms detected.")
+            print("  No vacuous axioms detected.")
         if metrics["critical_axiom"]:
             print(f"  Critical axiom        : {metrics['critical_axiom']}")
 
@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         fh.write(to_markdown(results))
 
     if not args.quiet:
-        print(f"\n[Reports written]")
+        print("\n[Reports written]")
         print(f"  JSON : {json_path}")
         print(f"  CSV  : {csv_path}")
         print(f"  MD   : {md_path}")

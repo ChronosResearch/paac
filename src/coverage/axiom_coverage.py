@@ -33,7 +33,6 @@ from src.axioms.axiom_parser import Axiom
 from src.core.sil_compiler import ProgramNode, SILCompiler
 from src.core.verifier import (
     BoundedModelChecker,
-    ExprEncoder,
     SSAEnv,
     StmtEncoder,
     VerificationError,
@@ -150,7 +149,6 @@ def _extract_vars_from_ast(ast: ProgramNode) -> set[str]:
     from src.core.sil_compiler import (
         AssignmentStmtNode,
         IdentifierNode,
-        ParamNode,
         FuncDefNode,
         IfStmtNode,
         WhileStmtNode,

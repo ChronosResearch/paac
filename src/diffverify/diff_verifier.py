@@ -46,7 +46,7 @@ Result codes:
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -56,10 +56,8 @@ from loguru import logger
 from src.axioms.axiom_parser import Axiom
 from src.core.sil_compiler import ProgramNode, SILCompiler
 from src.core.verifier import (
-    ExprEncoder,
     SSAEnv,
     StmtEncoder,
-    VerificationError,
     _encode_axiom,
 )
 

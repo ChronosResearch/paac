@@ -33,8 +33,8 @@ from loguru import logger
 
 from src.axioms.axiom_parser import Axiom
 from src.core.axiom_evolution import AxiomEvolutionEngine, AxiomModification
-from src.core.sil_compiler import ProgramNode, SILCompiler
-from src.core.verifier import BoundedModelChecker, CounterExample, VerificationError
+from src.core.sil_compiler import SILCompiler
+from src.core.verifier import BoundedModelChecker, VerificationError
 
 _COMPILER = SILCompiler()
 _MAX_ITERATIONS = int(__import__("os").environ.get("PAAC_CEGAR_MAX_ITER", "10"))
