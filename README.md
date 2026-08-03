@@ -12,9 +12,11 @@ License: MIT
 
 ## Status
 
-**v5.0.0 — Production-ready. All critical issues resolved. Three novel features integrated.**
+**v5.0.0 — Research prototype. All critical issues resolved. Three novel features integrated.**
 
 260 tests pass. Bandit: 0 HIGH issues. Mypy: 0 errors.
+
+> See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for current limitations.
 
 ### Critical Fixes in v4.2.0 (carried forward)
 
@@ -26,7 +28,7 @@ License: MIT
 | A-04 Fork-under-threads | HIGH | `set_start_method("spawn", force=True)` |
 | A-05 target_functions not enforced | HIGH | `_get_applicable_axioms()` per call |
 
-### Novel Features in v5.0.0 (EPFL Research Extensions)
+### Novel Features in v5.0.0
 
 1. **Bootstrap Self-Verification** — Genuine Python-to-SIL translator; PAAC verifies its own TCB
 2. **Cryptographic Attestation** — HMAC-SHA256 commitment with key rotation, thread-safe, audit metrics
@@ -177,5 +179,5 @@ See `KNOWN_ISSUES.md` and the paper corrections in `FINAL_MERGE_REPORT.md`.
 - [Monitoring](docs/MONITORING.md)
 - [Security Policy](SECURITY.md)
 - [SIL Architecture](docs/SIL_ARCHITECTURE.md)
-- [Advanced Features Report](ADVANCED_FEATURES_REPORT.md)
-- [Final Merge Report](FINAL_MERGE_REPORT.md)
+- [Audit Report](docs/audit/AUDIT_REPORT_FINAL.md)
+- [Paper Claims Checklist](PAPER_CLAIMS_CHECKLIST.md)
