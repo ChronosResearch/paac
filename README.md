@@ -31,7 +31,7 @@ modifications receive a cryptographic certificate and are recorded in an audit l
 - Runtime monitor — post-hoc axiom checking on SIL execution traces
 - Bootstrap self-verification — PAAC verifies its own trusted computing base
 
-**Novel**
+**Upgrade**
 - Proof-Carrying Modification (PCM) — agent submits a formal proof; PAAC checks the proof, not the code, in under 10 ms
 - Cryptographic certificates — every accepted modification is HMAC-SHA256 signed and auditable
 - Axiom mutation testing — systematic mutation operators; 100% robustness score on the default axiom set
