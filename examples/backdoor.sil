@@ -1,3 +1,15 @@
-// examples/backdoor.sil
-while (x) bound 100 { return true; }
-return x;
+# backdoor.sil — hidden backdoor caught by the verifier.
+# Returns 1 when x == 57005 (0xDEAD), 0 otherwise.
+# The assert claims result is always 0 — violated when x == 57005.
+# Verification result: SAT (safe=False), counterexample: x = 57005.
+
+func backdoor(x: int) -> int {
+    result = 0;
+    if x == 57005 {
+        result = 1;
+    } else {
+        result = 0;
+    }
+    assert result == 0;
+    return result;
+}

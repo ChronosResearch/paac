@@ -1,13 +1,27 @@
 import operator
-from typing import Any, Dict, List
+import os
+from typing import Any
+
 from src.core.sil_compiler import (
-    ProgramNode, FuncDefNode, ASTNode, LiteralNode, IdentifierNode, BinaryExprNode, UnaryExprNode,
-    CallExprNode, AssignmentStmtNode, IfStmtNode, WhileStmtNode, ReturnStmtNode, AssertStmtNode, SILError
+    ArrayAccessNode,
+    AssertStmtNode,
+    AssignmentStmtNode,
+    ASTNode,
+    BinaryExprNode,
+    CallExprNode,
+    FuncDefNode,
+    IdentifierNode,
+    IfStmtNode,
+    LiteralNode,
+    ProgramNode,
+    ReturnStmtNode,
+    UnaryExprNode,
+    WhileStmtNode,
 )
 
-# Step 8: Global caps — cannot be overridden by SIL source code.
-MAX_LOOP_BOUND = 10_000
-MAX_INSTRUCTIONS = 100_000
+# Steps 18-19: Global caps — can be overridden via environment variables (Step 66).
+MAX_LOOP_BOUND: int = int(os.environ.get("PAAC_MAX_LOOP_BOUND", "10000"))
+MAX_INSTRUCTIONS: int = int(os.environ.get("PAAC_MAX_INSTRUCTIONS", "100000"))
 
 
 class SILRuntimeError(Exception):
@@ -21,8 +35,8 @@ class SILReturn(Exception):
 
 class SILRuntime:
     def __init__(self, ast: ProgramNode):
-        self.functions: Dict[str, FuncDefNode] = {f.name: f for f in ast.functions}
-        self.env: List[Dict[str, Any]] = []
+        self.functions: dict[str, FuncDefNode] = {f.name: f for f in ast.functions}
+        self.env: list[dict[str, Any]] = []
         self._instruction_count: int = 0
 
     def _tick(self) -> None:
@@ -33,12 +47,14 @@ class SILRuntime:
                 f"Instruction limit {_rt.MAX_INSTRUCTIONS} exceeded. Possible infinite loop."
             )
 
-    def execute(self, func_name: str, args: List[Any]) -> Any:
+    def execute(self, func_name: str, args: list[Any]) -> Any:
         if func_name not in self.functions:
             raise SILRuntimeError(f"Function {func_name} not found")
         func = self.functions[func_name]
         if len(args) != len(func.params):
-            raise SILRuntimeError(f"Function {func_name} expects {len(func.params)} arguments, got {len(args)}")
+            raise SILRuntimeError(
+                f"Function {func_name} expects {len(func.params)} arguments, got {len(args)}"
+            )
 
         local_env = {p.name: a for p, a in zip(func.params, args)}
         self.env.append(local_env)
@@ -53,7 +69,7 @@ class SILRuntime:
         self.env.pop()
         return None
 
-    def _exec_stmt(self, stmt: ASTNode):
+    def _exec_stmt(self, stmt: ASTNode) -> None:
         self._tick()
         if isinstance(stmt, AssignmentStmtNode):
             val = self._eval_expr(stmt.value)
@@ -61,11 +77,12 @@ class SILRuntime:
         elif isinstance(stmt, IfStmtNode):
             cond = self._eval_expr(stmt.condition)
             if cond:
-                for s in stmt.then_branch: self._exec_stmt(s)
+                for s in stmt.then_branch:
+                    self._exec_stmt(s)
             else:
-                for s in stmt.else_branch: self._exec_stmt(s)
+                for s in stmt.else_branch:
+                    self._exec_stmt(s)
         elif isinstance(stmt, WhileStmtNode):
-            # Step 8: Enforce global cap independent of declared bound.
             effective_bound = stmt.bound
             if effective_bound > MAX_LOOP_BOUND:
                 raise SILRuntimeError(
@@ -73,10 +90,11 @@ class SILRuntime:
                 )
             iters = 0
             while self._eval_expr(stmt.condition):
-                self._tick()  # count each loop iteration against the global instruction budget
+                self._tick()
                 if iters >= effective_bound:
                     raise SILRuntimeError(f"Loop bound {effective_bound} exceeded")
-                for s in stmt.body: self._exec_stmt(s)
+                for s in stmt.body:
+                    self._exec_stmt(s)
                 iters += 1
         elif isinstance(stmt, ReturnStmtNode):
             val = self._eval_expr(stmt.value)
@@ -95,23 +113,41 @@ class SILRuntime:
             return self.env[-1][expr.name]
         elif isinstance(expr, UnaryExprNode):
             operand = self._eval_expr(expr.operand)
-            if expr.operator == 'not':
+            if expr.operator == "not":
                 return not operand
+            if expr.operator == "-":
+                return -operand
             raise SILRuntimeError(f"Unknown unary operator: {expr.operator}")
         elif isinstance(expr, BinaryExprNode):
             l = self._eval_expr(expr.left)
             r = self._eval_expr(expr.right)
             ops = {
-                '+': operator.add, '-': operator.sub, '*': operator.mul, '/': operator.floordiv,
-                '==': operator.eq, '!=': operator.ne, '<': operator.lt, '<=': operator.le,
-                '>': operator.gt, '>=': operator.ge
+                "+": operator.add,
+                "-": operator.sub,
+                "*": operator.mul,
+                "/": operator.floordiv,
+                "==": operator.eq,
+                "!=": operator.ne,
+                "<": operator.lt,
+                "<=": operator.le,
+                ">": operator.gt,
+                ">=": operator.ge,
             }
             if expr.operator in ops:
                 return ops[expr.operator](l, r)
-            elif expr.operator == 'and':
+            elif expr.operator == "and":
                 return l and r
-            elif expr.operator == 'or':
+            elif expr.operator == "or":
                 return l or r
+        elif isinstance(expr, ArrayAccessNode):
+            # Step 12: Array access — arrays are dicts mapping int index -> int value.
+            arr = self._eval_expr(IdentifierNode(expr.array_name))
+            idx = self._eval_expr(expr.index)
+            if isinstance(arr, dict):
+                return arr.get(idx, 0)
+            raise SILRuntimeError(
+                f"Variable '{expr.array_name}' is not an array (got {type(arr).__name__})"
+            )
         elif isinstance(expr, CallExprNode):
             args = [self._eval_expr(a) for a in expr.args]
             return self.execute(expr.func_name, args)

@@ -1,6 +1,7 @@
 import pytest
+
 from src.core.sil_compiler import SILCompiler
-from src.core.sil_runtime import SILRuntime, SILRuntimeError, MAX_LOOP_BOUND
+from src.core.sil_runtime import MAX_LOOP_BOUND, SILRuntime, SILRuntimeError
 
 
 def test_runtime_execution():
@@ -64,6 +65,7 @@ def test_global_loop_bound_cap_enforced():
     ast, _ = compiler.compile(code)
     # Mutate the bound to exceed the global cap.
     from src.core.sil_compiler import WhileStmtNode
+
     for stmt in ast.functions[0].body:
         if isinstance(stmt, WhileStmtNode):
             stmt.bound = MAX_LOOP_BOUND + 1
@@ -74,7 +76,7 @@ def test_global_loop_bound_cap_enforced():
 
 def test_instruction_limit_enforced():
     """The global instruction counter must stop a loop that never terminates."""
-    from src.core.sil_runtime import MAX_INSTRUCTIONS
+
     # Use bound = MAX_LOOP_BOUND (10000) so the global cap check passes,
     # but the loop body keeps x = 0 so the condition x < 1 is always true.
     # The instruction counter (MAX_INSTRUCTIONS = 100_000) fires before the
@@ -85,6 +87,7 @@ def test_instruction_limit_enforced():
     # Simplest: nest the loop inside a function called many times via a wrapper.
     # Instead, directly test that the counter raises by patching MAX_INSTRUCTIONS.
     import src.core.sil_runtime as rt_module
+
     original = rt_module.MAX_INSTRUCTIONS
     rt_module.MAX_INSTRUCTIONS = 5  # very low cap for this test
     try:

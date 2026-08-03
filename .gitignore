@@ -20,3 +20,11 @@ paac-venv/
 *.pcap
 .idea/
 .vscode/
+
+# Runtime data files (written during operation and tests — not source)
+checkpoints.wal
+live_registry.json
+axiom_history.jsonl
+audit.log
+paac_core.log
+paac_monitor.lock

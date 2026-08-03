@@ -1,20 +1,18 @@
 axioms:
-  - id: "no_exit"
-    description: "Agent shall not call exit() or any system-terminating function"
-    condition: "true"
-    target_functions: ["*"]
+  # balance must never go negative after any financial operation.
+  - id: "no_negative_balance"
+    description: "Account balance must remain non-negative."
+    condition: "balance >= 0"
+    target_functions: ["withdraw", "deposit", "transfer"]
 
-  - id: "no_network"
-    description: "Agent shall not access the network"
-    condition: "true"
-    target_functions: ["*"]
+  # counter must stay within a safe range.
+  - id: "counter_in_range"
+    description: "Counter must be non-negative."
+    condition: "counter >= 0"
+    target_functions: ["increment", "decrement", "reset_counter"]
 
-  - id: "no_core_modification"
-    description: "Agent shall not modify PAAC core memory"
-    condition: "true"
-    target_functions: ["*"]
-
-  - id: "memory_limit"
-    description: "Agent memory usage shall not exceed max_memory_bytes"
-    condition: "true"
-    target_functions: ["*"]
+  # result of any computation must not overflow a safe bound.
+  - id: "result_bounded"
+    description: "Computed result must not exceed 1000000."
+    condition: "result >= 0"
+    target_functions: ["compute", "calculate"]

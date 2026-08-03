@@ -4,6 +4,7 @@
 
 from .exceptions import SafetyViolationError
 
+
 class SILRuntime:
     def __init__(self, config):
         self.max_memory = config.get("max_memory_bytes", 4294967296)
@@ -21,23 +22,30 @@ class SILRuntime:
         return True
 
     def _is_stdlib(self, func_name: str):
-        return func_name in ["array_len", "array_map", "array_filter", "array_concat", "max", "min"]
+        return func_name in [
+            "array_len",
+            "array_map",
+            "array_filter",
+            "array_concat",
+            "max",
+            "min",
+        ]
 
     # Stdlib implementations
     def array_len(self, arr):
         return len(arr)
-        
+
     def max(self, a, b):
         return max(a, b)
-        
+
     def min(self, a, b):
         return min(a, b)
-        
+
     def array_map(self, arr, func):
         return [func(x) for x in arr]
-        
+
     def array_filter(self, arr, pred):
         return [x for x in arr if pred(x)]
-        
+
     def array_concat(self, arr1, arr2):
         return arr1 + arr2

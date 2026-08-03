@@ -1,9 +1,10 @@
 import dataclasses
 import json
-from typing import List
+
+from src.axioms.axiom_loader import AxiomDatabase
 from src.core.sil_compiler import SILCompiler, SILError
 from src.core.verifier import BoundedModelChecker, VerificationError
-from src.axioms.axiom_loader import AxiomDatabase
+
 
 @dataclasses.dataclass
 class CodeModification:
@@ -16,8 +17,9 @@ class CodeModification:
         return json.dumps(dataclasses.asdict(self))
 
     @staticmethod
-    def from_json(data: str) -> 'CodeModification':
+    def from_json(data: str) -> "CodeModification":
         return CodeModification(**json.loads(data))
+
 
 class Interceptor:
     def __init__(self, axiom_db: AxiomDatabase):
@@ -33,23 +35,23 @@ class Interceptor:
         try:
             # Step 38: Sandbox Environment (Compile SIL AST safely)
             ast, _ = self.compiler.compile(mod.proposed_sil)
-            
+
             # Step 39: Verification Pipeline
             axioms = self.axiom_db.get_axioms_for_function(mod.target_function)
-            
+
             safe, ce = self.bmc.verify(ast, axioms)
             if safe:
                 self._apply_modification(mod)
                 return True
             else:
-                self._log_rejection(mod, ce)
+                self._log_rejection(mod, str(ce) if ce else "")
                 return False
-                
+
         except (SILError, VerificationError) as e:
             self._log_rejection(mod, str(e))
             return False
-        except Exception as e:
-            # Step 40: Auto-Rollback on unexpected failures
+        except Exception:
+            # Auto-rollback on unexpected failures
             self._rollback(mod)
             return False
 

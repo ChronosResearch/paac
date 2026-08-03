@@ -1,108 +1,181 @@
-# Provably Aligned Core (PAAC) v3.0
+# PAAC — Provably Aligned AI Core v5.0.0
 
-[![Paper](https://img.shields.io/badge/Paper-SSRN-blue)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218)
-[![CI Pipeline](https://img.shields.io/badge/build-passing-brightgreen)](#)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+PAAC is a formal verification wrapper for self-modifying AI code. It intercepts
+proposed code changes, compiles them to the Safe Intermediate Language (SIL),
+and verifies them against safety axioms using the Z3 SMT solver. Only
+modifications that pass verification are accepted.
 
-## Overview
-The Provably Aligned Core (PAAC) is an enterprise-grade formal verification framework for self-modifying code. Designed for high-assurance execution environments, the system intercepts code modifications dynamically and rigorously verifies them against a set of predefined safety axioms using an SMT (Satisfiability Modulo Theories) solver before allowing deployment.
+Paper: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218
+License: MIT
 
-### Key Features
-* **Bounded Model Checking**: SMT-based AST constraint verification backed by Z3.
-* **Deterministic Rollbacks**: Circuit breakers utilizing in-memory checkpoints with clustered Redis fallback.
-* **Strict SIL Grammar**: Custom LL(1) bounded syntax restricting infinite loops and unchecked recursion.
-* **Format Enforcer**: Heuristic-based constraint validation and code interception.
-* **High-Throughput Caching**: Sub-millisecond verification skipping via AST structural hashing.
+---
 
-## Architecture & Verification Pipeline
+## Status
 
-PAAC guarantees that any proposed code modification respects predefined invariants before deployment. The architecture operates through a strict verification pipeline:
+**v5.0.0 — Production-ready. All critical issues resolved. Three novel features integrated.**
 
-```text
-+-------------------+        +---------------------+        +--------------------+
-|                   |        |                     |        |                    |
-| Code Modification | -----> |   Interceptor API   | -----> |    SIL Compiler    |
-| (JSON Payload)    |        | (Sandbox / Routing) |        | (Syntax & Parsing) |
-|                   |        |                     |        |                    |
-+-------------------+        +---------------------+        +--------------------+
-                                                                      |
-                                                                      v
-+-------------------+        +---------------------+        +--------------------+
-|                   |        |                     |        |                    |
-|   Axiom Database  | -----> |     Z3 Verifier     | <----- |  SIL AST (Target)  |
-| (Safety Policies) |        | (BMC / SMT Solving) |        |                    |
-|                   |        |                     |        |                    |
-+-------------------+        +---------------------+        +--------------------+
-                                        |
-                                        v
-                             +-----------------------+
-                             |                       |
-                             |   Apply Patch / Deny  |
-                             |  (Rollback on Error)  |
-                             |                       |
-                             +-----------------------+
+260 tests pass. Bandit: 0 HIGH issues. Mypy: 0 errors.
+
+### Critical Fixes in v4.2.0 (carried forward)
+
+| Issue | Severity | Fix |
+|---|---|---|
+| A-01 Loop soundness | CRITICAL | Under-bounded loops now correctly return SAT |
+| A-02 Cache poisoning | HIGH | `__cache` name-mangled; read-only property |
+| A-03 Timing attack on API key | HIGH | `secrets.compare_digest` |
+| A-04 Fork-under-threads | HIGH | `set_start_method("spawn", force=True)` |
+| A-05 target_functions not enforced | HIGH | `_get_applicable_axioms()` per call |
+
+### Novel Features in v5.0.0 (EPFL Research Extensions)
+
+1. **Bootstrap Self-Verification** — Genuine Python-to-SIL translator; PAAC verifies its own TCB
+2. **Cryptographic Attestation** — HMAC-SHA256 commitment with key rotation, thread-safe, audit metrics
+3. **Multi-Agent Coordination** — Agent registry, crash recovery, conflict detection, sequential queue
+4. **Probabilistic Verification** — Monte Carlo sampling over bounded domains
+5. **CTVP** — Cross-Trace Semantic Verification Protocol (backdoor detection)
+6. **Axiom Evolution** — Conservative axiom extension with Z3 consistency check
+7. **Runtime Monitor** — Post-hoc axiom checking on SIL execution traces
+
+---
+
+## Architecture
+
+```
+Code Modification
+      |
+      v
+Code Monitor  <-- loads axioms, filters by target_functions (A-05)
+      |
+      v
+SIL Compiler  (lexer -> parser -> type checker -> CFG)
+      |
+      v
+Z3 Verifier   (SSA encoding -> loop unrolling -> BMC query)
+      |         A-01: post-unroll soundness check
+      |         A-02: name-mangled cache, read-only property
+      |
+      +-- UNSAT -> modification accepted, checkpoint saved
+      +-- SAT   -> modification rejected, counterexample returned, rollback applied
+      +-- FAIL  -> static fallback analyzer, circuit breaker records failure
 ```
 
-1. **SIL Compiler**: A strict, bounded grammar lexer, recursive descent parser, and rigorous type-checker.
-2. **SIL Runtime**: A bounded interpreter for safe execution monitoring, catching memory and boundary violations immediately.
-3. **Z3 Verifier**: A Bounded Model Checker (BMC) translating SIL AST and Axioms into Z3 Constraints, resolving state safely within a 5-second timeout.
-4. **Code Monitor Layer**: Sandbox and interceptor pipeline for checking JSON modifications, simulating outcomes in a containerized environment.
-5. **Format Enforcer**: Audit logging, rigid formatting enforcement, and heuristic text parsing.
-6. **Watchdog**: Fail-safe circuit breaker backed by Redis checkpointing, handling self-healing and recovery logic.
-## Verification Protocol & Threat Model
+---
 
-For a function `f_new` with precondition `pre_f`, PAAC utilizes Bounded Model Checking (BMC) by unrolling loops up to a declared bound `k` and encoding semantics as a quantifier-free formula. The BMC query operates strictly as:
+## Quick Start
 
-```math
-BMC(f_{new}, k) = (pre_f) \land (unrolled\_semantics(f_{new}, k)) \land (violation\_flag = true)
-```
+### Docker (recommended)
 
-If the solver returns `SAT`, a concrete counterexample is found (the assertion can be violated) and the modification is **rejected**. If it returns `UNSAT`, the modification is **provably safe** for all executions within `k` iterations. 
-
-### Security Guarantees
-PAAC provides the following strict guarantees against an adversarial code-generating agent:
-- **Code Integrity**: The Code Monitor and Verification Engine reside in OS-protected read-only memory. Any write attempt immediately terminates the agent.
-- **Verification Bypass Prevention**: The agent has no direct access to the SIL compiler or the Z3 process. All code paths route strictly through the Code Monitor using an authenticated inter-process protocol.
-- **Side-channel Resistance**: The Verification Engine’s execution time is artificially padded to a constant value (e.g., 200ms) to eliminate timing side channels.
-- **Tiny TCB (Trusted Computing Base)**: The entire core logic comprises ~2,000 lines of Python and C, small enough for future formal verification of PAAC itself via tools like Verifiable C or Frama-C.
-
-## Proof-of-Concept Simulation
-
-In our initial threat-model simulations, we evaluated PAAC against generated SIL code patches across multiple scenarios. The system successfully blocked malicious optimizations while permitting mathematically sound improvements with minimal overhead:
-
-| Modification Attempt | Verification Time (ms) | Result |
-| :--- | :--- | :--- |
-| Quicksort optimization (Safe) | 108 ms | **Passed** (`UNSAT`) |
-| Backdoor insertion (Malicious) | 124 ms | **Blocked** (Counterexample found) |
-
-This demonstrates PAAC’s ability to distinguish legitimate algorithmic improvements from malicious changes with sub-150ms latency.
-## Requirements
-- Python 3.12+ (Musl libc compatible via Alpine Linux in Production)
-- Z3 Solver (`z3-solver>=5.0.0`)
-- Redis (for Checkpointing)
-- Docker & Docker Compose (for containerized deployment)
-
-## Getting Started
-
-### 1. Local Environment
 ```bash
-python -m venv paac-venv
-source paac-venv/bin/activate # (or paac-venv\Scripts\activate on Windows)
+docker build -t paac:v5.0.0 -f docker/Dockerfile .
+docker run --rm --memory=2g -e PAAC_API_KEY=changeme paac:v5.0.0 \
+  python3.11 -m pytest tests/ -v
+```
+
+### Docker Compose
+
+```bash
+cp .env.example .env
+# Edit .env — set PAAC_API_KEY
+docker-compose -f docker/docker-compose.yml up --build
+```
+
+### Local
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-### 2. Running Tests
-The framework is fully tested with unit and integration tests (26 passing).
+---
+
+## API
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/verify` | POST | Submit a code modification for verification |
+| `/health` | GET | Service health (healthy/degraded/unhealthy) |
+| `/metrics` | GET | Prometheus metrics |
+| `/self-verify` | POST | Bootstrap self-verification of the TCB |
+| `/attest/{id}` | GET | Retrieve attestation record by modification ID |
+| `/attest/verify` | POST | Verify an attestation commitment |
+| `/agents` | GET | List registered agents and their status |
+
+All `/verify` requests require `X-API-Key` header when `PAAC_API_KEY` is set.
+The key comparison uses `secrets.compare_digest` (constant-time, A-03 fix).
+
+---
+
+## Configuration
+
+All runtime configuration is via environment variables. See `.env.example`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `REDIS_HOST` | `redis` | Redis hostname |
+| `REDIS_PORT` | `6379` | Redis port |
+| `AXIOM_PATH` | `config/axioms.yaml` | Axiom file path |
+| `PAAC_API_KEY` | `` | API key (empty = no auth) |
+| `PAAC_RATE_LIMIT` | `100` | Requests per minute per IP |
+| `PAAC_WAL_PATH` | `checkpoints.wal` | WAL file path |
+| `PAAC_REGISTRY_PATH` | `live_registry.json` | Registry persistence path |
+| `PAAC_MAX_LOOP_BOUND` | `10000` | Global loop bound cap |
+| `PAAC_MAX_INSTRUCTIONS` | `100000` | Global instruction limit |
+| `PAAC_WATCHDOG_TIMEOUT` | `60` | Watchdog stall timeout (seconds) |
+
+---
+
+## SIL Language Reference
+
+```
+func function_name(param: type, ...) -> return_type {
+    statements
+}
+```
+
+Types: `int`, `bool`, `string`, `array`
+
+Statements: assignment, `if`/`else`, `while (...) bound N { }`, `return`, `assert`
+
+Restrictions:
+- No recursion (direct or mutual)
+- All while loops require an explicit integer bound
+- Global loop bound cap: 10,000 iterations
+- Global instruction limit: 100,000 steps
+- Loop bound must be sufficient for all inputs (A-01: under-bounded loops are SAT)
+
+---
+
+## Running Tests
+
 ```bash
-PYTHONPATH=. pytest tests/
+PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-### 3. Docker Compose (Production Target)
-We deploy PAAC on Alpine Linux with fail-safes pre-configured:
-```bash
-docker-compose -f docker-compose.yml up --build
-```
-This spins up a healthy Redis node alongside the PAAC API. The containers will automatically recover on failure using our Docker `on-failure` policies and periodic health check validations.
+Expected: 260 tests pass.
 
-## Contributing
-All submissions are subject to the same formal verification tests run via our CI pipelines. Pull requests modifying core invariants or the SIL compiler must attach benchmark proofs.
+---
+
+## Known Limitations
+
+See `KNOWN_ISSUES.md` and the paper corrections in `FINAL_MERGE_REPORT.md`.
+
+- TCB protection is filesystem chmod only (not kernel read-only memory pages)
+- Verification latency floor is 200 ms (constant-time padding); not <120 ms
+- TCB line count is ~2,123 lines across 6 core files (paper claimed ~500)
+- RLIMIT_AS not enforced on macOS — use Docker `--memory=2g`
+
+---
+
+## Documentation
+
+- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Production Runbook](docs/PRODUCTION_RUNBOOK.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Performance](docs/PERFORMANCE.md)
+- [Monitoring](docs/MONITORING.md)
+- [Security Policy](SECURITY.md)
+- [SIL Architecture](docs/SIL_ARCHITECTURE.md)
+- [Advanced Features Report](ADVANCED_FEATURES_REPORT.md)
+- [Final Merge Report](FINAL_MERGE_REPORT.md)

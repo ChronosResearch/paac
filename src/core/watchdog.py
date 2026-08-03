@@ -1,9 +1,11 @@
 import time
+
 import redis
-from typing import Dict, Any, Optional
+
 
 class CircuitBreakerError(Exception):
     pass
+
 
 class CircuitBreaker:
     def __init__(self, max_failures: int = 3, reset_timeout: int = 60):
@@ -35,9 +37,10 @@ class CircuitBreaker:
             return True
         return False
 
+
 class Checkpointer:
-    def __init__(self, redis_host: str = 'localhost', redis_port: int = 6379):
-        self.memory_store: Dict[str, str] = {}
+    def __init__(self, redis_host: str = "localhost", redis_port: int = 6379):
+        self.memory_store: dict[str, str] = {}
         self.redis_client = None
         try:
             client = redis.Redis(host=redis_host, port=redis_port, socket_timeout=1)
@@ -57,15 +60,16 @@ class Checkpointer:
         else:
             self.memory_store[key] = value
 
-    def load(self, key: str) -> Optional[str]:
+    def load(self, key: str) -> str | None:
         if self.redis_client:
             try:
                 val = self.redis_client.get(key)
-                return val.decode('utf-8') if val else None
+                return val.decode("utf-8") if isinstance(val, bytes) else val if val else None
             except redis.ConnectionError:
                 self.redis_client = None
                 return self.memory_store.get(key)
         return self.memory_store.get(key)
+
 
 class Watchdog:
     def __init__(self):
@@ -76,7 +80,7 @@ class Watchdog:
     def start_health_check_loop(self):
         self.is_running = True
         # In a real environment, this runs in a background thread
-        
+
     def check_health(self) -> bool:
         if not self.circuit_breaker.can_execute():
             self._trigger_recovery()
