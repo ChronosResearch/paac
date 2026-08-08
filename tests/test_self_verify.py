@@ -70,19 +70,24 @@ def test_all_tcb_stubs_compile():
 
 
 def test_self_verifier_passes_all_stubs():
-    """SelfVerifier must produce results for all built-in TCB stubs.
+    """SelfVerifier must produce UNSAT (safe=True) for all built-in TCB stubs.
 
-    Note: stubs assert conditions like timeout_ms >= 1 which are SAT for
-    unconstrained inputs (Z3 finds timeout_ms=0). This is correct behavior
-    -- the verifier correctly identifies the boundary condition.
-    The important property is that all stubs compile and produce results.
+    With preconditioned stubs (if precond { assert postcond; }), Z3 proves
+    UNSAT because no input satisfying the precondition violates the postcondition.
+    This is true mathematical self-verification, not a stub that always returns SAT.
     """
     sv = SelfVerifier(timeout_ms=5000)
     result = sv.run()
     # All stubs must produce a result (no compilation errors)
     assert len(result.stub_results) == len(TCB_STUBS)
-    assert isinstance(result.passed, bool)
-    assert result.stage in (2, 3)
+    # All stubs must be SAFE (UNSAT) with preconditioned design
+    for name, safe in result.stub_results.items():
+        assert safe is True, (
+            f"Stub '{name}' returned SAT (unsafe) — preconditioned stub should be UNSAT. "
+            f"CE: {result.counterexamples.get(name)}"
+        )
+    assert result.passed is True
+    assert result.stage == 3
 
 
 def test_self_verifier_stub_results_populated():

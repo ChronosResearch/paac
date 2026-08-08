@@ -227,17 +227,17 @@ class StmtEncoder:
         self.env = env
         self.expr_enc = ExprEncoder(ctx, env)
         self.violation_flags: list[z3.BoolRef] = []
-        self._loop_exit_path: z3.BoolRef | None = None
+        self._post_loop_path: z3.BoolRef | None = None
 
     def encode_stmts(self, stmts: list[ASTNode], path_cond: z3.BoolRef) -> None:
         """Encode a list of SIL statements under *path_cond*, threading loop-exit paths."""
         current_path = path_cond
         for stmt in stmts:
-            self._loop_exit_path = None
+            self._post_loop_path = None
             self._encode_stmt(stmt, current_path)
-            if self._loop_exit_path is not None:
-                current_path = self._loop_exit_path
-                self._loop_exit_path = None
+            if self._post_loop_path is not None:
+                current_path = self._post_loop_path
+                self._post_loop_path = None
 
     def _encode_stmt(self, stmt: ASTNode, path_cond: z3.BoolRef) -> None:
         if isinstance(stmt, AssignmentStmtNode):
@@ -293,11 +293,12 @@ class StmtEncoder:
             # A-01 fix: if the loop condition is still true after all K
             # iterations the loop never exited within the declared bound —
             # that is UNSAFE (runtime would raise LoopBoundExceeded).
+            # Appended exactly ONCE to avoid spurious double-counting (C-01).
             self.expr_enc = ExprEncoder(self.ctx, self.env)
             post_loop_cond = self.expr_enc.encode(stmt.condition)
             still_running = z3.And(current_path, post_loop_cond)
             self.violation_flags.append(still_running)
-            self._loop_exit_path = z3.And(entry_path, z3.Not(entry_loop_cond))
+            self._post_loop_path = z3.And(entry_path, z3.Not(entry_loop_cond))
 
         else:
             pass
@@ -653,6 +654,10 @@ class BoundedModelChecker:
 
         Returns:
             (True, None) if UNSAT (safe), (False, CounterExample) if SAT (unsafe).
+
+        Soundness note: integer variables are constrained to the 32-bit signed
+        range [-2^31, 2^31-1] to prevent Z3 from exploiting unbounded integer
+        arithmetic that would not occur in a real execution environment.
         """
         cache_key = self._hash_ast(ast, axioms)
         if cache_key in self.__cache:
@@ -668,10 +673,19 @@ class BoundedModelChecker:
         env = SSAEnv(ctx)
         stmt_enc = StmtEncoder(ctx, solver, env)
 
+        # Z3 integer bounds: constrain all parameters to 32-bit signed range
+        # to prevent unsound results from unbounded integer arithmetic.
+        _INT32_MIN = -(2**31)
+        _INT32_MAX = 2**31 - 1
+
         for func in ast.functions:
             func_path = z3.BoolVal(True, ctx=ctx)
             for param in func.params:
-                env.declare_param(param.name, param.type_name)
+                pvar = env.declare_param(param.name, param.type_name)
+                # Apply 32-bit bounds to integer parameters for soundness
+                if param.type_name == "int":
+                    solver.add(pvar >= _INT32_MIN)
+                    solver.add(pvar <= _INT32_MAX)
             stmt_enc.encode_stmts(func.body, func_path)
 
         declared_params = list(env._counters.keys()) + [

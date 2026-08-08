@@ -45,7 +45,6 @@ from src.core.sil_compiler import (
     WhileStmtNode,
 )
 from src.core.verifier import BoundedModelChecker
-
 _COMPILER = SILCompiler()
 _CHECKER = BoundedModelChecker()
 

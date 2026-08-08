@@ -55,11 +55,7 @@ from loguru import logger
 
 from src.axioms.axiom_parser import Axiom
 from src.core.sil_compiler import ProgramNode, SILCompiler
-from src.core.verifier import (
-    SSAEnv,
-    StmtEncoder,
-    _encode_axiom,
-)
+from src.core.verifier import SSAEnv, StmtEncoder, _encode_axiom
 
 _COMPILER = SILCompiler()
 _TIMEOUT_MS = int(__import__("os").environ.get("PAAC_DIFF_TIMEOUT_MS", "5000"))
@@ -235,24 +231,19 @@ class DifferentialVerifier:
                 "but unsafe under new version."
             )
         elif relaxation_ce is not None:
-            status = DiffStatus.RELAXATION
+            # Relaxation only: new accepts programs old rejected — still conservative
+            # (no regressions means new is at least as safe as old)
+            status = DiffStatus.CONSERVATIVE
             msg = (
-                f"RELAXATION detected: input {relaxation_ce} is safe under new "
-                "but unsafe under old version (new accepts more programs)."
+                f"RELAXATION detected (conservative): input {relaxation_ce} is safe under new "
+                "but unsafe under old version (new accepts more programs). "
+                "No regressions detected."
             )
         else:
             status = DiffStatus.EQUIVALENT
             msg = (
                 "New version is semantically equivalent to old w.r.t. the axiom set. "
                 "No regressions or relaxations detected."
-            )
-
-        # If no regression, it's at least conservative
-        if status == DiffStatus.RELAXATION:
-            status = DiffStatus.CONSERVATIVE
-            msg = (
-                "New version is a conservative extension: no regressions detected. "
-                + msg
             )
 
         return DiffResult(

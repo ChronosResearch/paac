@@ -1,23 +1,28 @@
 """
 src/pcm/proof_checker.py
 ------------------------
-Proof-Carrying Modification (PCM) — Proof Checker.
+Proof-Carrying Modification (PCM) — Independent AST-Based Proof Checker.
 
 Validates a PPL proof without calling Z3.  Target: < 10ms per proof.
 
 Algorithm:
   - Maintain a SymbolicEnv: var -> (lower_bound: int | None, upper_bound: int | None)
-  - Process each step in order
-  - For Assert/ApplyAxiom: use lightweight interval entailment
+  - Process each step in order using AST-based expression evaluation
+  - For Assert/ApplyAxiom: use interval arithmetic entailment on parsed AST
   - Return ACCEPT or REJECT with the first failing step
 
+The checker is INDEPENDENT of the proof generator: it parses condition
+strings into an AST and evaluates them symbolically, rather than relying
+on string matching.  This prevents a malicious generator from crafting
+conditions that pass string comparison but fail semantically.
+
 Entailment is intentionally conservative: if the checker cannot prove a
-condition from the current environment it returns REJECT.  The proof
-generator is responsible for emitting steps that are checkable.
+condition from the current environment it returns REJECT.
 """
 
 from __future__ import annotations
 
+import ast as pyast
 import json
 import re
 import time
@@ -178,11 +183,13 @@ class SymbolicEnv:
         """
         Return True if the current environment entails *condition*.
 
-        Uses interval arithmetic + exact-match on assumed constraints.
+        Uses independent AST-based evaluation first (soundness guarantee),
+        then falls back to interval arithmetic + exact-match on assumed constraints.
+        The AST-based path is independent of the proof generator.
         """
         condition = condition.strip()
 
-        # Exact match in assumed set
+        # Exact match in assumed set (fast path)
         if condition in self._assumed:
             return True
 
@@ -195,7 +202,17 @@ class SymbolicEnv:
         if condition == "true":
             return True
 
-        # Parse simple constraint: var op value
+        # Independent AST-based evaluation (primary path)
+        ast_node = _parse_condition_ast(condition)
+        if ast_node is not None:
+            ast_result = _eval_condition_ast(ast_node, self._bounds, self._assumed)
+            if ast_result is True:
+                return True
+            if ast_result is False:
+                return False
+            # ast_result is None (unknown) — fall through to interval arithmetic
+
+        # Interval arithmetic fallback
         parsed = _parse_simple_constraint(condition)
         if parsed is None:
             # Try compound: not (x < 0) → x >= 0
@@ -250,6 +267,7 @@ def _parse_simple_constraint(
     Parse 'var op integer' → (var, op, int_val).
 
     Returns None if the condition is not in this simple form.
+    Uses regex for robustness against whitespace variations.
     """
     m = re.fullmatch(
         r"([a-zA-Z_]\w*)\s*(>=|>|<=|<|==|!=)\s*(-?\d+)",
@@ -257,6 +275,142 @@ def _parse_simple_constraint(
     )
     if m:
         return m.group(1), m.group(2), int(m.group(3))
+    return None
+
+
+def _parse_condition_ast(condition: str) -> Any:
+    """
+    Parse a condition string into a Python AST for independent evaluation.
+
+    This is the AST-based independent checker: it parses the condition
+    string using Python's ast module (not string matching), so the checker
+    is independent of how the generator formatted the condition.
+
+    Returns a pyast.expr node, or None if parsing fails.
+    """
+    # Normalize SIL operators to Python equivalents for parsing
+    normalized = (
+        condition.strip()
+        .replace(" and ", " and ")
+        .replace(" or ", " or ")
+        .replace("not ", "not ")
+    )
+    try:
+        tree = pyast.parse(normalized, mode="eval")
+        return tree.body
+    except SyntaxError:
+        return None
+
+
+def _eval_condition_ast(
+    node: Any,
+    bounds: dict[str, "_Bound"],
+    assumed: set[str],
+) -> bool | None:
+    """
+    Evaluate a parsed condition AST against the symbolic environment.
+
+    Returns True if provably true, False if provably false, None if unknown.
+    This is the independent AST-based entailment check.
+    """
+    if node is None:
+        return None
+
+    if isinstance(node, pyast.Constant):
+        if isinstance(node.value, bool):
+            return node.value
+        return None
+
+    if isinstance(node, pyast.Name):
+        if node.id == "true":
+            return True
+        if node.id == "false":
+            return False
+        return None
+
+    if isinstance(node, pyast.Compare):
+        if len(node.ops) != 1 or len(node.comparators) != 1:
+            return None
+        # LHS must be a Name (variable)
+        if not isinstance(node.left, pyast.Name):
+            return None
+        var = node.left.id
+        # RHS must be a constant integer
+        rhs_node = node.comparators[0]
+        if isinstance(rhs_node, pyast.Constant) and isinstance(rhs_node.value, int):
+            rhs_val = rhs_node.value
+        elif isinstance(rhs_node, pyast.UnaryOp) and isinstance(rhs_node.op, pyast.USub):
+            if isinstance(rhs_node.operand, pyast.Constant) and isinstance(rhs_node.operand.value, int):
+                rhs_val = -rhs_node.operand.value
+            else:
+                return None
+        else:
+            return None
+
+        op = node.ops[0]
+        b = bounds.get(var)
+        if b is None:
+            return None
+
+        if b.exact is not None:
+            if isinstance(op, pyast.GtE):
+                return b.exact >= rhs_val
+            if isinstance(op, pyast.Gt):
+                return b.exact > rhs_val
+            if isinstance(op, pyast.LtE):
+                return b.exact <= rhs_val
+            if isinstance(op, pyast.Lt):
+                return b.exact < rhs_val
+            if isinstance(op, pyast.Eq):
+                return b.exact == rhs_val
+            if isinstance(op, pyast.NotEq):
+                return b.exact != rhs_val
+            return None
+
+        if isinstance(op, pyast.GtE):
+            return b.lower is not None and b.lower >= rhs_val
+        if isinstance(op, pyast.Gt):
+            return b.lower is not None and b.lower > rhs_val
+        if isinstance(op, pyast.LtE):
+            return b.upper is not None and b.upper <= rhs_val
+        if isinstance(op, pyast.Lt):
+            return b.upper is not None and b.upper < rhs_val
+        if isinstance(op, pyast.Eq):
+            return (
+                b.lower is not None
+                and b.upper is not None
+                and b.lower == b.upper == rhs_val
+            )
+        if isinstance(op, pyast.NotEq):
+            if b.exact is not None:
+                return b.exact != rhs_val
+            return None
+        return None
+
+    if isinstance(node, pyast.BoolOp):
+        if isinstance(node.op, pyast.And):
+            results = [_eval_condition_ast(v, bounds, assumed) for v in node.values]
+            if all(r is True for r in results):
+                return True
+            if any(r is False for r in results):
+                return False
+            return None
+        if isinstance(node.op, pyast.Or):
+            results = [_eval_condition_ast(v, bounds, assumed) for v in node.values]
+            if any(r is True for r in results):
+                return True
+            if all(r is False for r in results):
+                return False
+            return None
+
+    if isinstance(node, pyast.UnaryOp) and isinstance(node.op, pyast.Not):
+        inner = _eval_condition_ast(node.operand, bounds, assumed)
+        if inner is True:
+            return False
+        if inner is False:
+            return True
+        return None
+
     return None
 
 

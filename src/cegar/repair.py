@@ -35,7 +35,6 @@ from src.axioms.axiom_parser import Axiom
 from src.core.axiom_evolution import AxiomEvolutionEngine, AxiomModification
 from src.core.sil_compiler import SILCompiler
 from src.core.verifier import BoundedModelChecker, VerificationError
-
 _COMPILER = SILCompiler()
 _MAX_ITERATIONS = int(__import__("os").environ.get("PAAC_CEGAR_MAX_ITER", "10"))
 _TIMEOUT_MS = int(__import__("os").environ.get("PAAC_CEGAR_TIMEOUT_MS", "5000"))
@@ -328,19 +327,11 @@ def repair_axiom(
                 target_functions=list(current_axiom.target_functions),
             )
         else:
-            # No candidate worked — try the first conservative one for next iteration
-            conservative = next(
-                (it for it in reversed(iterations) if it.is_conservative), None
-            )
-            if conservative:
-                current_axiom = Axiom(
-                    id=current_axiom.id,
-                    description=current_axiom.description,
-                    condition=conservative.candidate_condition,
-                    target_functions=list(current_axiom.target_functions),
-                )
-            else:
-                break
+            # No candidate worked in this iteration — stop rather than
+            # cycling on a conservative-but-still-unsafe candidate.
+            # Continuing with a candidate that failed re-verification would
+            # produce an infinite loop without making progress.
+            break
 
     elapsed = (time.monotonic() - t_start) * 1000
     return RepairResult(
