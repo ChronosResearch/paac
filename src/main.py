@@ -24,6 +24,7 @@ from collections import defaultdict
 from typing import Any
 
 import yaml
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from loguru import logger
@@ -145,28 +146,38 @@ def _sanitize_sil(code: str) -> str:
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(
-    title="PAAC API",
-    description="Provably Aligned Core Verification API v5.0.0",
-    version="5.0.0",
-)
-
 monitor = CodeMonitor(config)
 watchdog = Watchdog(config)
 watchdog.start()
 
-# Bootstrap self-verification on startup (if configured)
-_bootstrap_cfg = config.get("bootstrap_verification", {})
-if _bootstrap_cfg.get("run_on_startup", False):
-    try:
-        sv = get_self_verifier()
-        _sv_result = sv.run()
-        if not _sv_result.passed:
-            logger.error(f"Startup self-verification FAILED: {_sv_result.message}")
-        else:
-            logger.info(f"Startup self-verification PASSED: {_sv_result.message}")
-    except Exception as _sv_exc:  # noqa: BLE001
-        logger.warning(f"Startup self-verification error (non-fatal): {_sv_exc}")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Startup / shutdown lifecycle (replaces deprecated @app.on_event)."""
+    # startup: bootstrap self-verification if configured
+    _bootstrap_cfg = config.get("bootstrap_verification", {})
+    if _bootstrap_cfg.get("run_on_startup", False):
+        try:
+            sv = get_self_verifier()
+            _sv_result = sv.run()
+            if not _sv_result.passed:
+                logger.error(f"Startup self-verification FAILED: {_sv_result.message}")
+            else:
+                logger.info(f"Startup self-verification PASSED: {_sv_result.message}")
+        except Exception as _sv_exc:  # noqa: BLE001
+            logger.warning(f"Startup self-verification error (non-fatal): {_sv_exc}")
+    yield
+    # shutdown
+    watchdog.stop()
+    monitor.stop_watchdog()
+
+
+app = FastAPI(
+    title="PAAC API",
+    description="Provably Aligned Core Verification API v5.0.0",
+    version="5.0.0",
+    lifespan=_lifespan,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -472,7 +483,4 @@ async def panic_hook(request: Request, exc: Exception):
     )
 
 
-@app.on_event("shutdown")
-def shutdown_event():
-    watchdog.stop()
-    monitor.stop_watchdog()
+# Shutdown is handled by the _lifespan context manager above.

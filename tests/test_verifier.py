@@ -303,3 +303,105 @@ def test_post_loop_assertion_correct_path():
     bmc = BoundedModelChecker()
     safe, ce = bmc.verify(ast, [])
     assert safe is True, f"Post-loop assertion should be safe; got ce={ce}"
+
+
+# ---------------------------------------------------------------------------
+# pre_cond enforcement (paper §3.4: BMC = pre_f ∧ semantics ∧ violation)
+# ---------------------------------------------------------------------------
+
+
+def test_precond_makes_unsafe_program_safe():
+    """With pre_cond='x >= 0', assert x >= 0 must be SAFE (UNSAT).
+
+    Without pre_cond the verifier finds x=-1 as a counterexample.
+    With pre_cond='x >= 0' the input space is restricted to x >= 0,
+    so no counterexample exists — UNSAT (safe=True).
+    Validates paper §3.4: BMC(f,k) = pre_f ∧ semantics ∧ violation.
+    """
+    ast = compile("""
+    func check(x: int) -> int {
+        assert x >= 0;
+        return x;
+    }
+    """)
+    bmc = BoundedModelChecker()
+
+    # Without precondition: Z3 picks x=-1 → UNSAFE
+    safe_no_pre, ce_no_pre = bmc._verify_inner(ast, [], 5000, pre_cond="")
+    assert safe_no_pre is False, "Without pre_cond should be UNSAFE"
+    assert ce_no_pre is not None
+
+    # With precondition x >= 0: no counterexample exists → SAFE
+    safe_with_pre, ce_with_pre = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 0")
+    assert safe_with_pre is True, (
+        f"With pre_cond='x >= 0' should be SAFE (UNSAT); got ce={ce_with_pre}"
+    )
+    assert ce_with_pre is None
+
+
+def test_precond_via_verifier_facade():
+    """Verifier facade must pass pre_cond through to BMC."""
+    ast = compile("""
+    func check(x: int) -> int {
+        assert x >= 0;
+        return x;
+    }
+    """)
+    from src.core.verifier import Verifier
+    v = Verifier({"verification_timeout_ms": 5000})
+    result = v.verify("check", ast, pre_cond="x >= 0")
+    assert result["safe"] is True, (
+        f"Verifier facade with pre_cond='x >= 0' should be safe; got {result}"
+    )
+
+
+def test_precond_empty_string_is_noop():
+    """Empty pre_cond must behave identically to no pre_cond."""
+    ast = compile("""
+    func check(x: int) -> int {
+        assert x >= 0;
+        return x;
+    }
+    """)
+    bmc = BoundedModelChecker()
+    safe_empty, _ = bmc._verify_inner(ast, [], 5000, pre_cond="")
+    safe_none, _ = bmc._verify_inner(ast, [], 5000)
+    assert safe_empty == safe_none
+
+
+def test_precond_cache_key_differs():
+    """Same AST with different pre_cond must produce different cache keys."""
+    ast = compile("func f(x: int) -> int { return x; }")
+    bmc = BoundedModelChecker()
+    h1 = bmc._hash_ast(ast, [], pre_cond="")
+    h2 = bmc._hash_ast(ast, [], pre_cond="x >= 0")
+    assert h1 != h2, "Different pre_cond must produce different cache keys"
+
+
+def test_precond_tighter_than_assertion():
+    """pre_cond='x >= 10' with assert x >= 0 must be SAFE (pre implies assertion)."""
+    ast = compile("""
+    func check(x: int) -> int {
+        assert x >= 0;
+        return x;
+    }
+    """)
+    bmc = BoundedModelChecker()
+    safe, ce = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 10")
+    assert safe is True, (
+        f"pre_cond='x >= 10' implies x >= 0; should be SAFE; got ce={ce}"
+    )
+
+
+def test_precond_does_not_mask_assert_false():
+    """pre_cond must NOT mask assert false — still UNSAFE regardless."""
+    ast = compile("""
+    func bad(x: int) -> int {
+        assert false;
+        return x;
+    }
+    """)
+    bmc = BoundedModelChecker()
+    safe, ce = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 0")
+    assert safe is False, "assert false is always UNSAFE regardless of pre_cond"
+    assert ce is not None

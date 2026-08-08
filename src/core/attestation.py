@@ -132,6 +132,7 @@ class AttestationRecord:
     commitment: str        # base64-encoded Ed25519 signature (88 chars)
     public_key_pem: str    # PEM-encoded Ed25519 public key for verification
     version: str = "paac-attest-v2"
+    proof_hash: str | None = None  # SHA-256 of proof JSON, if PCM mode (paper §4.3)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -143,6 +144,7 @@ class AttestationRecord:
         fields = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
         fields.setdefault("public_key_pem", "")
         fields.setdefault("version", "paac-attest-v2")
+        fields.setdefault("proof_hash", None)
         return cls(**fields)
 
 
@@ -210,9 +212,12 @@ class AttestationEngine:
         axiom_hash: str,
         safe: bool,
         counterexample_str: str | None,
+        proof_hash: str | None = None,
     ) -> AttestationRecord:
         """
         Generate an Ed25519-signed attestation record for a completed verification.
+        proof_hash: SHA-256 of the PCM proof JSON, if this was a PCM-mode
+                    verification (paper §4.3). None for standard BMC mode.
         The record is stored internally and can be retrieved via get().
         """
         result = "UNSAT" if safe else "SAT"
@@ -228,7 +233,7 @@ class AttestationEngine:
             pub_pem = _serialize_public_key(self._public_key)
 
         payload = self._canonical_payload(
-            modification_id, program_hash, axiom_hash, result, ce_hash, ts
+            modification_id, program_hash, axiom_hash, result, ce_hash, ts, proof_hash
         )
         # Sign the SHA-256 digest of the canonical payload
         payload_digest = hashlib.sha256(payload.encode()).digest()
@@ -244,6 +249,7 @@ class AttestationEngine:
             timestamp=ts,
             commitment=commitment,
             public_key_pem=pub_pem,
+            proof_hash=proof_hash,
         )
 
         with self._lock:
@@ -287,6 +293,7 @@ class AttestationEngine:
             record.result,
             record.ce_hash,
             record.timestamp,
+            record.proof_hash,
         )
         payload_digest = hashlib.sha256(payload.encode()).digest()
 
@@ -346,6 +353,7 @@ class AttestationEngine:
         result: str,
         ce_hash: str | None,
         timestamp: float,
+        proof_hash: str | None = None,
     ) -> str:
         return json.dumps(
             {
@@ -356,6 +364,7 @@ class AttestationEngine:
                 "ce_hash": ce_hash,
                 "timestamp": timestamp,
                 "version": "paac-attest-v2",
+                "proof_hash": proof_hash,
             },
             sort_keys=True,
         )

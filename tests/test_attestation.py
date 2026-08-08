@@ -202,3 +202,75 @@ def test_asymmetric_property():
     )
     # Must fail — signature covers the payload, not just the public key
     assert engine.verify(forged) is False
+
+
+# ---------------------------------------------------------------------------
+# proof_hash field (paper §4.3: certificate includes proof hash in PCM mode)
+# ---------------------------------------------------------------------------
+
+
+def test_attest_with_proof_hash():
+    """attest() with proof_hash must embed it in the record and sign it."""
+    engine = AttestationEngine()
+    proof_hash = "a" * 64  # 64-char hex string (SHA-256)
+    record = engine.attest(
+        modification_id="pcm_mod",
+        program_hash="ph",
+        axiom_hash="ah",
+        safe=True,
+        counterexample_str=None,
+        proof_hash=proof_hash,
+    )
+    assert record.proof_hash == proof_hash
+    # Signature must cover proof_hash — verify passes
+    assert engine.verify(record) is True
+
+
+def test_attest_proof_hash_tamper_fails():
+    """Tampering with proof_hash must invalidate the Ed25519 signature."""
+    engine = AttestationEngine()
+    record = engine.attest("pcm_t", "ph", "ah", True, None, proof_hash="a" * 64)
+    record.proof_hash = "b" * 64  # tamper
+    assert engine.verify(record) is False
+
+
+def test_attest_without_proof_hash_defaults_none():
+    """attest() without proof_hash must set proof_hash=None and still verify."""
+    engine = AttestationEngine()
+    record = engine.attest("no_proof", "ph", "ah", True, None)
+    assert record.proof_hash is None
+    assert engine.verify(record) is True
+
+
+def test_proof_hash_in_to_dict():
+    """to_dict() must include proof_hash key."""
+    engine = AttestationEngine()
+    record = engine.attest("dict_test", "ph", "ah", True, None, proof_hash="c" * 64)
+    d = record.to_dict()
+    assert "proof_hash" in d
+    assert d["proof_hash"] == "c" * 64
+
+
+def test_proof_hash_roundtrip_from_dict():
+    """from_dict() must preserve proof_hash through serialisation roundtrip."""
+    engine = AttestationEngine()
+    record = engine.attest("rt_proof", "ph", "ah", True, None, proof_hash="d" * 64)
+    d = record.to_dict()
+    record2 = AttestationRecord.from_dict(d)
+    assert record2.proof_hash == "d" * 64
+    assert engine.verify(record2) is True
+
+
+def test_no_exit_and_no_network_axioms_loaded():
+    """config/axioms.yaml must contain no_exit and no_network axioms (paper §5.3)."""
+    from src.axioms.axiom_parser import AxiomParser
+    import os
+    axiom_path = os.path.join(
+        os.path.dirname(__file__), "..", "config", "axioms.yaml"
+    )
+    with open(axiom_path) as f:
+        axioms = AxiomParser.parse(f.read())
+    ids = {a.id for a in axioms}
+    assert "no_exit" in ids, "no_exit axiom missing from config/axioms.yaml"
+    assert "no_network" in ids, "no_network axiom missing from config/axioms.yaml"
+    assert len(axioms) == 5, f"Paper §5.3 claims 5 axioms; found {len(axioms)}"
