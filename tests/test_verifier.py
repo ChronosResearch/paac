@@ -405,3 +405,62 @@ def test_precond_does_not_mask_assert_false():
     safe, ce = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 0")
     assert safe is False, "assert false is always UNSAFE regardless of pre_cond"
     assert ce is not None
+
+
+# ---------------------------------------------------------------------------
+# Tests: sentinel variable axioms (no_exit, no_network) — body-assigned vars
+# ---------------------------------------------------------------------------
+
+def test_no_exit_axiom_body_assigned_unsafe():
+    """exit_called=1 assigned in body must be caught by no_exit axiom."""
+    from src.axioms.axiom_parser import Axiom
+    c = SILCompiler()
+    bmc = BoundedModelChecker()
+    axiom = Axiom("no_exit", "", "exit_called == 0", ["*"])
+    ast, _ = c.compile("func f(x: int) -> int { exit_called = 1; return exit_called; }")
+    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    assert not safe, "exit_called=1 in body must be UNSAFE under no_exit axiom"
+
+
+def test_no_exit_axiom_body_assigned_safe():
+    """exit_called=0 assigned in body must pass no_exit axiom."""
+    from src.axioms.axiom_parser import Axiom
+    c = SILCompiler()
+    bmc = BoundedModelChecker()
+    axiom = Axiom("no_exit", "", "exit_called == 0", ["*"])
+    ast, _ = c.compile("func f(x: int) -> int { exit_called = 0; return exit_called; }")
+    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    assert safe, "exit_called=0 in body must be SAFE under no_exit axiom"
+
+
+def test_no_exit_axiom_param_unsafe():
+    """exit_called as unconstrained param must be UNSAFE under no_exit axiom."""
+    from src.axioms.axiom_parser import Axiom
+    c = SILCompiler()
+    bmc = BoundedModelChecker()
+    axiom = Axiom("no_exit", "", "exit_called == 0", ["*"])
+    ast, _ = c.compile("func f(exit_called: int) -> int { return exit_called; }")
+    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    assert not safe, "unconstrained exit_called param must be UNSAFE under no_exit axiom"
+
+
+def test_no_network_axiom_body_assigned_unsafe():
+    """network_calls=1 assigned in body must be caught by no_network axiom."""
+    from src.axioms.axiom_parser import Axiom
+    c = SILCompiler()
+    bmc = BoundedModelChecker()
+    axiom = Axiom("no_network", "", "network_calls == 0", ["*"])
+    ast, _ = c.compile("func f(x: int) -> int { network_calls = 1; return network_calls; }")
+    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    assert not safe, "network_calls=1 in body must be UNSAFE under no_network axiom"
+
+
+def test_no_network_axiom_body_assigned_safe():
+    """network_calls=0 assigned in body must pass no_network axiom."""
+    from src.axioms.axiom_parser import Axiom
+    c = SILCompiler()
+    bmc = BoundedModelChecker()
+    axiom = Axiom("no_network", "", "network_calls == 0", ["*"])
+    ast, _ = c.compile("func f(x: int) -> int { network_calls = 0; return network_calls; }")
+    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    assert safe, "network_calls=0 in body must be SAFE under no_network axiom"

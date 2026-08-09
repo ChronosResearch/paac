@@ -316,14 +316,47 @@ def _encode_axiom(
     param_names: list[str] | None = None,
 ) -> "z3.BoolRef | None":
     """
-    Parse the axiom condition string as a SIL expression and encode it to Z3.
+    Parse the axiom condition string as a SIL expression and encode it to Z3
+    using the *current* SSAEnv so that body-assigned variables (e.g.
+    exit_called, network_calls) resolve to their live SSA values rather than
+    fresh unconstrained Z3 variables.
 
-    Returns None when the axiom references variables not declared as params
-    in the current function (inapplicable axiom — skipped with a warning).
+    Strategy:
+      1. Build the SIL wrapper param list from ALL variables currently in env
+         (function params + body-assigned vars).  This lets the SIL type-checker
+         accept the condition without "Undefined variable".
+      2. Encode the parsed AST node with ExprEncoder(ctx, env) — the live env —
+         so IdentifierNode lookups call env.read(), returning the current SSA
+         expression (which may be a concrete Z3 value like IntVal(1)).
+
+    Returns None when the axiom references variables not present in the current
+    env (inapplicable axiom — skipped with a debug log).
     Raises VerificationError only for syntactically invalid SIL (Step 22).
     """
-    params = param_names or []
-    param_str = ", ".join(f"{n}: int" for n in params)
+    # Build param list from ALL variables currently in env (params + body vars).
+    # declare_param puts vars in _exprs (not _counters); write() puts them in both.
+    # Extract base names from both sources to cover all cases.
+    seen_vars: set[str] = set()
+    all_vars: list[str] = []
+    # From _counters: body-assigned variables
+    for name in env._counters:
+        if name not in seen_vars:
+            seen_vars.add(name)
+            all_vars.append(name)
+    # From _exprs: function parameters (declare_param only writes _exprs)
+    for key in env._exprs:
+        parts = key.rsplit("_", 1)
+        base = parts[0] if len(parts) == 2 and parts[1].isdigit() else key
+        if base not in seen_vars:
+            seen_vars.add(base)
+            all_vars.append(base)
+    # Also include any explicitly passed param_names
+    for name in (param_names or []):
+        if name not in seen_vars:
+            seen_vars.add(name)
+            all_vars.append(name)
+
+    param_str = ", ".join(f"{n}: int" for n in all_vars)
     sil_wrapper = (
         f"func _axiom_check({param_str}) -> bool "
         f"{{ assert {axiom.condition}; return true; }}"
@@ -337,6 +370,7 @@ def _encode_axiom(
             raise VerificationError(
                 f"Axiom '{axiom.id}': condition did not parse to an assert statement."
             )
+        # Use the LIVE env so IdentifierNode.read() returns current SSA values.
         enc = ExprEncoder(ctx, env)
         return enc.encode(assert_stmt.condition)
     except SILError as exc:

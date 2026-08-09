@@ -392,7 +392,7 @@ async def self_verify_endpoint():
 async def get_attestation(modification_id: str):
     """
     Retrieve the attestation record for a given modification ID.
-    Returns the full HMAC-SHA256 commitment and metadata.
+    Returns the full Ed25519-signed commitment and metadata.
     """
     engine = get_attest_engine()
     record = engine.get(modification_id)

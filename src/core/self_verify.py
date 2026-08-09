@@ -454,7 +454,19 @@ class SelfVerifier:
                 continue
 
             try:
-                safe, ce = self._bmc._verify_inner(ast, SELF_AXIOMS, self._timeout_ms)
+                # Build pre_cond from axioms whose variables appear in this stub's params.
+                # This constrains the input space to valid inputs so the stub is UNSAT.
+                import re as _re
+                _stub_params = {p.name for p in ast.functions[0].params} if ast.functions else set()
+                _applicable_pre = [
+                    a.condition for a in SELF_AXIOMS
+                    if any(_re.search(r'\b' + _re.escape(v) + r'\b', a.condition)
+                           for v in _stub_params)
+                ]
+                _pre_cond = " and ".join(_applicable_pre) if _applicable_pre else ""
+                safe, ce = self._bmc._verify_inner(
+                    ast, SELF_AXIOMS, self._timeout_ms, pre_cond=_pre_cond
+                )
                 stub_results[name] = safe
                 ce_str = str(ce) if ce else None
                 if ce_str:
