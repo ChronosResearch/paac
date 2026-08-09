@@ -502,6 +502,6 @@ class TestIntegration:
         compiler = SILCompiler()
         ast, _ = compiler.compile("func f(x: int) -> int { return x; }")
         bmc = BoundedModelChecker()
-        safe, ce = bmc._verify_inner(ast, [], timeout_ms=5000)
+        safe, ce, _ = bmc._verify_inner(ast, [], timeout_ms=5000)
         assert safe is True
         assert ce is None

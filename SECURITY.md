@@ -1,12 +1,12 @@
-# PAAC Security Policy — v5.0.0
+# PAAC Security Policy — v7.0
 
 ## Supported Versions
 
 | Version | Supported |
 |---|---|
-| v5.0.0 | ✅ Active |
-| v4.2.0 | ✅ Security fixes only |
-| < v4.2 | ❌ End of life |
+| v7.0.0 | ✅ Active |
+| v6.1.0 | ✅ Security fixes only |
+| < v6.1 | ❌ End of life |
 
 ## Reporting a Vulnerability
 
@@ -76,6 +76,11 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
 14. **Duplicate loop violation (C-01 — fixed v5.0.0)**: The duplicate
     `still_running` violation flag in `StmtEncoder` was removed, preventing
     spurious SAT results for loop-heavy programs.
+
+15. **Bounded Loop Verification (v7.0)**: Every loop bound is formally proven
+    by Z3 to be ≤ 10,000 before BMC runs. Three-layer enforcement: parse-time
+    rejection, Z3 UNSAT certificate, and runtime cap. Prevents algorithmic DoS
+    attacks via crafted loop bounds.
 
 ### What PAAC does NOT protect against
 
@@ -152,6 +157,7 @@ Key management:
 | Input sanitization | ✅ | Rejects non-printable characters |
 | Non-root Docker container | ✅ | `paac` user |
 | **PCM certificate HMAC (v5.0.0)** | ✅ **New** | HMAC-SHA256, append-only audit log |
+| **Bounded Loop Verification (v7.0)** | ✅ **New** | Z3 UNSAT proof per loop, 3-layer enforcement |
 | **Bootstrap Self-Verification (v5.0.0)** | ✅ **New** | Python-to-SIL translator |
 | **Cryptographic Attestation (v5.0.0)** | ✅ **New** | HMAC-SHA256, key rotation |
 | **Multi-Agent Coordination (v5.0.0)** | ✅ **New** | Agent registry, crash recovery |

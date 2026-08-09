@@ -533,7 +533,7 @@ class TestRegressionSmoke:
         compiler = SILCompiler()
         ast, _ = compiler.compile(TAUTOLOGY)
         bmc = BoundedModelChecker()
-        safe, ce = bmc._verify_inner(ast, [], timeout_ms=5000)
+        safe, ce, _ = bmc._verify_inner(ast, [], timeout_ms=5000)
         assert safe is True
 
     def test_mutation_testing_still_works(self):

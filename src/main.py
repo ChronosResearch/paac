@@ -1,8 +1,8 @@
 """
-PAAC FastAPI application — v5.0.0
+PAAC FastAPI application — v7.0.0
 Steps 39-50: health, metrics, rate limiting, API key auth, request validation.
 Steps 76-85: Prometheus metrics, structured logging.
-v5.0.0: bootstrap self-verification, cryptographic attestation, multi-agent.
+v7.0.0: bootstrap self-verification, cryptographic attestation, multi-agent.
 """
 
 from __future__ import annotations
@@ -174,8 +174,8 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PAAC API",
-    description="Provably Aligned Core Verification API v5.0.0",
-    version="5.0.0",
+    description="Provably Aligned Core Verification API v7.0.0",
+    version="7.0.0",
     lifespan=_lifespan,
 )
 
@@ -330,7 +330,7 @@ async def health():
         status_code=http_code,
         content={
             "status": status,
-            "version": "5.0.0",
+            "version": "7.0.0",
             "circuit_breaker": cb_state,
             "axioms_loaded": len(monitor.axioms),
             "registry_size": len(CodeMonitor._live_registry),

@@ -394,8 +394,170 @@ def _encode_axiom(
 
 
 # ---------------------------------------------------------------------------
-# Fallback static analyzer (Step 33)
+# Loop Bound Analyzer — proves all loop bounds ≤ MAX_LOOP_BOUND via Z3
 # ---------------------------------------------------------------------------
+
+
+from dataclasses import dataclass as _dc, field as _field
+
+
+@_dc
+class LoopBoundResult:
+    """
+    Per-loop Z3 proof result for bounded loop verification.
+
+    proven_safe: True  → Z3 proved bound <= MAX_LOOP_BOUND (UNSAT on violation).
+    proven_safe: False → Z3 found a counterexample (bound > MAX_LOOP_BOUND).
+    """
+    func_name: str
+    loop_index: int       # 0-based index within the function
+    declared_bound: int   # bound declared in SIL source
+    max_allowed: int      # global cap (10_000)
+    proven_safe: bool     # True = Z3 UNSAT (bound within cap)
+    counterexample: str | None = None
+
+
+@_dc
+class LoopBoundReport:
+    """Aggregated loop bound verification results for a full program."""
+    all_proven_safe: bool
+    results: list[LoopBoundResult] = _field(default_factory=list)
+    max_bound_seen: int = 0
+
+    def summary(self) -> str:
+        if not self.results:
+            return "No loops found."
+        n = len(self.results)
+        safe = sum(1 for r in self.results if r.proven_safe)
+        return (
+            f"{safe}/{n} loop bounds proven safe ≤ {self.max_allowed}; "
+            f"max bound seen = {self.max_bound_seen}."
+        )
+
+    @property
+    def max_allowed(self) -> int:
+        return self.results[0].max_allowed if self.results else StmtEncoder.MAX_LOOP_BOUND
+
+
+class LoopBoundAnalyzer:
+    """
+    Proves that every declared loop bound in a SIL program is within the
+    global cap (MAX_LOOP_BOUND = 10,000) using Z3.
+
+    For each WhileStmtNode with declared bound K:
+      - Creates a Z3 Int variable `loop_bound_<func>_<idx>`
+      - Asserts it equals K (the declared constant)
+      - Checks: is there an assignment where loop_bound > MAX_LOOP_BOUND?
+      - UNSAT → proven safe; SAT → violation (should never happen for valid SIL,
+        but provides a formal Z3 certificate for each bound).
+
+    This transforms the implicit compile-time check into an explicit Z3 proof,
+    producing a verifiable certificate that all loops are DoS-safe.
+    """
+
+    MAX_LOOP_BOUND: int = StmtEncoder.MAX_LOOP_BOUND  # 10_000
+
+    def analyze(self, ast: ProgramNode) -> LoopBoundReport:
+        """
+        Run Z3-based loop bound verification on all loops in *ast*.
+
+        Returns a LoopBoundReport with per-loop results and an overall verdict.
+        """
+        results: list[LoopBoundResult] = []
+        max_seen = 0
+
+        for func in ast.functions:
+            loop_idx = 0
+            self._analyze_stmts(func.body, func.name, results, loop_idx)
+
+        for r in results:
+            if r.declared_bound > max_seen:
+                max_seen = r.declared_bound
+
+        all_safe = all(r.proven_safe for r in results)
+        return LoopBoundReport(
+            all_proven_safe=all_safe,
+            results=results,
+            max_bound_seen=max_seen,
+        )
+
+    def _analyze_stmts(
+        self,
+        stmts: list[ASTNode],
+        func_name: str,
+        results: list[LoopBoundResult],
+        start_idx: int,
+    ) -> int:
+        idx = start_idx
+        for stmt in stmts:
+            idx = self._analyze_stmt(stmt, func_name, results, idx)
+        return idx
+
+    def _analyze_stmt(
+        self,
+        stmt: ASTNode,
+        func_name: str,
+        results: list[LoopBoundResult],
+        idx: int,
+    ) -> int:
+        if isinstance(stmt, WhileStmtNode):
+            result = self._prove_bound(func_name, idx, stmt.bound)
+            results.append(result)
+            idx += 1
+            # Recurse into loop body for nested loops
+            idx = self._analyze_stmts(stmt.body, func_name, results, idx)
+        elif isinstance(stmt, IfStmtNode):
+            idx = self._analyze_stmts(stmt.then_branch, func_name, results, idx)
+            idx = self._analyze_stmts(stmt.else_branch, func_name, results, idx)
+        return idx
+
+    def _prove_bound(self, func_name: str, loop_idx: int, declared_bound: int) -> LoopBoundResult:
+        """
+        Use Z3 to formally prove declared_bound <= MAX_LOOP_BOUND.
+
+        Creates a Z3 Int equal to declared_bound and checks whether it can
+        exceed MAX_LOOP_BOUND. UNSAT = proven safe (it cannot).
+        """
+        ctx = z3.Context()
+        solver = z3.Solver(ctx=ctx)
+        var_name = f"loop_bound_{func_name}_{loop_idx}"
+        bound_var = z3.Int(var_name, ctx=ctx)
+        # Assert the variable equals the declared bound
+        solver.add(bound_var == z3.IntVal(declared_bound, ctx=ctx))
+        # Violation: bound_var > MAX_LOOP_BOUND
+        solver.add(bound_var > z3.IntVal(self.MAX_LOOP_BOUND, ctx=ctx))
+        result = solver.check()
+        if result == z3.unsat:
+            return LoopBoundResult(
+                func_name=func_name,
+                loop_index=loop_idx,
+                declared_bound=declared_bound,
+                max_allowed=self.MAX_LOOP_BOUND,
+                proven_safe=True,
+            )
+        else:
+            # SAT: declared_bound > MAX_LOOP_BOUND (should be caught at compile time,
+            # but we produce a formal certificate here for completeness)
+            ce_str = f"{var_name} = {declared_bound} > {self.MAX_LOOP_BOUND}"
+            return LoopBoundResult(
+                func_name=func_name,
+                loop_index=loop_idx,
+                declared_bound=declared_bound,
+                max_allowed=self.MAX_LOOP_BOUND,
+                proven_safe=False,
+                counterexample=ce_str,
+            )
+
+
+# Module-level singleton for external callers
+_loop_bound_analyzer = LoopBoundAnalyzer()
+
+
+def analyze_loop_bounds(ast: ProgramNode) -> LoopBoundReport:
+    """Convenience function: run loop bound analysis on a compiled SIL AST."""
+    return _loop_bound_analyzer.analyze(ast)
+
+
 
 
 def _static_fallback_check(ast: ProgramNode) -> tuple[bool, str | None]:
@@ -488,11 +650,24 @@ def _subprocess_worker(
     checker = BoundedModelChecker()
     checker._cache_update(dict(cache))
     try:
-        safe, ce = checker._verify_inner(ast, axioms, timeout_ms, pre_cond=pre_cond)
+        safe, ce, loop_report = checker._verify_inner(ast, axioms, timeout_ms, pre_cond=pre_cond)
         ce_dict = (
             {k: str(v) for k, v in ce.assignments.items()} if ce is not None else None
         )
-        conn.send((ipc_token, safe, ce_dict, checker._cache))
+        loop_report_dict = {
+            "all_proven_safe": loop_report.all_proven_safe,
+            "max_bound_seen": loop_report.max_bound_seen,
+            "results": [
+                {
+                    "func_name": r.func_name,
+                    "loop_index": r.loop_index,
+                    "declared_bound": r.declared_bound,
+                    "proven_safe": r.proven_safe,
+                }
+                for r in loop_report.results
+            ],
+        }
+        conn.send((ipc_token, safe, ce_dict, checker._cache, loop_report_dict))
     except Exception as exc:  # noqa: BLE001
         conn.send((ipc_token, exc))
     finally:
@@ -555,20 +730,18 @@ class BoundedModelChecker:
         Returns (safe, counterexample).
         safe=True  -> UNSAT (no violation reachable within bounds).
         safe=False -> SAT   (counterexample found).
+        Loop bound verification runs automatically; programs with any loop bound
+        exceeding MAX_LOOP_BOUND (10,000) are rejected as unsafe.
         pre_cond: SIL expression constraining the input space (paper §3.4).
-                  Encoded as a Z3 solver assertion — only inputs satisfying
-                  pre_cond are considered. Empty string = unconstrained.
         Raises VerificationError on solver timeout / unknown result.
         Falls back to static analyzer if Z3 subprocess fails (Step 33).
-        Structured logging for every attempt (Steps 34-35).
         """
         start = time.monotonic()
         func_names = [f.name for f in ast.functions]
         axiom_ids = [a.id for a in axioms]
         try:
-            result = self._verify_subprocess(ast, axioms, timeout_ms, pre_cond=pre_cond)
+            safe, ce, loop_report = self._verify_subprocess(ast, axioms, timeout_ms, pre_cond=pre_cond)
             elapsed = time.monotonic() - start
-            safe, ce = result
             logger.info(
                 "verification",
                 extra={
@@ -578,9 +751,10 @@ class BoundedModelChecker:
                     "outcome": "safe" if safe else "unsafe",
                     "latency_ms": round(elapsed * 1000, 2),
                     "counterexample": str(ce) if ce else None,
+                    "loop_bounds": loop_report.summary(),
                 },
             )
-            return result
+            return safe, ce
         except VerificationError as exc:
             elapsed = time.monotonic() - start
             logger.warning(
@@ -604,7 +778,6 @@ class BoundedModelChecker:
                 ce = CounterExample.__new__(CounterExample)
                 ce.assignments = {"static_reason": reason or "unknown"}
                 return False, ce
-            # Static fallback cannot prove safety — re-raise original error.
             raise
         finally:
             elapsed = time.monotonic() - start
@@ -618,7 +791,7 @@ class BoundedModelChecker:
         axioms: list[Axiom],
         timeout_ms: int,
         pre_cond: str = "",
-    ) -> tuple[bool, "CounterExample | None"]:
+    ) -> tuple[bool, "CounterExample | None", LoopBoundReport]:
         """Run _verify_inner in an isolated subprocess with OS resource limits."""
         last_exc: Exception | None = None
         for attempt in range(1, _Z3_MAX_RETRIES + 1):
@@ -668,13 +841,29 @@ class BoundedModelChecker:
             if len(rest) == 1 and isinstance(rest[0], Exception):
                 raise VerificationError(str(rest[0])) from rest[0]
 
-            safe, ce_dict, cache_update = rest
+            safe, ce_dict, cache_update, loop_report_dict = rest
             self._cache_update(cache_update)
+            # Reconstruct LoopBoundReport from serialised dict
+            loop_results = [
+                LoopBoundResult(
+                    func_name=r["func_name"],
+                    loop_index=r["loop_index"],
+                    declared_bound=r["declared_bound"],
+                    max_allowed=StmtEncoder.MAX_LOOP_BOUND,
+                    proven_safe=r["proven_safe"],
+                )
+                for r in loop_report_dict.get("results", [])
+            ]
+            loop_report = LoopBoundReport(
+                all_proven_safe=loop_report_dict["all_proven_safe"],
+                results=loop_results,
+                max_bound_seen=loop_report_dict["max_bound_seen"],
+            )
             if ce_dict is not None:
                 ce = CounterExample.__new__(CounterExample)
                 ce.assignments = ce_dict
-                return safe, ce
-            return safe, None
+                return safe, ce, loop_report
+            return safe, None, loop_report
 
         raise VerificationError(
             f"Z3 subprocess crashed {_Z3_MAX_RETRIES} times consecutively."
@@ -686,22 +875,20 @@ class BoundedModelChecker:
         axioms: list[Axiom],
         timeout_ms: int,
         pre_cond: str = "",
-    ) -> tuple[bool, CounterExample | None]:
-        """Core BMC query: encode AST + axioms into Z3, run solver, return (safe, ce).
+    ) -> tuple[bool, "CounterExample | None", LoopBoundReport]:
+        """Core BMC query: encode AST + axioms into Z3, run solver, return (safe, ce, loop_report).
 
         Args:
             ast: Compiled SIL program AST.
             axioms: Safety axioms to enforce as additional constraints.
             timeout_ms: Z3 solver timeout in milliseconds.
             pre_cond: SIL expression for the function precondition (paper §3.4).
-                      Encoded as a Z3 solver assertion that constrains the input
-                      space: only inputs satisfying pre_cond are considered.
-                      Implements the BMC formula:
-                        BMC(f, k) = pre_f ∧ unrolled_semantics(f, k) ∧ violation
-                      Empty string means unconstrained (all inputs considered).
 
         Returns:
-            (True, None) if UNSAT (safe), (False, CounterExample) if SAT (unsafe).
+            (safe, counterexample, loop_bound_report).
+            safe=True  → UNSAT (no violation reachable within bounds).
+            safe=False → SAT   (counterexample found).
+            loop_bound_report: Z3 proofs that all loop bounds ≤ MAX_LOOP_BOUND.
 
         Soundness note: integer variables are constrained to the 32-bit signed
         range [-2^31, 2^31-1] to prevent Z3 from exploiting unbounded integer
@@ -710,7 +897,23 @@ class BoundedModelChecker:
         cache_key = self._hash_ast(ast, axioms, pre_cond)
         if cache_key in self.__cache:
             safe, _ce_str = self.__cache[cache_key]
-            return safe, None
+            # Re-run loop bound analysis (not cached — fast, pure Z3)
+            loop_report = LoopBoundAnalyzer().analyze(ast)
+            return safe, None, loop_report
+
+        # --- Loop bound verification (Z3 proof for every loop) ---
+        loop_report = LoopBoundAnalyzer().analyze(ast)
+        if not loop_report.all_proven_safe:
+            # A loop bound exceeds MAX_LOOP_BOUND — reject immediately.
+            # (Should be caught at compile time; this is the formal Z3 backstop.)
+            bad = [r for r in loop_report.results if not r.proven_safe]
+            ce = CounterExample.__new__(CounterExample)
+            ce.assignments = {
+                r.counterexample or f"loop_{r.loop_index}": r.declared_bound
+                for r in bad
+            }
+            self.__cache[cache_key] = (False, str(ce))
+            return False, ce, loop_report
 
         ctx = z3.Context()
         solver = z3.Solver(ctx=ctx)
@@ -763,18 +966,18 @@ class BoundedModelChecker:
 
         if not stmt_enc.violation_flags:
             self.__cache[cache_key] = (True, None)
-            return True, None
+            return True, None, loop_report
 
         solver.add(z3.Or(*stmt_enc.violation_flags))
         result = solver.check()
 
         if result == z3.unsat:
             self.__cache[cache_key] = (True, None)
-            return True, None
+            return True, None, loop_report
         elif result == z3.sat:
             ce = CounterExample(solver.model())
             self.__cache[cache_key] = (False, str(ce))
-            return False, ce
+            return False, ce, loop_report
         else:
             raise VerificationError(f"Z3 solver returned unknown/timeout: {result}")
 

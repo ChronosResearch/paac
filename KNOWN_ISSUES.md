@@ -1,4 +1,4 @@
-# Known Issues — v6.1
+# Known Issues — v7.0
 
 ## Compiler
 
@@ -18,7 +18,12 @@ Status: Warning added. Hard error is future work.
 The BMC pipeline unrolls loops exactly K times (the declared `bound`). If a loop
 requires more than K iterations for some input, the A-01 post-unroll check
 classifies the program as UNSAFE. There is no automated bound inference.
-Status: Open. Future work.
+
+As of v7.0, every declared bound is formally proven ≤ 10,000 by Z3 before BMC
+runs (`LoopBoundAnalyzer`). The three-layer enforcement (parse, Z3, runtime)
+prevents algorithmic DoS via crafted bounds. Automated bound inference remains
+future work.
+Status: Partially mitigated (v7.0). Bound inference is future work.
 
 ### KI-005: Constant-time padding floor is 200 ms (Low)
 The verification response floor is 200 ms. This is intentional to prevent

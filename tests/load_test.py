@@ -29,7 +29,7 @@ def run_one(i):
     bmc = BoundedModelChecker()
     t0 = time.monotonic()
     # Use _verify_inner directly for concurrent load test (avoids fork-under-threads issue)
-    bmc._verify_inner(ast, [], timeout_ms=5000)
+    bmc._verify_inner(ast, [], timeout_ms=5000)  # returns (safe, ce, loop_report)
     return time.monotonic() - t0
 
 

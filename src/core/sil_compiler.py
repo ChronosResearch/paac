@@ -1,7 +1,12 @@
 # Copyright (c) 2026 Shashank Kumar. All rights reserved.
+import os
 import re
 from dataclasses import dataclass
 from typing import Any, ClassVar
+
+# Global loop bound cap — mirrors sil_runtime.py and verifier.py.
+# Enforced at parse time so malformed SIL never reaches the BMC pipeline.
+SIL_MAX_LOOP_BOUND: int = int(os.environ.get("PAAC_MAX_LOOP_BOUND", "10000"))
 
 
 @dataclass
@@ -340,6 +345,11 @@ class SILParser:
         bound = int(bound_tok.value)
         if bound <= 0:
             raise SILError("Loop bound must be positive")
+        if bound > SIL_MAX_LOOP_BOUND:
+            raise SILError(
+                f"Loop bound {bound} exceeds global cap {SIL_MAX_LOOP_BOUND} "
+                f"(PAAC_MAX_LOOP_BOUND). Reduce the bound or raise the cap."
+            )
         self.consume("SYMBOL", "{")
         body = []
         while not self.match("SYMBOL", "}"):

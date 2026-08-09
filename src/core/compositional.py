@@ -340,7 +340,7 @@ class CompositionalVerifier:
         axioms = active[0].axioms if active else []
         for func_name, ast in asts.items():
             try:
-                safe, ce = self._bmc._verify_inner(ast, axioms, self._timeout_ms)
+                safe, ce, _lr = self._bmc._verify_inner(ast, axioms, self._timeout_ms)
                 isolation[func_name] = safe
                 if not safe:
                     logger.warning(
@@ -359,7 +359,7 @@ class CompositionalVerifier:
         comp_safe = False
         comp_ce = None
         try:
-            comp_safe, comp_ce = self._bmc._verify_inner(
+            comp_safe, comp_ce, _lr2 = self._bmc._verify_inner(
                 combined_ast, axioms, self._timeout_ms
             )
         except VerificationError as exc:

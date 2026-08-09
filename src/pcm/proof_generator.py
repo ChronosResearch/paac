@@ -345,7 +345,7 @@ class ProofGenerator:
 
         # Determine safety via Z3
         try:
-            safe, _ce = _CHECKER._verify_inner(ast, axioms, timeout_ms=self._timeout_ms)
+            safe, _ce, _lr = _CHECKER._verify_inner(ast, axioms, timeout_ms=self._timeout_ms)
         except Exception:  # noqa: BLE001
             safe = False
 

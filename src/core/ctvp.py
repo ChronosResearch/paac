@@ -309,7 +309,7 @@ class CTVPEngine:
         for name, transform in self.VARIANTS:
             try:
                 variant = transform(ast)
-                safe, ce = self._bmc._verify_inner(variant, axioms, self._timeout_ms)
+                safe, ce, _lr = self._bmc._verify_inner(variant, axioms, self._timeout_ms)
                 results.append(
                     VariantResult(
                         variant_name=name,

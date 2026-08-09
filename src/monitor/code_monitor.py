@@ -31,7 +31,7 @@ from ..core.failsafe import (
     wal_append,
     wal_load_latest,
 )
-from ..core.sil_compiler import SILCompiler
+from ..core.sil_compiler import SILCompiler, SILError as _SILError
 from ..core.tcb_protect import protect_tcb
 from ..core.verifier import BoundedModelChecker
 from ..core.verifier import (
@@ -378,7 +378,7 @@ class CodeMonitor:
                         )
                     return {"status": "rejected", "counterexample": ce_str}
 
-            except CompilationError as exc:
+            except (CompilationError, _SILError) as exc:
                 return {"status": "rejected", "error": f"Compilation failed: {exc}"}
             except (VerificationError, _VerifierError) as exc:
                 CodeMonitor._circuit_breaker.record_failure()
