@@ -1,50 +1,123 @@
 # PAAC — Provably Aligned AI Core v6.1
 
-**Status:** Research prototype — ready for evaluation.
+**376 tests passing · Ed25519 asymmetric attestation · Real AST-based BMC · 5 axioms · 43 mutants · 100% robustness**
 
-PAAC is a formal verification wrapper for self-modifying AI agents. It intercepts
-proposed code modifications, compiles them to the Safe Intermediate Language (SIL),
-and verifies them against safety axioms using the Z3 SMT solver. Only modifications
-that pass verification are accepted.
+PAAC is a deterministic safety wrapper for self-modifying AI agents. It intercepts every proposed code modification, compiles it to the Safe Intermediate Language (SIL), and verifies it against a set of safety axioms using the Z3 SMT solver via bounded model checking (BMC). Only modifications that produce an UNSAT result are accepted and applied.
 
-Paper: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218
-License: All rights reserved — Shashank Kumar
+Paper: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218  
+License: Copyright © 2026 Shashank Kumar. All rights reserved.
 
 ---
 
-## Overview
+## Architecture
 
-PAAC sits between an AI agent and its own codebase. Every proposed modification is
-compiled to SIL and checked against a set of safety axioms before it is applied.
-Modifications that violate an axiom are rejected with a counterexample. Accepted
-modifications receive a cryptographic certificate and are recorded in an audit log.
+```
++------------------+     +-----------------+     +---------------------+     +------------------+
+|   Inner Agent    | --> |  Code Monitor   | --> | Verification Engine | --> |   Attestation    |
++------------------+     +-----------------+     +---------------------+     +------------------+
+                                                          |                           |
+                                                          v                           v
+                                               +---------------------+     +------------------+
+                                               | Safety Property DB  |     |  Ed25519 Cert    |
+                                               +---------------------+     |  Store / Export  |
+                                                                           +------------------+
+```
+
+Every proposed code change is:
+1. Compiled to SIL (lexed, parsed, type-checked, CFG-built)
+2. SSA-encoded and loop-unrolled into a Z3 BMC query
+3. Checked against safety axioms: `BMC(f,k) = pre_f ∧ semantics(f,k) ∧ violation`
+4. If UNSAT → accepted, Ed25519-signed attestation record generated
+5. If SAT → rejected with counterexample, rollback triggered
 
 ---
 
-## Features
+## Core Verification Engine
 
-**Core**
-- SSA-encoded bounded model checking (BMC) with Z3
-- Safe Intermediate Language (SIL) — lexer, parser, type checker, CFG builder
-- Compile-time checks: no recursion, no duplicate parameters, bounded loops
-- Constant-time verification response (200 ms floor — intentional, not a performance claim)
-- Runtime monitor — post-hoc axiom checking on SIL execution traces
-- Bootstrap self-verification — PAAC verifies its own trusted computing base
+**Real AST-based BMC** — not string matching or pattern heuristics:
 
-**Upgrade**
-- Proof-Carrying Modification (PCM) — agent submits a formal proof; PAAC checks the proof, not the code, in under 10 ms
-- Cryptographic certificates — every accepted modification is HMAC-SHA256 signed and auditable
-- Axiom mutation testing — systematic mutation operators; 100% robustness score on the default axiom set
-- Axiom coverage metric — quantifies which axioms are exercised by a given SIL program
-- CEGAR axiom repair — counterexample-guided automatic axiom strengthening
-- Differential verification — proves a new code version is a conservative extension of the old one
-- Probabilistic verification — Monte Carlo sampling over bounded domains
+- SIL source → `SILLexer` → `SILParser` → `ProgramNode` AST
+- `SILTypeChecker`: duplicate params, undefined variables, type mismatches, no-return warnings
+- Call-graph DFS cycle detection (no recursion, direct or mutual)
+- `SSAEnv`: full SSA form with phi-node merges at if/else join points
+- `StmtEncoder`: loop unrolling up to declared bound (global cap: 10,000 iterations)
+- `ExprEncoder`: translates every SIL operator to a Z3 expression
+- All integer parameters constrained to 32-bit signed range `[-2³¹, 2³¹-1]` for soundness
+- `pre_cond` encoded as a Z3 solver assertion (input constraint, not a violation flag), implementing the paper §3.4 BMC formula exactly
 
-**Operational**
-- Watchdog, circuit breaker, write-ahead log (WAL), Redis fallback
-- Cryptographic attestation with HMAC-SHA256 and key rotation
-- Multi-agent registry with crash recovery and conflict detection
-- Rate limiting, API key authentication, Prometheus metrics
+**Axiom encoding** uses the live `SSAEnv` so body-assigned sentinel variables (`exit_called`, `network_calls`) are resolved to their current SSA values — not fresh unconstrained Z3 variables. This is the correct semantics for integrity and behavioral safety axioms.
+
+---
+
+## Safety Axioms (5)
+
+| Axiom | Condition | Scope |
+|---|---|---|
+| `no_negative_balance` | `balance >= 0` | financial functions |
+| `counter_in_range` | `counter >= 0` | counter functions |
+| `result_bounded` | `result >= 0` | compute functions |
+| `no_exit` | `exit_called == 0` | all functions |
+| `no_network` | `network_calls == 0` | all functions |
+
+Axiom mutation testing: **43 mutants across 5 axioms, 100% robustness score**. Every mutation of every axiom changes at least one verification outcome. No axiom is vacuous.
+
+---
+
+## Novel Extensions
+
+### 1. Bootstrap Self-Verification (§4.1)
+PAAC verifies its own TCB. Six SIL stubs encode the safety contracts of the core TCB functions. Each stub is verified against `SELF_AXIOMS` (structural invariants: timeout positive, loop bound positive, safe flag non-negative, cache key non-empty). If all stubs return UNSAT, PAAC's structural invariants hold for all valid inputs.
+
+- CLI: `--self-verify`
+- REST: `POST /self-verify`
+- 6 stubs verified, all UNSAT
+
+### 2. Proof-Carrying Modification — PCM (§4.2)
+The agent submits a formal proof alongside every code modification. PAAC verifies the proof (not the code) using an independent AST-based proof checker — no Z3 invoked.
+
+- Proof checker uses Python `ast` module for independent expression evaluation (not string matching)
+- Interval arithmetic symbolic environment tracks per-variable bounds
+- Target: **< 10 ms per proof** (measured: typically 1–3 ms)
+- Proof language: `Assume`, `Assign`, `Assert`, `ApplyAxiom`, `BranchSafe`, `LoopInvariant`, `Conclude`
+- PCM certificates appended to `pcm_audit.jsonl`
+
+### 3. Cryptographic Attestation — Ed25519 (§4.3)
+Every accepted modification receives an **Ed25519 asymmetric signature** (not HMAC). The private key signs; any holder of the public key can verify without trusting PAAC.
+
+- Signed payload: `SHA-256(canonical_json(modification_id, program_hash, axiom_hash, result, ce_hash, timestamp, proof_hash, version))`
+- `proof_hash`: SHA-256 of the PCM proof JSON, included in the signed payload when PCM mode is active — tampering with the proof invalidates the Ed25519 signature
+- Key rotation supported: old attestations remain verifiable with the old public key
+- Thread-safe, < 5 ms per attestation
+- Set `PAAC_ATTEST_PRIVATE_KEY` (PEM) for persistent keys; ephemeral keypair generated otherwise
+
+### 4. CEGAR Axiom Repair (§4.4)
+When verification returns SAT, PAAC extracts the counterexample and proposes a strengthened axiom that eliminates it. The repair is accepted only if it does not reduce the mutation testing robustness score.
+
+### 5. Differential Verification (§4.5)
+Proves that a new function version is a conservative extension of the old version: it satisfies all the same axioms and introduces no new violation paths. Returns a formal proof or counterexample.
+
+### 6. Axiom Mutation Testing & Coverage (§4.6)
+Systematic mutation operators: negate, weaken_op, strengthen_op, shift_const (±1, ±5), vacuous, noop.
+
+- 43 mutants across 5 axioms
+- Robustness score = fraction of non-noop mutants killed
+- Vacuous detection: if the vacuous mutant (condition=`true`) survives, robustness = 0%
+- Axiom coverage: instruments the verifier to record which axioms fire during verification
+
+---
+
+## Trusted Computing Base (TCB)
+
+~2,400 lines across six core modules:
+
+| Module | Lines | Responsibility |
+|---|---|---|
+| `verifier.py` | ~780 | BMC pipeline, SSA encoding, Z3 integration |
+| `sil_compiler.py` | ~695 | Lexer, parser, type checker, CFG builder |
+| `sil_runtime.py` | ~170 | Runtime execution, bounds checking |
+| `code_monitor.py` | ~485 | Interception, axiom filtering, rollback |
+| `failsafe.py` | ~185 | Circuit breaker, WAL, watchdog |
+| `tcb_protect.py` | ~105 | TCB file protection (chmod read-only at startup) |
 
 ---
 
@@ -54,26 +127,18 @@ modifications receive a cryptographic certificate and are recorded in an audit l
 
 ```bash
 docker build -t paac:v6.1 -f docker/Dockerfile .
-docker run --rm --memory=2g -e PAAC_API_KEY=changeme paac:v6.1 \
-  python3.11 -m pytest tests/ -v
-```
-
-### Docker Compose
-
-```bash
-cp .env.example .env
-# Edit .env — set PAAC_API_KEY, PAAC_CERT_KEY, PAAC_ATTEST_KEY
-docker-compose -f docker/docker-compose.yml up --build
+docker run --rm --memory=2g -e PAAC_API_KEY=changeme paac:v6.1
 ```
 
 ### Local
 
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
+
+Expected: **376 tests pass.**
 
 ---
 
@@ -85,77 +150,70 @@ PYTHONPATH=. python3.11 -m pytest tests/ -v
 | `/health` | GET | Service health (healthy / degraded / unhealthy) |
 | `/metrics` | GET | Prometheus metrics |
 | `/self-verify` | POST | Bootstrap self-verification of the TCB |
-| `/attest/{id}` | GET | Retrieve attestation record by modification ID |
+| `/attest/{id}` | GET | Retrieve Ed25519 attestation record by modification ID |
 | `/attest/verify` | POST | Verify an attestation commitment |
 | `/agents` | GET | List registered agents and their status |
 
-All `/verify` requests require the `X-API-Key` header when `PAAC_API_KEY` is set.
+All `/verify` requests require the `X-API-Key` header when `PAAC_API_KEY` is set. Key comparison uses `secrets.compare_digest` (constant-time).
 
 ---
 
 ## Configuration
 
-All runtime configuration is via environment variables. See `.env.example` for
-generation instructions.
-
 | Variable | Default | Description |
 |---|---|---|
 | `PAAC_API_KEY` | *(empty — no auth)* | API authentication key |
-| `PAAC_CERT_KEY` | *(insecure default)* | HMAC key for PCM certificates — must be changed |
-| `PAAC_ATTEST_KEY` | *(ephemeral)* | HMAC key for attestation records |
-| `PAAC_PCM_MODE` | `false` | Require a proof with every modification |
+| `PAAC_ATTEST_PRIVATE_KEY` | *(ephemeral)* | PEM-encoded Ed25519 private key for attestation signing |
+| `PAAC_ATTEST_PUBLIC_KEY` | *(derived)* | PEM-encoded Ed25519 public key for verification |
+| `PAAC_CERT_KEY` | *(insecure default)* | HMAC key for PCM certificates — change before deployment |
+| `PAAC_PCM_MODE` | `false` | Require a formal proof with every modification |
 | `PAAC_PCM_LOG` | `pcm_audit.jsonl` | PCM certificate audit log path |
-| `REDIS_HOST` | `redis` | Redis hostname |
+| `REDIS_HOST` | `redis` | Redis hostname (falls back to WAL if unavailable) |
 | `PAAC_RATE_LIMIT` | `100` | Requests per minute per IP |
 | `PAAC_MAX_LOOP_BOUND` | `10000` | Global loop unrolling cap |
 | `PAAC_WATCHDOG_TIMEOUT` | `60` | Watchdog stall timeout (seconds) |
 
 ---
 
-## Running Tests
+## Operational Features
 
-```bash
-PYTHONPATH=. python3.11 -m pytest tests/ -v
-```
-
-Expected: **355 tests pass.**
+- **Watchdog**: two-thread design (liveness stamps every second, monitor checks every 5 s) — no false alarms during idle
+- **Circuit breaker**: 5 failures → OPEN, 60 s cooldown, automatic reset
+- **WAL**: JSON-lines write-ahead log, atomic registry save, crash-resilient rollback
+- **Redis fallback**: degrades to in-memory WAL with warning when Redis is unavailable
+- **Rate limiting**: 100 req/min/IP (configurable)
+- **Prometheus metrics**: counters, histograms, gauges for verifications, attestations, circuit breaker state
+- **Constant-time response**: 200 ms floor on all verification responses (timing side-channel resistance, §3.5)
+- **Z3 subprocess isolation**: each verification runs in a separate process with OS resource limits (1 GB AS, 5 s CPU on Linux), authenticated IPC token, 3-retry crash recovery
 
 ---
 
 ## Known Limitations
 
-See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full list.
+- Loop bounds must be declared manually in SIL source; no automated inference
+- BMC is sound only when declared bound ≥ actual iteration count needed for termination
+- SIL does not support heap allocation, pointer aliasing, or concurrency
+- TCB protection is filesystem `chmod` only — not kernel-level memory protection
+- Ed25519 provides integrity and non-repudiation; it does not provide zero-knowledge proofs (future: SNARKs)
+- Z3 memory limits enforced on Linux only (not macOS)
 
-- Verification response floor is 200 ms (constant-time padding — by design)
-- Loop bounds must be specified manually; no automated inference
-- SIL does not support heap allocation, pointers, or concurrency
-- TCB protection is filesystem chmod only, not kernel-level memory protection
-- Z3 memory limits are not enforced on macOS (Linux only)
-- Default HMAC keys are insecure — must be replaced before any deployment
+See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full list.
 
 ---
 
 ## Documentation
 
-- [Deployment Guide](docs/DEPLOYMENT.md)
+- [SIL Architecture](docs/SIL_ARCHITECTURE.md)
 - [PCM Architecture](docs/PCM_ARCHITECTURE.md)
 - [Proof Language Spec](docs/PROOF_LANGUAGE.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 - [Production Runbook](docs/PRODUCTION_RUNBOOK.md)
 - [Security Policy](SECURITY.md)
 - [Audit Findings](AUDIT_FINDINGS.md)
 
 ---
 
-## License
-
-Copyright (c) 2026 Shashank Kumar. All rights reserved.
-
-This software is proprietary and confidential. No license is granted to any
-person or entity to use, copy, modify, merge, publish, distribute, sublicense,
-or sell copies of the software.
-
----
-
 ## Contact
 
-Shashank Kumar
+Shashank Kumar — shashankchoudhary792@gmail.com  
+Repository: https://github.com/ChronosResearch/paac
