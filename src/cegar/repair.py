@@ -220,7 +220,7 @@ def repair_axiom(
         current_axioms = other_axioms + [current_axiom]
 
         try:
-            safe, ce = bmc._verify_inner(ast, current_axioms, timeout_ms)
+            safe, ce, _loop_report = bmc._verify_inner(ast, current_axioms, timeout_ms)
         except VerificationError as exc:
             logger.warning(f"CEGAR iter {iteration}: verification error: {exc}")
             break
@@ -294,7 +294,7 @@ def repair_axiom(
                 target_functions=list(current_axiom.target_functions),
             )
             try:
-                re_safe, _ = bmc._verify_inner(
+                re_safe, _, _lr = bmc._verify_inner(
                     ast, other_axioms + [candidate_axiom], timeout_ms
                 )
             except VerificationError:

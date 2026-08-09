@@ -464,8 +464,9 @@ class SelfVerifier:
                            for v in _stub_params)
                 ]
                 _pre_cond = " and ".join(_applicable_pre) if _applicable_pre else ""
-                safe, ce = self._bmc._verify_inner(
-                    ast, SELF_AXIOMS, self._timeout_ms, pre_cond=_pre_cond
+                safe, ce, _lr = self._bmc._verify_inner(
+                    ast, SELF_AXIOMS, self._timeout_ms,
+                    pre_cond=_pre_cond,
                 )
                 stub_results[name] = safe
                 ce_str = str(ce) if ce else None

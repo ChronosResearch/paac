@@ -276,7 +276,7 @@ def _run_probe(probe: Probe, axiom: Axiom, bmc: BoundedModelChecker) -> ProbeRes
     t0 = time.monotonic()
     try:
         ast = _compile(probe.sil_code)
-        safe, _ = bmc._verify_inner(ast, [axiom], timeout_ms=5000)
+        safe, _, _lr = bmc._verify_inner(ast, [axiom], timeout_ms=5000)
         elapsed = (time.monotonic() - t0) * 1000
         return ProbeResult(
             probe=probe,

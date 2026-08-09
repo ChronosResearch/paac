@@ -327,12 +327,12 @@ def test_precond_makes_unsafe_program_safe():
     bmc = BoundedModelChecker()
 
     # Without precondition: Z3 picks x=-1 → UNSAFE
-    safe_no_pre, ce_no_pre = bmc._verify_inner(ast, [], 5000, pre_cond="")
+    safe_no_pre, ce_no_pre, _ = bmc._verify_inner(ast, [], 5000, pre_cond="")
     assert safe_no_pre is False, "Without pre_cond should be UNSAFE"
     assert ce_no_pre is not None
 
     # With precondition x >= 0: no counterexample exists → SAFE
-    safe_with_pre, ce_with_pre = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 0")
+    safe_with_pre, ce_with_pre, _ = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 0")
     assert safe_with_pre is True, (
         f"With pre_cond='x >= 0' should be SAFE (UNSAT); got ce={ce_with_pre}"
     )
@@ -364,8 +364,8 @@ def test_precond_empty_string_is_noop():
     }
     """)
     bmc = BoundedModelChecker()
-    safe_empty, _ = bmc._verify_inner(ast, [], 5000, pre_cond="")
-    safe_none, _ = bmc._verify_inner(ast, [], 5000)
+    safe_empty, _, _lr = bmc._verify_inner(ast, [], 5000, pre_cond="")
+    safe_none, _, _lr2 = bmc._verify_inner(ast, [], 5000)
     assert safe_empty == safe_none
 
 
@@ -387,7 +387,7 @@ def test_precond_tighter_than_assertion():
     }
     """)
     bmc = BoundedModelChecker()
-    safe, ce = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 10")
+    safe, ce, _ = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 10")
     assert safe is True, (
         f"pre_cond='x >= 10' implies x >= 0; should be SAFE; got ce={ce}"
     )
@@ -402,7 +402,7 @@ def test_precond_does_not_mask_assert_false():
     }
     """)
     bmc = BoundedModelChecker()
-    safe, ce = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 0")
+    safe, ce, _ = bmc._verify_inner(ast, [], 5000, pre_cond="x >= 0")
     assert safe is False, "assert false is always UNSAFE regardless of pre_cond"
     assert ce is not None
 
@@ -418,7 +418,7 @@ def test_no_exit_axiom_body_assigned_unsafe():
     bmc = BoundedModelChecker()
     axiom = Axiom("no_exit", "", "exit_called == 0", ["*"])
     ast, _ = c.compile("func f(x: int) -> int { exit_called = 1; return exit_called; }")
-    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    safe, ce, _ = bmc._verify_inner(ast, [axiom], 5000)
     assert not safe, "exit_called=1 in body must be UNSAFE under no_exit axiom"
 
 
@@ -429,7 +429,7 @@ def test_no_exit_axiom_body_assigned_safe():
     bmc = BoundedModelChecker()
     axiom = Axiom("no_exit", "", "exit_called == 0", ["*"])
     ast, _ = c.compile("func f(x: int) -> int { exit_called = 0; return exit_called; }")
-    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    safe, ce, _ = bmc._verify_inner(ast, [axiom], 5000)
     assert safe, "exit_called=0 in body must be SAFE under no_exit axiom"
 
 
@@ -440,7 +440,7 @@ def test_no_exit_axiom_param_unsafe():
     bmc = BoundedModelChecker()
     axiom = Axiom("no_exit", "", "exit_called == 0", ["*"])
     ast, _ = c.compile("func f(exit_called: int) -> int { return exit_called; }")
-    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    safe, ce, _ = bmc._verify_inner(ast, [axiom], 5000)
     assert not safe, "unconstrained exit_called param must be UNSAFE under no_exit axiom"
 
 
@@ -451,7 +451,7 @@ def test_no_network_axiom_body_assigned_unsafe():
     bmc = BoundedModelChecker()
     axiom = Axiom("no_network", "", "network_calls == 0", ["*"])
     ast, _ = c.compile("func f(x: int) -> int { network_calls = 1; return network_calls; }")
-    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    safe, ce, _ = bmc._verify_inner(ast, [axiom], 5000)
     assert not safe, "network_calls=1 in body must be UNSAFE under no_network axiom"
 
 
@@ -462,5 +462,157 @@ def test_no_network_axiom_body_assigned_safe():
     bmc = BoundedModelChecker()
     axiom = Axiom("no_network", "", "network_calls == 0", ["*"])
     ast, _ = c.compile("func f(x: int) -> int { network_calls = 0; return network_calls; }")
-    safe, ce = bmc._verify_inner(ast, [axiom], 5000)
+    safe, ce, _ = bmc._verify_inner(ast, [axiom], 5000)
     assert safe, "network_calls=0 in body must be SAFE under no_network axiom"
+
+
+# ---------------------------------------------------------------------------
+# Tests: Bounded Loop Verification (v7.0) — Z3 proofs for loop bounds
+# ---------------------------------------------------------------------------
+
+from src.core.verifier import LoopBoundAnalyzer, LoopBoundReport, analyze_loop_bounds
+
+
+def test_loop_bound_analyzer_no_loops():
+    """Program with no loops produces empty report, all_proven_safe=True."""
+    c = SILCompiler()
+    ast, _ = c.compile("func f(x: int) -> int { return x; }")
+    report = analyze_loop_bounds(ast)
+    assert report.all_proven_safe is True
+    assert report.results == []
+    assert report.max_bound_seen == 0
+
+
+def test_loop_bound_analyzer_single_loop_within_cap():
+    """Single loop with bound=5 is proven safe by Z3 (UNSAT on >10000)."""
+    c = SILCompiler()
+    ast, _ = c.compile(
+        "func f(x: int) -> int { while (x > 0) bound 5 { x = x - 1; } return x; }"
+    )
+    report = analyze_loop_bounds(ast)
+    assert report.all_proven_safe is True
+    assert len(report.results) == 1
+    assert report.results[0].declared_bound == 5
+    assert report.results[0].proven_safe is True
+    assert report.results[0].max_allowed == 10_000
+    assert report.max_bound_seen == 5
+
+
+def test_loop_bound_analyzer_max_cap_exactly():
+    """Loop with bound=10000 (exactly at cap) is proven safe."""
+    c = SILCompiler()
+    ast, _ = c.compile(
+        "func f(x: int) -> int { while (x > 0) bound 10000 { x = x - 1; } return x; }"
+    )
+    report = analyze_loop_bounds(ast)
+    assert report.all_proven_safe is True
+    assert report.results[0].declared_bound == 10_000
+    assert report.results[0].proven_safe is True
+
+
+def test_loop_bound_compiler_rejects_over_cap():
+    """SILCompiler rejects bound=10001 at parse time (before BMC)."""
+    from src.core.sil_compiler import SILError
+    c = SILCompiler()
+    with pytest.raises(SILError, match="exceeds global cap"):
+        c.compile(
+            "func f(x: int) -> int { while (x > 0) bound 10001 { x = x - 1; } return x; }"
+        )
+
+
+def test_loop_bound_compiler_rejects_zero_bound():
+    """SILCompiler rejects bound=0 at parse time."""
+    from src.core.sil_compiler import SILError
+    c = SILCompiler()
+    with pytest.raises(SILError, match="positive"):
+        c.compile(
+            "func f(x: int) -> int { while (x > 0) bound 0 { x = x - 1; } return x; }"
+        )
+
+
+def test_loop_bound_analyzer_nested_loops():
+    """Nested loops: both bounds proven safe, max_bound_seen is outer bound."""
+    c = SILCompiler()
+    code = """func f(x: int) -> int {
+        while (x > 0) bound 10 {
+            x = x - 1;
+            while (x > 0) bound 3 {
+                x = x - 1;
+            }
+        }
+        return x;
+    }"""
+    ast, _ = c.compile(code)
+    report = analyze_loop_bounds(ast)
+    assert report.all_proven_safe is True
+    assert len(report.results) == 2
+    bounds = {r.declared_bound for r in report.results}
+    assert bounds == {10, 3}
+    assert report.max_bound_seen == 10
+
+
+def test_loop_bound_analyzer_multiple_functions():
+    """Multiple functions each with loops: all proven safe."""
+    c = SILCompiler()
+    code = """func f(x: int) -> int {
+        while (x > 0) bound 7 { x = x - 1; }
+        return x;
+    }
+    func g(y: int) -> int {
+        while (y > 0) bound 4 { y = y - 1; }
+        return y;
+    }"""
+    ast, _ = c.compile(code)
+    report = analyze_loop_bounds(ast)
+    assert report.all_proven_safe is True
+    assert len(report.results) == 2
+    assert report.max_bound_seen == 7
+
+
+def test_loop_bound_report_summary():
+    """LoopBoundReport.summary() returns a human-readable string."""
+    c = SILCompiler()
+    ast, _ = c.compile(
+        "func f(x: int) -> int { while (x > 0) bound 5 { x = x - 1; } return x; }"
+    )
+    report = analyze_loop_bounds(ast)
+    summary = report.summary()
+    assert "1/1" in summary
+    assert "10000" in summary
+
+
+def test_loop_bound_verify_inner_returns_report():
+    """_verify_inner returns LoopBoundReport as third element."""
+    c = SILCompiler()
+    bmc = BoundedModelChecker()
+    ast, _ = c.compile(
+        "func f(x: int) -> int { while (x > 0) bound 5 { x = x - 1; } return x; }"
+    )
+    safe, ce, loop_report = bmc._verify_inner(ast, [], 5000)
+    assert isinstance(loop_report, LoopBoundReport)
+    assert loop_report.all_proven_safe is True
+    assert loop_report.max_bound_seen == 5
+
+
+def test_loop_bound_dos_prevention_end_to_end():
+    """End-to-end: code_monitor rejects SIL with bound > 10000 at compile time."""
+    from src.monitor.code_monitor import CodeModification
+    import os, tempfile
+    config = {
+        "axiom_path": "config/axioms.yaml",
+        "grounding": {"require_source_citations": False},
+        "verification_timeout_ms": 5000,
+    }
+    from src.monitor.code_monitor import CodeMonitor
+    monitor = CodeMonitor(config)
+    monitor.stop_watchdog()
+    mod = CodeModification(
+        func_name="dos_func",
+        old_code="",
+        new_code="func dos_func(x: int) -> int { while (x > 0) bound 10001 { x = x - 1; } return x; }",
+        pre_cond="",
+        post_cond="",
+        source_citation="",
+    )
+    result = monitor.intercept_modification(mod)
+    assert result["status"] in ("rejected", "error")

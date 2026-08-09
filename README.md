@@ -1,8 +1,8 @@
-# PAAC — Provably Aligned AI Core v6.1
+# PAAC — Provably Aligned AI Core v7.0
 
-**376 tests passing · Ed25519 asymmetric attestation · Real AST-based BMC · 5 axioms · 43 mutants · 100% robustness**
+**386 tests passing · Ed25519 asymmetric attestation · Real AST-based BMC · Bounded Loop Verification · 5 axioms · 43 mutants · 100% robustness**
 
-PAAC is a deterministic safety wrapper for self-modifying AI agents. It intercepts every proposed code modification, compiles it to the Safe Intermediate Language (SIL), and verifies it against a set of safety axioms using the Z3 SMT solver via bounded model checking (BMC). Only modifications that produce an UNSAT result are accepted and applied.
+PAAC is a deterministic safety wrapper for self-modifying AI agents. It intercepts every proposed code modification, compiles it to the Safe Intermediate Language (SIL), and verifies it against safety axioms using Z3 SMT-based bounded model checking. Only modifications that produce an UNSAT result are accepted.
 
 Paper: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218  
 License: Copyright © 2026 Shashank Kumar. All rights reserved.
@@ -44,8 +44,21 @@ Every proposed code change is:
 - `ExprEncoder`: translates every SIL operator to a Z3 expression
 - All integer parameters constrained to 32-bit signed range `[-2³¹, 2³¹-1]` for soundness
 - `pre_cond` encoded as a Z3 solver assertion (input constraint, not a violation flag), implementing the paper §3.4 BMC formula exactly
+- Axiom encoding uses the live `SSAEnv` so body-assigned sentinel variables (`exit_called`, `network_calls`) resolve to their current SSA values
 
-**Axiom encoding** uses the live `SSAEnv` so body-assigned sentinel variables (`exit_called`, `network_calls`) are resolved to their current SSA values — not fresh unconstrained Z3 variables. This is the correct semantics for integrity and behavioral safety axioms.
+### Bounded Loop Verification (v7.0 — DoS Prevention)
+
+Every loop bound is **formally proven by Z3** before BMC runs:
+
+- `LoopBoundAnalyzer` creates a Z3 Int equal to the declared bound and checks `bound > MAX_LOOP_BOUND` (UNSAT = proven safe)
+- Produces a `LoopBoundReport` with per-loop `LoopBoundResult` entries — a verifiable certificate for every loop
+- Three-layer enforcement:
+  1. **Parse time** (`SILParser`): rejects `bound > 10,000` or `bound ≤ 0` immediately
+  2. **Z3 proof** (`LoopBoundAnalyzer`): formal UNSAT certificate per loop before BMC
+  3. **Runtime** (`SILRuntime`): enforces cap during execution as final backstop
+- `_verify_inner` returns `(safe, counterexample, LoopBoundReport)` — loop proof travels with every verification result
+- Nested loops and multi-function programs fully supported
+- `analyze_loop_bounds(ast)` available as a standalone API
 
 ---
 
@@ -138,7 +151,7 @@ pip install -r requirements.txt
 PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-Expected: **376 tests pass.**
+Expected: **386 tests pass.**
 
 ---
 
@@ -170,7 +183,7 @@ All `/verify` requests require the `X-API-Key` header when `PAAC_API_KEY` is set
 | `PAAC_PCM_LOG` | `pcm_audit.jsonl` | PCM certificate audit log path |
 | `REDIS_HOST` | `redis` | Redis hostname (falls back to WAL if unavailable) |
 | `PAAC_RATE_LIMIT` | `100` | Requests per minute per IP |
-| `PAAC_MAX_LOOP_BOUND` | `10000` | Global loop unrolling cap |
+| `PAAC_MAX_LOOP_BOUND` | `10000` | Global loop bound cap (parse + Z3 + runtime) |
 | `PAAC_WATCHDOG_TIMEOUT` | `60` | Watchdog stall timeout (seconds) |
 
 ---

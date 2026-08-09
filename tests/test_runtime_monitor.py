@@ -158,7 +158,7 @@ def test_static_safe_runtime_safe():
     ast, _ = COMPILER.compile(code)
 
     bmc = BoundedModelChecker()
-    static_safe, _ = bmc._verify_inner(ast, [], 5000)
+    static_safe, _, _lr = bmc._verify_inner(ast, [], 5000)
     assert static_safe is True
 
     monitor = RuntimeMonitor(ast)
