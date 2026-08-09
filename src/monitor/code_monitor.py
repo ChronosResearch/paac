@@ -344,7 +344,8 @@ class CodeMonitor:
 
                 with _VERIFY_SEMAPHORE:
                     safe, counterexample = self.checker.verify(
-                        ast, applicable, timeout_ms=self.timeout_ms
+                        ast, applicable, timeout_ms=self.timeout_ms,
+                        pre_cond=mod.pre_cond,
                     )
 
                 if safe:
@@ -431,6 +432,7 @@ class CodeMonitor:
 
         # Proof accepted -- generate certificate and apply modification
         import time as _time
+        import hashlib as _hashlib
         mod_id = f"{mod.func_name}:{int(_time.time())}"
         cert = generate_certificate(
             modification_id=mod_id,
@@ -440,6 +442,24 @@ class CodeMonitor:
             axioms_covered=check_result.covered_axioms,
         )
         self._pcm_store.save(cert)
+
+        # Also generate Ed25519 attestation with proof_hash (paper §4.3).
+        # This gives third parties a single verifiable record covering both
+        # the code hash and the proof hash under the same Ed25519 key.
+        try:
+            from src.core.attestation import get_engine as _get_attest_engine
+            _engine = _get_attest_engine()
+            _prog_hash = _hashlib.sha256(mod.new_code.encode()).hexdigest()
+            _axiom_hash = _engine.hash_axioms([a.condition for a in applicable])
+            _proof_hash = _hashlib.sha256(
+                json.dumps(mod.proof, sort_keys=True).encode()
+            ).hexdigest()
+            _engine.attest(
+                mod_id, _prog_hash, _axiom_hash, True, None,
+                proof_hash=_proof_hash,
+            )
+        except Exception as _ae:  # noqa: BLE001
+            logger.warning(f"PCM attestation generation failed (non-fatal): {_ae}")
 
         CodeMonitor._circuit_breaker.record_success()
         CodeMonitor._live_registry[mod.func_name] = mod.new_code

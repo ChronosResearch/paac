@@ -227,17 +227,17 @@ class StmtEncoder:
         self.env = env
         self.expr_enc = ExprEncoder(ctx, env)
         self.violation_flags: list[z3.BoolRef] = []
-        self._loop_exit_path: z3.BoolRef | None = None
+        self._post_loop_path: z3.BoolRef | None = None
 
     def encode_stmts(self, stmts: list[ASTNode], path_cond: z3.BoolRef) -> None:
         """Encode a list of SIL statements under *path_cond*, threading loop-exit paths."""
         current_path = path_cond
         for stmt in stmts:
-            self._loop_exit_path = None
+            self._post_loop_path = None
             self._encode_stmt(stmt, current_path)
-            if self._loop_exit_path is not None:
-                current_path = self._loop_exit_path
-                self._loop_exit_path = None
+            if self._post_loop_path is not None:
+                current_path = self._post_loop_path
+                self._post_loop_path = None
 
     def _encode_stmt(self, stmt: ASTNode, path_cond: z3.BoolRef) -> None:
         if isinstance(stmt, AssignmentStmtNode):
@@ -293,11 +293,12 @@ class StmtEncoder:
             # A-01 fix: if the loop condition is still true after all K
             # iterations the loop never exited within the declared bound —
             # that is UNSAFE (runtime would raise LoopBoundExceeded).
+            # Appended exactly ONCE to avoid spurious double-counting (C-01).
             self.expr_enc = ExprEncoder(self.ctx, self.env)
             post_loop_cond = self.expr_enc.encode(stmt.condition)
             still_running = z3.And(current_path, post_loop_cond)
             self.violation_flags.append(still_running)
-            self._loop_exit_path = z3.And(entry_path, z3.Not(entry_loop_cond))
+            self._post_loop_path = z3.And(entry_path, z3.Not(entry_loop_cond))
 
         else:
             pass
@@ -446,13 +447,14 @@ def _subprocess_worker(
     cache: dict[str, tuple[bool, str | None]],
     ipc_token: bytes,
     conn: "multiprocessing.connection.Connection",
+    pre_cond: str = "",
 ) -> None:
     """Entry point for the isolated Z3 subprocess."""
     _apply_resource_limits()
     checker = BoundedModelChecker()
     checker._cache_update(dict(cache))
     try:
-        safe, ce = checker._verify_inner(ast, axioms, timeout_ms)
+        safe, ce = checker._verify_inner(ast, axioms, timeout_ms, pre_cond=pre_cond)
         ce_dict = (
             {k: str(v) for k, v in ce.assignments.items()} if ce is not None else None
         )
@@ -481,8 +483,8 @@ class BoundedModelChecker:
         """Merge verified results into the internal cache."""
         self.__cache.update(updates)
 
-    def _hash_ast(self, ast: ProgramNode, axioms: list[Axiom]) -> str:
-        """Compute a canonical SHA-256 cache key from the AST and axiom set."""
+    def _hash_ast(self, ast: ProgramNode, axioms: list[Axiom], pre_cond: str = "") -> str:
+        """Compute a canonical SHA-256 cache key from the AST, axiom set, and precondition."""
 
         def _node_to_dict(node: Any) -> Any:
             if isinstance(node, list):
@@ -503,6 +505,7 @@ class BoundedModelChecker:
                 {"id": a.id, "condition": a.condition}
                 for a in sorted(axioms, key=lambda x: x.id)
             ],
+            "pre_cond": pre_cond.strip(),
         }
         canonical = json.dumps(payload, sort_keys=True, default=str)
         return hashlib.sha256(canonical.encode()).hexdigest()
@@ -512,11 +515,15 @@ class BoundedModelChecker:
         ast: ProgramNode,
         axioms: list[Axiom],
         timeout_ms: int = 5000,
+        pre_cond: str = "",
     ) -> tuple[bool, "CounterExample | None"]:
         """
         Returns (safe, counterexample).
         safe=True  -> UNSAT (no violation reachable within bounds).
         safe=False -> SAT   (counterexample found).
+        pre_cond: SIL expression constraining the input space (paper §3.4).
+                  Encoded as a Z3 solver assertion — only inputs satisfying
+                  pre_cond are considered. Empty string = unconstrained.
         Raises VerificationError on solver timeout / unknown result.
         Falls back to static analyzer if Z3 subprocess fails (Step 33).
         Structured logging for every attempt (Steps 34-35).
@@ -525,7 +532,7 @@ class BoundedModelChecker:
         func_names = [f.name for f in ast.functions]
         axiom_ids = [a.id for a in axioms]
         try:
-            result = self._verify_subprocess(ast, axioms, timeout_ms)
+            result = self._verify_subprocess(ast, axioms, timeout_ms, pre_cond=pre_cond)
             elapsed = time.monotonic() - start
             safe, ce = result
             logger.info(
@@ -576,6 +583,7 @@ class BoundedModelChecker:
         ast: ProgramNode,
         axioms: list[Axiom],
         timeout_ms: int,
+        pre_cond: str = "",
     ) -> tuple[bool, "CounterExample | None"]:
         """Run _verify_inner in an isolated subprocess with OS resource limits."""
         last_exc: Exception | None = None
@@ -584,7 +592,7 @@ class BoundedModelChecker:
             parent_conn, child_conn = multiprocessing.Pipe(duplex=False)
             proc = multiprocessing.Process(
                 target=_subprocess_worker,
-                args=(ast, axioms, timeout_ms, self._cache, ipc_token, child_conn),
+                args=(ast, axioms, timeout_ms, self._cache, ipc_token, child_conn, pre_cond),
                 daemon=True,
             )
             proc.start()
@@ -643,6 +651,7 @@ class BoundedModelChecker:
         ast: ProgramNode,
         axioms: list[Axiom],
         timeout_ms: int,
+        pre_cond: str = "",
     ) -> tuple[bool, CounterExample | None]:
         """Core BMC query: encode AST + axioms into Z3, run solver, return (safe, ce).
 
@@ -650,11 +659,21 @@ class BoundedModelChecker:
             ast: Compiled SIL program AST.
             axioms: Safety axioms to enforce as additional constraints.
             timeout_ms: Z3 solver timeout in milliseconds.
+            pre_cond: SIL expression for the function precondition (paper §3.4).
+                      Encoded as a Z3 solver assertion that constrains the input
+                      space: only inputs satisfying pre_cond are considered.
+                      Implements the BMC formula:
+                        BMC(f, k) = pre_f ∧ unrolled_semantics(f, k) ∧ violation
+                      Empty string means unconstrained (all inputs considered).
 
         Returns:
             (True, None) if UNSAT (safe), (False, CounterExample) if SAT (unsafe).
+
+        Soundness note: integer variables are constrained to the 32-bit signed
+        range [-2^31, 2^31-1] to prevent Z3 from exploiting unbounded integer
+        arithmetic that would not occur in a real execution environment.
         """
-        cache_key = self._hash_ast(ast, axioms)
+        cache_key = self._hash_ast(ast, axioms, pre_cond)
         if cache_key in self.__cache:
             safe, _ce_str = self.__cache[cache_key]
             return safe, None
@@ -668,10 +687,28 @@ class BoundedModelChecker:
         env = SSAEnv(ctx)
         stmt_enc = StmtEncoder(ctx, solver, env)
 
+        # Z3 integer bounds: constrain all parameters to 32-bit signed range
+        # to prevent unsound results from unbounded integer arithmetic.
+        _INT32_MIN = -(2**31)
+        _INT32_MAX = 2**31 - 1
+
         for func in ast.functions:
             func_path = z3.BoolVal(True, ctx=ctx)
             for param in func.params:
-                env.declare_param(param.name, param.type_name)
+                pvar = env.declare_param(param.name, param.type_name)
+                # Apply 32-bit bounds to integer parameters for soundness
+                if param.type_name == "int":
+                    solver.add(pvar >= _INT32_MIN)
+                    solver.add(pvar <= _INT32_MAX)
+            # Encode precondition as a solver CONSTRAINT (paper §3.4).
+            # pre_cond restricts the input space — it is NOT a violation flag.
+            # This implements: BMC(f,k) = pre_f ∧ unrolled_semantics ∧ violation
+            if pre_cond.strip():
+                _param_names_pre = [p.name for p in func.params]
+                _pre_axiom = Axiom("_precond", "", pre_cond.strip(), ["*"])
+                _z3_pre = _encode_axiom(_pre_axiom, ctx, env, _param_names_pre)
+                if _z3_pre is not None:
+                    solver.add(_z3_pre)  # constrain inputs, not a violation flag
             stmt_enc.encode_stmts(func.body, func_path)
 
         declared_params = list(env._counters.keys()) + [
@@ -727,7 +764,13 @@ class Verifier:
         pre_cond: str,
         axioms: list[Axiom] | None = None,
     ) -> dict[str, Any]:
-        """Verify a SIL AST and return a result dict with 'safe' and 'counterexample' keys."""
+        """Verify a SIL AST and return a result dict with 'safe' and 'counterexample' keys.
+
+        pre_cond is encoded as a Z3 input constraint per paper §3.4:
+          BMC(f, k) = pre_f ∧ unrolled_semantics(f, k) ∧ violation_flag
+        """
         axioms = axioms or []
-        safe, ce = self._bmc.verify(ast, axioms, timeout_ms=self._timeout_ms)
+        safe, ce = self._bmc.verify(
+            ast, axioms, timeout_ms=self._timeout_ms, pre_cond=pre_cond
+        )
         return {"safe": safe, "counterexample": str(ce) if ce else None}

@@ -16,3 +16,19 @@ axioms:
     description: "Computed result must not exceed 1000000."
     condition: "result >= 0"
     target_functions: ["compute", "calculate"]
+
+  # Integrity safety: code must not call exit() or terminate the process.
+  # exit_called is a sentinel variable set to 1 if an exit path is taken.
+  # SIL programs that set exit_called = 1 will violate this axiom.
+  - id: "no_exit"
+    description: "Code must not call exit() or terminate the process."
+    condition: "exit_called == 0"
+    target_functions: ["*"]
+
+  # Behavioral safety: code must not make network calls.
+  # network_calls is a sentinel variable incremented on each network operation.
+  # SIL programs that set network_calls > 0 will violate this axiom.
+  - id: "no_network"
+    description: "Code must not make network calls."
+    condition: "network_calls == 0"
+    target_functions: ["*"]

@@ -38,7 +38,6 @@ from src.core.verifier import (
     VerificationError,
     _encode_axiom,
 )
-
 _COMPILER = SILCompiler()
 
 # ---------------------------------------------------------------------------

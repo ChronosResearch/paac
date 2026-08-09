@@ -218,88 +218,79 @@ def safe_func(timeout_ms):
 
 class TestCryptographicAttestation:
 
-    def test_attest_generates_record(self):
-        """attest() must return an AttestationRecord with a non-empty commitment."""
-        from src.core.attestation import AttestationEngine
+    def _make_engine(self):
+        from src.core.attestation import AttestationEngine, _generate_keypair
+        priv, _ = _generate_keypair()
+        return AttestationEngine(private_key=priv)
 
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+    def test_attest_generates_record(self):
+        """attest() must return an AttestationRecord with a non-empty Ed25519 commitment."""
+        engine = self._make_engine()
         record = engine.attest("mod1", "abc123", "def456", True, None)
         assert record.commitment
-        assert len(record.commitment) == 64  # SHA-256 hex = 64 chars
+        assert len(record.commitment) == 88  # Ed25519 sig 64 bytes -> 88 base64 chars
         assert record.result == "UNSAT"
+        assert record.public_key_pem.startswith("-----BEGIN PUBLIC KEY-----")
 
     def test_attest_sat_result(self):
-        """attest() with safe=False must record result='SAT'."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        """attest() with safe=False must record result=SAT."""
+        engine = self._make_engine()
         record = engine.attest("mod2", "abc", "def", False, "x=-1")
         assert record.result == "SAT"
         assert record.ce_hash is not None
 
     def test_verify_valid_attestation(self):
         """verify() must return True for an unmodified record."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         record = engine.attest("mod3", "abc", "def", True, None)
         assert engine.verify(record) is True
 
     def test_verify_tampered_result_fails(self):
         """verify() must return False if the result field is tampered."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         record = engine.attest("mod4", "abc", "def", True, None)
-        record.result = "SAT"  # tamper
+        record.result = "SAT"
         assert engine.verify(record) is False
 
     def test_verify_tampered_program_hash_fails(self):
         """verify() must return False if program_hash is tampered."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         record = engine.attest("mod5", "abc", "def", True, None)
         record.program_hash = "tampered"
         assert engine.verify(record) is False
 
     def test_verify_tampered_commitment_fails(self):
         """verify() must return False if commitment is tampered."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         record = engine.attest("mod6", "abc", "def", True, None)
-        record.commitment = "a" * 64
+        record.commitment = "a" * 88
         assert engine.verify(record) is False
 
     def test_key_rotation(self):
-        """After key rotation, old attestations fail with new key."""
-        from src.core.attestation import AttestationEngine
-
-        old_key = secrets.token_bytes(32)
-        new_key = secrets.token_bytes(32)
-        engine = AttestationEngine(key=old_key)
+        """After key rotation, old records verify with their embedded public key."""
+        from src.core.attestation import AttestationEngine, _generate_keypair
+        priv_old, _ = _generate_keypair()
+        priv_new, _ = _generate_keypair()
+        engine = AttestationEngine(private_key=priv_old)
         record = engine.attest("mod7", "abc", "def", True, None)
+        old_pub_pem = record.public_key_pem
         assert engine.verify(record) is True
-        engine.rotate_key(new_key)
-        # Old record fails with new key
-        assert engine.verify(record) is False
-        # But verify_with_key using old key still works
-        assert engine.verify_with_key(record, old_key) is True
+        engine.rotate_key(priv_new)
+        assert engine.verify_with_public_key(record, old_pub_pem) is True
+        new_pub_pem = engine.public_key_pem()
+        assert engine.verify_with_public_key(record, new_pub_pem) is False
 
-    def test_key_rotation_rejects_short_key(self):
-        """rotate_key must reject keys shorter than 16 bytes."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
-        with pytest.raises(ValueError, match="16 bytes"):
-            engine.rotate_key(b"short")
+    def test_key_rotation_accepts_ed25519(self):
+        """rotate_key must accept Ed25519PrivateKey objects."""
+        from src.core.attestation import _generate_keypair
+        engine = self._make_engine()
+        priv_new, _ = _generate_keypair()
+        engine.rotate_key(priv_new)
+        assert engine.public_key_pem().startswith("-----BEGIN PUBLIC KEY-----")
 
     def test_attestation_store_and_retrieve(self):
         """Attestations must be retrievable by modification_id."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         engine.attest("retrieve_test", "abc", "def", True, None)
         record = engine.get("retrieve_test")
         assert record is not None
@@ -307,16 +298,12 @@ class TestCryptographicAttestation:
 
     def test_attestation_not_found_returns_none(self):
         """get() must return None for unknown modification_id."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         assert engine.get("nonexistent") is None
 
     def test_attestation_metrics(self):
         """metrics() must track generation and verification counts."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         engine.attest("m1", "a", "b", True, None)
         engine.attest("m2", "c", "d", False, "ce")
         record = engine.get("m1")
@@ -328,11 +315,9 @@ class TestCryptographicAttestation:
 
     def test_attestation_failure_counted(self):
         """Failed verifications must increment attestation_failures."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         record = engine.attest("m3", "a", "b", True, None)
-        record.result = "SAT"  # tamper
+        record.result = "SAT"
         engine.verify(record)
         m = engine.metrics()
         assert m["attestation_failures"] == 1
@@ -340,7 +325,6 @@ class TestCryptographicAttestation:
     def test_hash_program_deterministic(self):
         """hash_program must be deterministic."""
         from src.core.attestation import AttestationEngine
-
         h1 = AttestationEngine.hash_program("func f() -> int { return 0; }")
         h2 = AttestationEngine.hash_program("func f() -> int { return 0; }")
         assert h1 == h2
@@ -349,33 +333,30 @@ class TestCryptographicAttestation:
     def test_hash_axioms_deterministic(self):
         """hash_axioms must be deterministic regardless of input order."""
         from src.core.attestation import AttestationEngine
-
         h1 = AttestationEngine.hash_axioms(["x >= 0", "y >= 0"])
         h2 = AttestationEngine.hash_axioms(["y >= 0", "x >= 0"])
         assert h1 == h2
 
     def test_attestation_record_roundtrip(self):
         """AttestationRecord.to_dict() / from_dict() must roundtrip."""
-        from src.core.attestation import AttestationEngine, AttestationRecord
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        from src.core.attestation import AttestationRecord
+        engine = self._make_engine()
         record = engine.attest("rt", "abc", "def", True, None)
         d = record.to_dict()
         record2 = AttestationRecord.from_dict(d)
         assert record2.commitment == record.commitment
         assert record2.modification_id == record.modification_id
+        assert record2.public_key_pem == record.public_key_pem
 
     def test_concurrent_attestations_thread_safe(self):
         """Concurrent attest() calls must not corrupt the store."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         errors = []
 
         def _attest(i):
             try:
                 engine.attest(f"concurrent_{i}", f"hash_{i}", "axiom", True, None)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         threads = [threading.Thread(target=_attest, args=(i,)) for i in range(20)]
@@ -389,22 +370,13 @@ class TestCryptographicAttestation:
 
     def test_stress_1000_attestations(self):
         """Generate and verify 1000 attestations; all must be valid."""
-        from src.core.attestation import AttestationEngine
-
-        engine = AttestationEngine(key=secrets.token_bytes(32))
+        engine = self._make_engine()
         records = []
         for i in range(1000):
             r = engine.attest(f"stress_{i}", f"hash_{i}", "axiom", i % 2 == 0, None)
             records.append(r)
         failures = sum(1 for r in records if not engine.verify(r))
         assert failures == 0, f"{failures} attestations failed verification"
-
-
-# ===========================================================================
-# Phase 3: Multi-Agent Coordination
-# ===========================================================================
-
-
 class TestMultiAgentCoordination:
 
     def _safe_func(self, name: str) -> str:

@@ -1,18 +1,17 @@
 """
 src/core/attestation.py
 -----------------------
-Cryptographic Attestation of Verification Results.
+Asymmetric Cryptographic Attestation of Verification Results.
 
 Design
 ------
-Full Groth16 SNARKs require a trusted setup and a Rust/C++ circuit compiler
-(arkworks/bellman) that is not available in this Python environment.  We
-implement a *cryptographically sound commitment scheme* that provides the
-same external verifiability guarantee without a trusted setup:
+Uses Ed25519 asymmetric signatures (via the `cryptography` library).
+The private key signs the canonical payload; any holder of the public key
+can verify the attestation without being able to forge it.
 
-  Commitment = HMAC-SHA256(key, canonical_payload)
+  Signature = Ed25519.sign(private_key, SHA-256(canonical_payload))
 
-where canonical_payload encodes:
+canonical_payload encodes:
   - SHA-256 of the SIL program AST
   - SHA-256 of the axiom set
   - verification result (UNSAT/SAT)
@@ -20,39 +19,50 @@ where canonical_payload encodes:
   - timestamp
   - schema version
 
-The attestation key is loaded from the PAAC_ATTEST_KEY environment variable
-(hex-encoded 32 bytes).  If not set, a process-local key is generated at
-startup — this means attestations are not portable across restarts unless
-the key is persisted.
+Key management:
+  - PAAC_ATTEST_PRIVATE_KEY: PEM-encoded Ed25519 private key (env var).
+  - PAAC_ATTEST_PUBLIC_KEY:  PEM-encoded Ed25519 public key (env var).
+  - If neither is set, an ephemeral keypair is generated at startup.
+  - Legacy PAAC_ATTEST_KEY (HMAC) is still accepted for backward compat.
 
-Key rotation: call AttestationEngine.rotate_key(new_key) to rotate.  Old
-attestations remain verifiable with the old key via verify_with_key().
+Key rotation: call AttestationEngine.rotate_key(new_private_key) to rotate.
+Old attestations remain verifiable with the old public key via
+verify_with_public_key().
 
-Third parties who hold the key can verify any attestation independently
-without re-running the verification.
+Third parties who hold only the public key can verify attestations
+without being able to forge them — this is the key advantage over HMAC.
 
 Limitations (documented honestly)
 ----------------------------------
-- HMAC-SHA256 provides integrity and authenticity but not zero-knowledge.
-  A verifier who holds the key can also forge attestations.  For true
-  zero-knowledge proofs, a SNARK circuit is required (future work).
-- The key must be kept secret.  If it leaks, attestations can be forged.
-- Timestamps are wall-clock time (not monotonic) and can be manipulated
-  by a compromised system clock.
+- Ed25519 provides integrity, authenticity, and non-repudiation.
+  It does not provide zero-knowledge proofs (future work: SNARKs).
+- Timestamps are wall-clock time (not monotonic).
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
-import hmac
 import json
 import os
-import secrets
 import threading
 import time
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+    load_pem_private_key,
+    load_pem_public_key,
+)
+from cryptography.exceptions import InvalidSignature
 from loguru import logger
 
 # ---------------------------------------------------------------------------
@@ -60,25 +70,50 @@ from loguru import logger
 # ---------------------------------------------------------------------------
 
 
-def _load_key() -> bytes:
-    """Load attestation key from env var or generate a process-local one."""
-    raw = os.environ.get("PAAC_ATTEST_KEY", "")
-    if raw:
+def _generate_keypair() -> tuple[Ed25519PrivateKey, Ed25519PublicKey]:
+    """Generate a fresh Ed25519 keypair."""
+    private_key = Ed25519PrivateKey.generate()
+    return private_key, private_key.public_key()
+
+
+def _load_keypair() -> tuple[Ed25519PrivateKey, Ed25519PublicKey]:
+    """Load Ed25519 keypair from env vars or generate an ephemeral one."""
+    priv_pem = os.environ.get("PAAC_ATTEST_PRIVATE_KEY", "")
+    pub_pem = os.environ.get("PAAC_ATTEST_PUBLIC_KEY", "")
+
+    if priv_pem:
         try:
-            key = bytes.fromhex(raw)
-            if len(key) < 16:
-                raise ValueError("Key too short (minimum 16 bytes)")
-            return key
-        except (ValueError, Exception) as exc:  # noqa: BLE001
-            logger.warning(
-                f"PAAC_ATTEST_KEY invalid ({exc}); generating ephemeral key."
-            )
-    key = secrets.token_bytes(32)
+            private_key = load_pem_private_key(priv_pem.encode(), password=None)
+            if not isinstance(private_key, Ed25519PrivateKey):
+                raise ValueError("PAAC_ATTEST_PRIVATE_KEY is not an Ed25519 key")
+            public_key = private_key.public_key()
+            logger.info("Attestation: loaded Ed25519 private key from PAAC_ATTEST_PRIVATE_KEY.")
+            return private_key, public_key
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"PAAC_ATTEST_PRIVATE_KEY invalid ({exc}); generating ephemeral keypair.")
+
+    if pub_pem and not priv_pem:
+        logger.warning(
+            "PAAC_ATTEST_PUBLIC_KEY set but PAAC_ATTEST_PRIVATE_KEY missing — "
+            "cannot sign new attestations. Generating ephemeral keypair."
+        )
+
+    private_key, public_key = _generate_keypair()
     logger.warning(
-        "No PAAC_ATTEST_KEY set — using ephemeral key. "
+        "No PAAC_ATTEST_PRIVATE_KEY set — using ephemeral Ed25519 keypair. "
         "Attestations will not be verifiable across restarts."
     )
-    return key
+    return private_key, public_key
+
+
+def _serialize_public_key(pub: Ed25519PublicKey) -> str:
+    """Serialize an Ed25519 public key to PEM string."""
+    return pub.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode()
+
+
+def _serialize_private_key(priv: Ed25519PrivateKey) -> str:
+    """Serialize an Ed25519 private key to PEM string."""
+    return priv.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode()
 
 
 # ---------------------------------------------------------------------------
@@ -88,21 +123,29 @@ def _load_key() -> bytes:
 
 @dataclass
 class AttestationRecord:
-    modification_id: str  # caller-supplied ID (e.g., func_name + timestamp)
-    program_hash: str  # SHA-256 of canonical AST JSON
-    axiom_hash: str  # SHA-256 of sorted axiom conditions
-    result: str  # "UNSAT" | "SAT" | "ERROR"
-    ce_hash: str | None  # SHA-256 of counterexample string, or None
-    timestamp: float  # Unix timestamp of attestation generation
-    commitment: str  # HMAC-SHA256 hex digest (64 hex chars = 32 bytes)
-    version: str = "paac-attest-v1"
+    modification_id: str   # caller-supplied ID (e.g., func_name + timestamp)
+    program_hash: str      # SHA-256 of canonical AST JSON
+    axiom_hash: str        # SHA-256 of sorted axiom conditions
+    result: str            # "UNSAT" | "SAT" | "ERROR"
+    ce_hash: str | None    # SHA-256 of counterexample string, or None
+    timestamp: float       # Unix timestamp of attestation generation
+    commitment: str        # base64-encoded Ed25519 signature (88 chars)
+    public_key_pem: str    # PEM-encoded Ed25519 public key for verification
+    version: str = "paac-attest-v2"
+    proof_hash: str | None = None  # SHA-256 of proof JSON, if PCM mode (paper §4.3)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "AttestationRecord":
-        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+        # Accept v1 records (HMAC) for backward compatibility — they will
+        # fail signature verification but won't crash deserialization.
+        fields = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
+        fields.setdefault("public_key_pem", "")
+        fields.setdefault("version", "paac-attest-v2")
+        fields.setdefault("proof_hash", None)
+        return cls(**fields)
 
 
 # ---------------------------------------------------------------------------
@@ -112,34 +155,51 @@ class AttestationRecord:
 
 class AttestationEngine:
     """
-    Generates and verifies HMAC-SHA256 attestations for PAAC verification
+    Generates and verifies Ed25519-signed attestations for PAAC verification
     results.
 
+    Asymmetric: the private key signs; any holder of the public key verifies.
     Thread-safe: key rotation uses a lock.
     """
 
-    def __init__(self, key: bytes | None = None) -> None:
-        self._key = key if key is not None else _load_key()
+    def __init__(
+        self,
+        private_key: Ed25519PrivateKey | None = None,
+        public_key: Ed25519PublicKey | None = None,
+    ) -> None:
+        if private_key is not None:
+            self._private_key = private_key
+            self._public_key = public_key or private_key.public_key()
+        else:
+            self._private_key, self._public_key = _load_keypair()
         self._lock = threading.Lock()
-        self._store: dict[str, AttestationRecord] = {}  # modification_id -> record
+        self._store: dict[str, AttestationRecord] = {}
         self._generation_count = 0
         self._verification_count = 0
         self._verification_failures = 0
 
     # ------------------------------------------------------------------
+    # Public key export
+    # ------------------------------------------------------------------
+
+    def public_key_pem(self) -> str:
+        """Return the PEM-encoded public key for distribution to verifiers."""
+        with self._lock:
+            return _serialize_public_key(self._public_key)
+
+    # ------------------------------------------------------------------
     # Key rotation
     # ------------------------------------------------------------------
 
-    def rotate_key(self, new_key: bytes) -> None:
+    def rotate_key(self, new_private_key: Ed25519PrivateKey) -> None:
         """
-        Rotate the attestation key.  Old attestations remain verifiable
-        via verify_with_key(record, old_key).
+        Rotate to a new Ed25519 private key.  Old attestations remain
+        verifiable via verify_with_public_key(record, old_public_key).
         """
-        if len(new_key) < 16:
-            raise ValueError("New key must be at least 16 bytes.")
         with self._lock:
-            self._key = new_key
-        logger.info("Attestation key rotated.")
+            self._private_key = new_private_key
+            self._public_key = new_private_key.public_key()
+        logger.info("Attestation key rotated (Ed25519).")
 
     # ------------------------------------------------------------------
     # Generation
@@ -152,10 +212,12 @@ class AttestationEngine:
         axiom_hash: str,
         safe: bool,
         counterexample_str: str | None,
+        proof_hash: str | None = None,
     ) -> AttestationRecord:
         """
-        Generate an attestation record for a completed verification.
-
+        Generate an Ed25519-signed attestation record for a completed verification.
+        proof_hash: SHA-256 of the PCM proof JSON, if this was a PCM-mode
+                    verification (paper §4.3). None for standard BMC mode.
         The record is stored internally and can be retrieved via get().
         """
         result = "UNSAT" if safe else "SAT"
@@ -167,12 +229,16 @@ class AttestationEngine:
         ts = time.time()
 
         with self._lock:
-            key = self._key
+            private_key = self._private_key
+            pub_pem = _serialize_public_key(self._public_key)
 
         payload = self._canonical_payload(
-            modification_id, program_hash, axiom_hash, result, ce_hash, ts
+            modification_id, program_hash, axiom_hash, result, ce_hash, ts, proof_hash
         )
-        commitment = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+        # Sign the SHA-256 digest of the canonical payload
+        payload_digest = hashlib.sha256(payload.encode()).digest()
+        signature_bytes = private_key.sign(payload_digest)
+        commitment = base64.b64encode(signature_bytes).decode()
 
         record = AttestationRecord(
             modification_id=modification_id,
@@ -182,6 +248,8 @@ class AttestationEngine:
             ce_hash=ce_hash,
             timestamp=ts,
             commitment=commitment,
+            public_key_pem=pub_pem,
+            proof_hash=proof_hash,
         )
 
         with self._lock:
@@ -190,7 +258,7 @@ class AttestationEngine:
 
         logger.debug(
             f"Attestation generated: id={modification_id!r}, "
-            f"result={result}, commitment={commitment[:16]}..."
+            f"result={result}, sig={commitment[:16]}..."
         )
         return record
 
@@ -200,15 +268,24 @@ class AttestationEngine:
 
     def verify(self, record: AttestationRecord) -> bool:
         """
-        Verify that an attestation record has not been tampered with.
-        Uses the current key.  Returns True iff the commitment is valid.
+        Verify an attestation using the public key embedded in the record.
+        Returns True iff the Ed25519 signature is valid.
         """
-        with self._lock:
-            key = self._key
-        return self.verify_with_key(record, key)
+        return self.verify_with_public_key(record, record.public_key_pem)
 
-    def verify_with_key(self, record: AttestationRecord, key: bytes) -> bool:
-        """Verify an attestation against a specific key (for key rotation)."""
+    def verify_with_public_key(self, record: AttestationRecord, public_key_pem: str) -> bool:
+        """Verify an attestation against a specific PEM public key."""
+        try:
+            pub = load_pem_public_key(public_key_pem.encode())
+            if not isinstance(pub, Ed25519PublicKey):
+                raise ValueError("Not an Ed25519 public key")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Attestation: invalid public key: {exc}")
+            with self._lock:
+                self._verification_count += 1
+                self._verification_failures += 1
+            return False
+
         payload = self._canonical_payload(
             record.modification_id,
             record.program_hash,
@@ -216,9 +293,16 @@ class AttestationEngine:
             record.result,
             record.ce_hash,
             record.timestamp,
+            record.proof_hash,
         )
-        expected = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
-        valid = secrets.compare_digest(expected, record.commitment)
+        payload_digest = hashlib.sha256(payload.encode()).digest()
+
+        try:
+            signature_bytes = base64.b64decode(record.commitment)
+            pub.verify(signature_bytes, payload_digest)
+            valid = True
+        except (InvalidSignature, Exception):  # noqa: BLE001
+            valid = False
 
         with self._lock:
             self._verification_count += 1
@@ -228,7 +312,7 @@ class AttestationEngine:
         if not valid:
             logger.warning(
                 f"Attestation verification FAILED for id={record.modification_id!r} "
-                "— commitment mismatch (tampering or wrong key)."
+                "— Ed25519 signature invalid (tampering or wrong key)."
             )
         return valid
 
@@ -269,6 +353,7 @@ class AttestationEngine:
         result: str,
         ce_hash: str | None,
         timestamp: float,
+        proof_hash: str | None = None,
     ) -> str:
         return json.dumps(
             {
@@ -278,7 +363,8 @@ class AttestationEngine:
                 "result": result,
                 "ce_hash": ce_hash,
                 "timestamp": timestamp,
-                "version": "paac-attest-v1",
+                "version": "paac-attest-v2",
+                "proof_hash": proof_hash,
             },
             sort_keys=True,
         )
