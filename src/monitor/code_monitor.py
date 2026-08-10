@@ -2,6 +2,8 @@
 # This file is part of the PAAC (Provably Aligned Core) project.
 # See LICENSE for terms.
 
+from __future__ import annotations
+
 import json
 import logging
 import os

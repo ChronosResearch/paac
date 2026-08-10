@@ -3,27 +3,33 @@ src/pcm/certificate.py
 ----------------------
 Proof-Carrying Modification (PCM) — Certificate System.
 
-Every accepted proof produces a PCMCertificate.  Certificates are stored
-in an append-only JSONL audit log.  Third parties can verify certificates
-without access to PAAC — they only need the shared HMAC key.
+Every accepted proof produces a PCMCertificate signed with Ed25519
+(paper §4.3).  Certificates are stored in an append-only JSONL audit log.
+Third parties can verify certificates using only PAAC's public key —
+no shared secret required.
 
 Certificate format:
   {
-    "version": "pcm-1.0",
+    "version": "pcm-2.0",
     "modification_id": "<unique id>",
     "code_hash": "<sha256 of SIL source>",
     "proof_hash": "<sha256 of canonical proof JSON>",
     "agent_id": "<submitting agent identity>",
     "timestamp": "<ISO-8601>",
     "axioms_covered": ["<axiom_id>", ...],
-    "paac_signature": "<hmac-sha256 of above fields>"
+    "public_key_pem": "<PEM Ed25519 public key>",
+    "paac_signature": "<base64 Ed25519 signature>"
   }
+
+Key management mirrors attestation.py:
+  - PAAC_ATTEST_PRIVATE_KEY env var (PEM Ed25519) — shared with attestation engine.
+  - If unset, an ephemeral keypair is generated at module load time.
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
-import hmac
 import json
 import os
 import re
@@ -32,11 +38,47 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-_CERT_VERSION = "pcm-1.0"
-_HMAC_KEY = os.environ.get(
-    "PAAC_CERT_KEY", "paac-default-cert-key-change-in-prod"
-).encode()
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+    load_pem_private_key,
+    load_pem_public_key,
+)
+
+_CERT_VERSION = "pcm-2.0"
 _DEFAULT_LOG_PATH = os.environ.get("PAAC_PCM_LOG", "pcm_audit.jsonl")
+
+
+# ---------------------------------------------------------------------------
+# Key management — reuse PAAC_ATTEST_PRIVATE_KEY if available
+# ---------------------------------------------------------------------------
+
+
+def _load_or_generate_keypair() -> tuple[Ed25519PrivateKey, Ed25519PublicKey]:
+    priv_pem = os.environ.get("PAAC_ATTEST_PRIVATE_KEY", "")
+    if priv_pem:
+        try:
+            priv = load_pem_private_key(priv_pem.encode(), password=None)
+            if isinstance(priv, Ed25519PrivateKey):
+                return priv, priv.public_key()
+        except Exception:
+            pass
+    priv = Ed25519PrivateKey.generate()
+    return priv, priv.public_key()
+
+
+_PRIVATE_KEY, _PUBLIC_KEY = _load_or_generate_keypair()
+
+
+def _pub_pem() -> str:
+    return _PUBLIC_KEY.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode()
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +88,7 @@ _DEFAULT_LOG_PATH = os.environ.get("PAAC_PCM_LOG", "pcm_audit.jsonl")
 
 @dataclass
 class PCMCertificate:
-    """A cryptographically signed PCM certificate."""
+    """An Ed25519-signed PCM certificate (paper §4.3)."""
 
     version: str
     modification_id: str
@@ -55,7 +97,8 @@ class PCMCertificate:
     agent_id: str
     timestamp: str
     axioms_covered: list[str]
-    paac_signature: str
+    public_key_pem: str
+    paac_signature: str  # base64-encoded Ed25519 signature
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -66,6 +109,7 @@ class PCMCertificate:
             "agent_id": self.agent_id,
             "timestamp": self.timestamp,
             "axioms_covered": self.axioms_covered,
+            "public_key_pem": self.public_key_pem,
             "paac_signature": self.paac_signature,
         }
 
@@ -73,15 +117,16 @@ class PCMCertificate:
         return json.dumps(self.to_dict(), indent=indent)
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "PCMCertificate":
+    def from_dict(cls, d: dict[str, Any]) -> PCMCertificate:
         return cls(
-            version=d["version"],
+            version=d.get("version", _CERT_VERSION),
             modification_id=d["modification_id"],
             code_hash=d["code_hash"],
             proof_hash=d["proof_hash"],
             agent_id=d["agent_id"],
             timestamp=d["timestamp"],
             axioms_covered=d.get("axioms_covered", []),
+            public_key_pem=d.get("public_key_pem", ""),
             paac_signature=d["paac_signature"],
         )
 
@@ -114,7 +159,7 @@ def _hash_proof(proof: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _canonical_for_hmac(
+def _canonical_payload(
     modification_id: str,
     code_hash: str,
     proof_hash: str,
@@ -129,12 +174,16 @@ def _canonical_for_hmac(
         "agent_id": agent_id,
         "timestamp": timestamp,
         "axioms_covered": sorted(axioms_covered),
+        "version": _CERT_VERSION,
     }
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 
-def _compute_signature(canonical: str) -> str:
-    return hmac.new(_HMAC_KEY, canonical.encode(), hashlib.sha256).hexdigest()
+def _sign(canonical: str) -> str:
+    """Sign SHA-256 digest of canonical payload with Ed25519 private key."""
+    digest = hashlib.sha256(canonical.encode()).digest()
+    sig_bytes = _PRIVATE_KEY.sign(digest)
+    return base64.b64encode(sig_bytes).decode()
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +199,7 @@ def generate_certificate(
     axioms_covered: list[str] | None = None,
 ) -> PCMCertificate:
     """
-    Generate a PCM certificate for an accepted proof.
+    Generate an Ed25519-signed PCM certificate for an accepted proof (paper §4.3).
 
     Args:
         modification_id: Unique identifier for this modification.
@@ -167,10 +216,10 @@ def generate_certificate(
     timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     covered = sorted(axioms_covered or proof.get("axioms", []))
 
-    canonical = _canonical_for_hmac(
+    canonical = _canonical_payload(
         modification_id, code_hash, proof_hash, agent_id, timestamp, covered
     )
-    signature = _compute_signature(canonical)
+    signature = _sign(canonical)
 
     return PCMCertificate(
         version=_CERT_VERSION,
@@ -180,6 +229,7 @@ def generate_certificate(
         agent_id=agent_id,
         timestamp=timestamp,
         axioms_covered=covered,
+        public_key_pem=_pub_pem(),
         paac_signature=signature,
     )
 
@@ -191,16 +241,15 @@ def generate_certificate(
 
 def verify_certificate(cert: PCMCertificate) -> CertVerifyResult:
     """
-    Verify a PCM certificate.
+    Verify a PCM certificate using the Ed25519 public key embedded in the record.
 
     Checks:
       1. Version matches expected PCM version.
-      2. HMAC signature is valid (certificate not tampered with).
+      2. Ed25519 signature is valid (certificate not tampered with).
       3. Modification ID is non-empty.
       4. Code hash and proof hash are valid SHA-256 hex strings.
 
-    Returns:
-        CertVerifyResult with passed/failed checks.
+    Third parties need only the public key — no shared secret required.
     """
     passed: list[str] = []
     failed: list[str] = []
@@ -211,8 +260,8 @@ def verify_certificate(cert: PCMCertificate) -> CertVerifyResult:
     else:
         failed.append("version")
 
-    # Check 2: HMAC signature
-    canonical = _canonical_for_hmac(
+    # Check 2: Ed25519 signature
+    canonical = _canonical_payload(
         cert.modification_id,
         cert.code_hash,
         cert.proof_hash,
@@ -220,11 +269,21 @@ def verify_certificate(cert: PCMCertificate) -> CertVerifyResult:
         cert.timestamp,
         cert.axioms_covered,
     )
-    expected_sig = _compute_signature(canonical)
-    if hmac.compare_digest(expected_sig, cert.paac_signature):
-        passed.append("hmac_signature")
+    sig_valid = False
+    pub_pem = cert.public_key_pem or _pub_pem()
+    try:
+        pub = load_pem_public_key(pub_pem.encode())
+        if isinstance(pub, Ed25519PublicKey):
+            digest = hashlib.sha256(canonical.encode()).digest()
+            pub.verify(base64.b64decode(cert.paac_signature), digest)
+            sig_valid = True
+    except (InvalidSignature, Exception):
+        sig_valid = False
+
+    if sig_valid:
+        passed.append("ed25519_signature")
     else:
-        failed.append("hmac_signature")
+        failed.append("ed25519_signature")
 
     # Check 3: Non-empty modification ID
     if cert.modification_id.strip():

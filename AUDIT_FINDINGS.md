@@ -1,7 +1,7 @@
 # PAAC Audit Findings
 
-**Date:** 2026-08-03
-**Version:** v5.0.0
+**Date:** 2026-08-09
+**Version:** v7.0.0
 **Auditor:** Senior Release Engineer
 **Scope:** Full codebase — src/, tests/, config/, docs/, docker/
 
@@ -43,7 +43,7 @@
 
 | ID | File | Issue | Severity | Fix |
 |----|------|-------|----------|-----|
-| M-01 | `src/pcm/certificate.py` | `import re` placed at the bottom of the file (line 290) after all code. Violates PEP 8 and causes confusion about module-level state. | MEDIUM | Move `import re` to the top of the file. |
+| M-01 | `src/pcm/certificate.py` | ~~`import re` placed at the bottom of the file~~ | RESOLVED | Fixed in v7.0 — certificate.py rewritten with Ed25519; all imports at top. |
 | M-02 | `src/core/sil_runtime.py:44` | `import src.core.sil_runtime as _rt` inside `_tick()` — a module self-import on every tick call. Adds overhead and is a code smell. | MEDIUM | Read `MAX_INSTRUCTIONS` at module level or pass it as a parameter. |
 | M-03 | `src/cegar/repair.py` | Unused imports: `ProgramNode`, `CounterExample`. Ruff F401. | MEDIUM | Remove unused imports. |
 | M-04 | `src/coverage/axiom_coverage.py` | Unused import: `ExprEncoder`. Ruff F401. | MEDIUM | Remove unused import. |

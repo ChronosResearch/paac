@@ -33,12 +33,13 @@ Status: By design. Documented.
 
 ## Security
 
-### KI-007: Default HMAC key is insecure (High — mitigated)
-The default `PAAC_CERT_KEY` value is hardcoded and publicly known. Any deployment
-using the default key produces certificates that can be forged.
-Mitigation: always set `PAAC_CERT_KEY` to a strong random value.
-Generate with: `python3 -c "import secrets; print(secrets.token_hex(32))"`
-Status: Mitigated by documentation and `.env.example`. Operator responsibility.
+### KI-007: PCM certificates upgraded to Ed25519 (Resolved in v7.0)
+PCM certificates previously used HMAC-SHA256 (shared secret). As of v7.0,
+`src/pcm/certificate.py` uses Ed25519 asymmetric signing, sharing the same
+key as the attestation engine (`PAAC_ATTEST_PRIVATE_KEY`). Third parties can
+verify PCM certificates with only the public key — no shared secret required.
+`PAAC_CERT_KEY` is no longer used by the PCM certificate system.
+Status: **Resolved in v7.0.**
 
 ### R-1: Z3 subprocess memory limits not enforced on macOS (Medium)
 `resource.setrlimit(RLIMIT_AS, ...)` is set in the Z3 subprocess but is not

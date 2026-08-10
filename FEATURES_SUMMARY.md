@@ -1,6 +1,4 @@
-# PAAC v5.1.0 — Four Novel Extensions: Features Summary
-
-Generated: 2026-08-03
+# PAAC v7.0 — Features Summary
 
 ---
 
@@ -16,11 +14,9 @@ No existing AI safety monitor system implements this full stack.
 | CEGAR Axiom Repair | `src/cegar/` | `repair` | 10 |
 | Differential Verification | `src/diffverify/` | `diff-verify` | 11 |
 | Proof Certificate Export | `src/certificates/` | `export-proof` | 14 |
-| **Total** | | | **47 new + 355 total** |
+| **Total** | | | **47 new + 386 total** |
 
-All 355 tests pass. Zero regressions.
-
----
+All 386 tests pass. Zero regressions.
 
 ## Feature 1: Axiom Coverage Metric
 
@@ -242,9 +238,9 @@ PYTHONPATH=. python3.11 -m src.cli export-proof examples/safe.sil \
 >    directly addressing the incremental safety problem in continuously-
 >    updated AI systems.
 >
-> 5. **Proof Certificates** — exports machine-checkable HMAC-sealed
->    certificates for every accepted verification, enabling independent
->    third-party auditing without re-running Z3.
+> 5. **Proof Certificates** — exports Ed25519-signed certificates for every
+>    accepted verification, enabling independent third-party auditing without
+>    re-running Z3 and without a shared secret.
 
 ### Novelty claim
 
@@ -266,7 +262,7 @@ their combination in the context of AI code modification safety is new.
 | Differential Verification | 11 |
 | Proof Certificates | 14 |
 | Integration (matrix + regression) | 5 |
-| **Total** | **355** |
+| v6–v7 additions | 31 |
+| **Total** | **386** |
 
-All 355 tests pass. Zero regressions. Black: 0 reformats needed.
-Bandit: 0 HIGH. Mypy: 0 errors.
+All 386 tests pass.

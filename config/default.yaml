@@ -1,4 +1,4 @@
-# PAAC default configuration — v5.0.0
+# PAAC default configuration — v7.0.0
 # All values can be overridden via environment variables.
 # See docs/DEPLOYMENT.md for the full variable reference.
 
@@ -60,8 +60,9 @@ bootstrap_verification:
 # Cryptographic attestation
 attestation:
   enabled: true                        # PAAC_ATTEST_ENABLED
-  # key loaded from PAAC_ATTEST_KEY env var (hex-encoded 32 bytes)
-  # if not set, an ephemeral key is generated at startup
+  # Ed25519 key loaded from PAAC_ATTEST_PRIVATE_KEY env var (PEM-encoded).
+  # If not set, an ephemeral keypair is generated at startup.
+  # PCM certificates share the same Ed25519 key.
   log_to_audit: true                   # PAAC_ATTEST_LOG_AUDIT
 
 # Multi-agent coordination
@@ -76,5 +77,5 @@ multi_agent:
 pcm:
   enabled: false                       # PAAC_PCM_MODE — set true to require proofs
   audit_log: "pcm_audit.jsonl"         # PAAC_PCM_LOG
-  # HMAC key for certificates loaded from PAAC_CERT_KEY env var (hex 32 bytes)
-  # If not set, a default key is used (insecure — change in production)
+  # PCM certificates are signed with Ed25519 (PAAC_ATTEST_PRIVATE_KEY).
+  # No separate HMAC key is needed.

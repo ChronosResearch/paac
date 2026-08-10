@@ -65,9 +65,10 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
 
 11. **TCB tampering**: TCB source files are chmod'd read-only at startup on Linux.
 
-12. **Proof tampering (PCM)**: PCM certificates are HMAC-SHA256 signed over all
+12. **Proof tampering (PCM)**: PCM certificates are **Ed25519-signed** over all
     certificate fields. Any field modification invalidates the signature.
-    `hmac.compare_digest` is used for constant-time comparison.
+    Third parties can verify using only PAAC's public key — no shared secret
+    required.
 
 13. **Unsafe eval (H-01 — fixed v5.0.0)**: The runtime axiom evaluator no longer
     uses `eval()`. It compiles the axiom condition through the SIL compiler and
@@ -103,7 +104,8 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
 
 ## PCM Certificate Security
 
-PCM certificates use HMAC-SHA256 over a canonical JSON payload:
+PCM certificates use **Ed25519 asymmetric signing** (paper §4.3) over a canonical
+JSON payload:
 
 ```json
 {
@@ -112,25 +114,28 @@ PCM certificates use HMAC-SHA256 over a canonical JSON payload:
   "proof_hash": "<sha256 of canonical proof JSON>",
   "agent_id": "...",
   "timestamp": "...",
-  "axioms_covered": [...]
+  "axioms_covered": [...],
+  "version": "pcm-2.0"
 }
 ```
 
 Security properties:
-- **Integrity**: Any field modification invalidates the HMAC signature.
+- **Integrity**: Any field modification invalidates the Ed25519 signature.
 - **Non-repudiation**: The certificate binds the agent identity to the proof.
 - **Auditability**: Certificates are appended to an append-only JSONL log.
-- **Third-party verifiability**: Any party with the HMAC key can verify certificates.
+- **Third-party verifiability**: Any party with PAAC's **public key** can verify
+  certificates — no shared secret required.
 
 Key management:
-- Set `PAAC_CERT_KEY` to a hex-encoded 32-byte random value in production.
-- The default key (`paac-default-cert-key-change-in-prod`) is insecure and must
-  be changed before any production deployment.
-- Generate a key: `python3 -c "import secrets; print(secrets.token_hex(32))"`
+- Set `PAAC_ATTEST_PRIVATE_KEY` to a PEM-encoded Ed25519 private key in production.
+- PCM certificates share the same Ed25519 key as the attestation engine.
+- If unset, an ephemeral keypair is generated at startup (attestations not
+  verifiable across restarts).
+- Generate a key: `python3 -c "from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey; from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption; k=Ed25519PrivateKey.generate(); print(k.private_bytes(Encoding.PEM,PrivateFormat.PKCS8,NoEncryption()).decode())"`
 
 ---
 
-## Security Controls (v5.0.0 Status)
+## Security Controls (v7.0 Status)
 
 | Control | Status | Notes |
 |---|---|---|
@@ -156,10 +161,10 @@ Key management:
 | Rate limiting | ✅ | 100 req/min per IP |
 | Input sanitization | ✅ | Rejects non-printable characters |
 | Non-root Docker container | ✅ | `paac` user |
-| **PCM certificate HMAC (v5.0.0)** | ✅ **New** | HMAC-SHA256, append-only audit log |
+| **PCM certificate Ed25519 (v7.0)** | ✅ **New** | Ed25519-signed, append-only audit log, public-key verifiable |
 | **Bounded Loop Verification (v7.0)** | ✅ **New** | Z3 UNSAT proof per loop, 3-layer enforcement |
 | **Bootstrap Self-Verification (v5.0.0)** | ✅ **New** | Python-to-SIL translator |
-| **Cryptographic Attestation (v5.0.0)** | ✅ **New** | HMAC-SHA256, key rotation |
+| **Cryptographic Attestation Ed25519 (v5.0.0)** | ✅ **New** | Ed25519 asymmetric, key rotation, proof_hash |
 | **Multi-Agent Coordination (v5.0.0)** | ✅ **New** | Agent registry, crash recovery |
 
 ---

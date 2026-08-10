@@ -92,7 +92,8 @@ The agent submits a formal proof alongside every code modification. PAAC verifie
 - Interval arithmetic symbolic environment tracks per-variable bounds
 - Target: **< 10 ms per proof** (measured: typically 1–3 ms)
 - Proof language: `Assume`, `Assign`, `Assert`, `ApplyAxiom`, `BranchSafe`, `LoopInvariant`, `Conclude`
-- PCM certificates appended to `pcm_audit.jsonl`
+- PCM certificates signed with **Ed25519** (same key as attestation engine) and appended to `pcm_audit.jsonl`
+- Third parties can verify PCM certificates using only PAAC's public key — no shared secret required
 
 ### 3. Cryptographic Attestation — Ed25519 (§4.3)
 Every accepted modification receives an **Ed25519 asymmetric signature** (not HMAC). The private key signs; any holder of the public key can verify without trusting PAAC.
@@ -139,8 +140,8 @@ Systematic mutation operators: negate, weaken_op, strengthen_op, shift_const (±
 ### Docker (recommended)
 
 ```bash
-docker build -t paac:v6.1 -f docker/Dockerfile .
-docker run --rm --memory=2g -e PAAC_API_KEY=changeme paac:v6.1
+docker build -t paac:v7.0 -f docker/Dockerfile .
+docker run --rm --memory=2g -e PAAC_API_KEY=changeme paac:v7.0
 ```
 
 ### Local
@@ -178,7 +179,7 @@ All `/verify` requests require the `X-API-Key` header when `PAAC_API_KEY` is set
 | `PAAC_API_KEY` | *(empty — no auth)* | API authentication key |
 | `PAAC_ATTEST_PRIVATE_KEY` | *(ephemeral)* | PEM-encoded Ed25519 private key for attestation signing |
 | `PAAC_ATTEST_PUBLIC_KEY` | *(derived)* | PEM-encoded Ed25519 public key for verification |
-| `PAAC_CERT_KEY` | *(insecure default)* | HMAC key for PCM certificates — change before deployment |
+| `PAAC_CERT_KEY` | *(unused)* | Legacy HMAC key — superseded by Ed25519 (`PAAC_ATTEST_PRIVATE_KEY`) |
 | `PAAC_PCM_MODE` | `false` | Require a formal proof with every modification |
 | `PAAC_PCM_LOG` | `pcm_audit.jsonl` | PCM certificate audit log path |
 | `REDIS_HOST` | `redis` | Redis hostname (falls back to WAL if unavailable) |

@@ -1,4 +1,4 @@
-# PAAC Deployment Guide — v5.0.0
+# PAAC Deployment Guide — v7.0.0
 
 ## Prerequisites
 
@@ -61,7 +61,7 @@ On Linux, TCB source files are chmod'd read-only at startup. Deploy with
 ## Build
 
 ```bash
-docker build -t paac:v5.0.0 -f docker/Dockerfile .
+docker build -t paac:v7.0 -f docker/Dockerfile .
 ```
 
 Verify Z3 is available:
@@ -86,8 +86,8 @@ docker-compose -f docker/docker-compose.yml up -d
 | `REDIS_PORT` | No | `6379` | Redis port |
 | `AXIOM_PATH` | No | `config/axioms.yaml` | Axiom file path |
 | `PAAC_API_KEY` | **Yes (prod)** | `` | API key for X-API-Key header auth |
-| `PAAC_CERT_KEY` | **Yes (prod)** | *(insecure default)* | HMAC key for PCM certificates (hex 32 bytes) |
-| `PAAC_ATTEST_KEY` | **Yes (prod)** | *(ephemeral)* | HMAC key for attestation (hex 32 bytes) |
+| `PAAC_ATTEST_PRIVATE_KEY` | **Yes (prod)** | *(ephemeral)* | PEM Ed25519 private key for attestation + PCM cert signing |
+| `PAAC_ATTEST_PUBLIC_KEY` | No | *(derived)* | PEM Ed25519 public key (derived from private if unset) |
 | `PAAC_PCM_MODE` | No | `false` | Require proofs with every modification |
 | `PAAC_PCM_LOG` | No | `pcm_audit.jsonl` | PCM certificate audit log path |
 | `VERIFICATION_TIMEOUT_MS` | No | `5000` | Z3 solver timeout per query (ms) |
@@ -121,7 +121,18 @@ To enable Proof-Carrying Modification mode:
 # In .env
 PAAC_PCM_MODE=true
 PAAC_PCM_LOG=/app/data/pcm_audit.jsonl
-PAAC_CERT_KEY=<hex-encoded 32-byte random key>
+PAAC_ATTEST_PRIVATE_KEY="$(cat paac_ed25519.pem)"
+```
+
+Generate a persistent Ed25519 key:
+
+```bash
+python3 -c "
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
+k = Ed25519PrivateKey.generate()
+print(k.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode())
+" > paac_ed25519.pem
 ```
 
 In PCM mode, every modification must include a PPL proof. The proof checker
@@ -162,8 +173,8 @@ environment:
   - PAAC_PCM_LOG=/app/data/pcm_audit.jsonl
 ```
 
-Third parties can verify certificates without access to PAAC — they only need
-the shared HMAC key (`PAAC_CERT_KEY`).
+Third parties can verify certificates using only PAAC's **public key** —
+no shared secret required.
 
 ## Monitoring
 
@@ -181,5 +192,5 @@ Linux. On macOS, `RLIMIT_AS` is not enforced by the kernel.
 For production deployments on any platform:
 
 ```bash
-docker run --memory=2g --cpus=2 paac:v5.0.0
+docker run --memory=2g --cpus=2 paac:v7.0
 ```

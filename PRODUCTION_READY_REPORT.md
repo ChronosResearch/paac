@@ -89,8 +89,7 @@ the 10,000-iteration cap — closing the last known algorithmic DoS attack surfa
 
 | Item | Paper | Code | Action |
 |---|---|---|---|
-| Attestation scheme | "HMAC-SHA256" (§4.3) | Ed25519 | Update paper before submission |
-| Test count | 355 | 386 | Update paper before submission |
+| Test count | 376 | 386 | Update paper before submission |
 | Mutant count | 40 | 43 | Update paper before submission |
 | TCB lines | ~2,100 | ~2,400 | Update paper before submission |
 
@@ -168,8 +167,7 @@ result = run_cegar_repair(ast, axioms, timeout_ms=5000)
 ## Deployment Checklist
 
 - [ ] Set `PAAC_API_KEY` to a strong random value
-- [ ] Set `PAAC_ATTEST_PRIVATE_KEY` to a persistent Ed25519 PEM key
-- [ ] Set `PAAC_CERT_KEY` to a 32-byte hex random value
+- [ ] Set `PAAC_ATTEST_PRIVATE_KEY` to a persistent Ed25519 PEM key (shared by attestation engine and PCM certificates)
 - [ ] Set `REDIS_HOST` to a highly-available Redis instance
 - [ ] Deploy with `docker run --memory=2g --read-only` (non-root user enforced)
 - [ ] Set `PAAC_MAX_LOOP_BOUND=10000` (default; adjust only if required)
@@ -192,7 +190,7 @@ result = run_cegar_repair(ast, axioms, timeout_ms=5000)
 
 | Dimension | Score | Notes |
 |---|---|---|
-| Correctness | 9/10 | All paper claims verified; one paper text error (HMAC vs Ed25519) |
+| Correctness | 9/10 | All paper claims verified; test count updated to 386 |
 | Security | 9/10 | 3-layer loop DoS prevention; Ed25519; IPC auth; all known CVEs closed |
 | Test coverage | 9/10 | 386 tests, 0 failures, 0 warnings; all major paths covered |
 | Architecture | 8/10 | Clean separation; TCB is auditable; SIL expressiveness is the ceiling |
@@ -208,8 +206,8 @@ result = run_cegar_repair(ast, axioms, timeout_ms=5000)
 
 PAAC v7.0 is ready for production deployment as a research prototype and for
 submission to mid-tier academic venues (ACSAC, EuroS&P, SaTML). Before top-tier
-submission (S&P, CCS, USENIX), update the paper text to fix the four known
-discrepancies listed above.
+submission (S&P, CCS, USENIX), update the paper text to fix the three known
+discrepancies listed above (test count 376→386, mutant count 40→43, TCB lines).
 
 The Bounded Loop Verification feature closes the last known algorithmic DoS
 attack surface. All 386 tests pass. All paper claims are verified against the

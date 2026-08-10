@@ -1,4 +1,6 @@
 # Copyright (c) 2026 Shashank Kumar. All rights reserved.
+from __future__ import annotations
+
 import os
 import re
 from dataclasses import dataclass
