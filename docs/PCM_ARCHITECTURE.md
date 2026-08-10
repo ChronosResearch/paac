@@ -32,7 +32,7 @@ ProofChecker          <-- pure Python, <10ms, no Z3
   +-- ACCEPT
         |
         v
-  generate_certificate  <-- HMAC-SHA256 over (code_hash, proof_hash, agent_id, ...)
+  generate_certificate  <-- Ed25519-signed (PAAC_ATTEST_PRIVATE_KEY)
         |
         v
   CertificateStore      <-- append-only JSONL audit log
@@ -126,28 +126,29 @@ The generator is rule-based (not an LLM). It produces proofs that the
 
 **File:** `src/pcm/certificate.py`
 
-Every accepted proof generates a `PCMCertificate`:
+Every accepted proof generates a `PCMCertificate` signed with **Ed25519**
+(paper §4.3):
 
 ```json
 {
-  "version": "pcm-1.0",
+  "version": "pcm-2.0",
   "modification_id": "<unique id>",
   "code_hash": "<sha256 of SIL source>",
   "proof_hash": "<sha256 of canonical proof JSON>",
   "agent_id": "<submitting agent identity>",
   "timestamp": "<ISO-8601>",
   "axioms_covered": ["<axiom_id>", ...],
-  "paac_signature": "<hmac-sha256 of above fields>"
+  "public_key_pem": "<PEM Ed25519 public key>",
+  "paac_signature": "<base64 Ed25519 signature>"
 }
 ```
 
-The HMAC is computed over a canonical JSON payload (sorted keys, no whitespace)
-using the key from `PAAC_CERT_KEY`. The signature covers all fields except
-`paac_signature` itself.
+The Ed25519 signature covers a canonical JSON payload (sorted keys, no
+whitespace) using the key from `PAAC_ATTEST_PRIVATE_KEY`. The `public_key_pem`
+field is embedded so the certificate is self-contained.
 
-**Third-party verification:** Any party with the HMAC key can verify a
-certificate by recomputing the signature and comparing with
-`hmac.compare_digest` (constant-time).
+**Third-party verification:** Any party with PAAC's **public key** can verify a
+certificate without a shared secret — asymmetric verification only.
 
 **Audit log:** Certificates are appended to an append-only JSONL file
 (`pcm_audit.jsonl` by default). Existing entries are never modified or deleted.
@@ -189,10 +190,10 @@ valid proof; PAAC is responsible for verifying it quickly.
 |----------|-----------|
 | Proof integrity | Proof hash (SHA-256) in certificate |
 | Code integrity | Code hash (SHA-256) in certificate |
-| Certificate integrity | HMAC-SHA256 over all fields |
+| Certificate integrity | Ed25519 signature over all fields |
 | Non-repudiation | Agent ID bound to certificate |
 | Auditability | Append-only JSONL log |
-| Timing safety | `hmac.compare_digest` for constant-time comparison |
+| Third-party verifiability | Public key embedded in certificate |
 | No code injection | Proof checker uses no `eval()` |
 
 ---

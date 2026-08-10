@@ -1,6 +1,4 @@
-# PAPER_CLAIMS_CHECKLIST.md — PAAC v5.0.0
-# EU AI Summer Research Program — EPFL
-# Generated: 2026-08-02
+# PAPER_CLAIMS_CHECKLIST.md — PAAC v7.0.0
 
 This document maps every claim in the PAAC paper to its verification status.
 Status codes: VERIFIED | PARTIAL | CORRECTED | FUTURE_WORK
@@ -47,7 +45,7 @@ Status codes: VERIFIED | PARTIAL | CORRECTED | FUTURE_WORK
 | Key rotation works; old attestations verifiable with old key | VERIFIED | `test_key_rotation` |
 | 1000 attestations all verify correctly | VERIFIED | `test_stress_1000_attestations` |
 | Concurrent attestation generation is thread-safe | VERIFIED | `test_concurrent_attestations_thread_safe` |
-| Attestation is a full zk-SNARK proof | CORRECTED | HMAC-SHA256 is used, not a zk-SNARK. HMAC provides integrity and authenticity but not zero-knowledge. A verifier who holds the key can forge attestations. Full SNARKs require arkworks/bellman (Rust/C++) — future work. |
+| Attestation is a full zk-SNARK proof | CORRECTED | Ed25519 asymmetric signing is used (not HMAC, not zk-SNARK). Ed25519 provides integrity, authenticity, and non-repudiation. Third parties verify with the public key only. Full SNARKs are future work. |
 
 ---
 
@@ -114,6 +112,7 @@ These are documented honestly in the paper:
 | Bootstrap self-verification (new) | 13 |
 | Cryptographic attestation (new) | 17 |
 | Multi-agent coordination (new) | 18 |
-| **Total** | **260** |
+| Novel features v5–v7 | 126 |
+| **Total** | **386** |
 
-All 260 tests pass. Bandit: 0 HIGH. Mypy: 0 errors.
+All 386 tests pass.
