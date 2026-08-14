@@ -11,6 +11,6 @@ fastapi==0.115.0
 pydantic==2.9.2
 psutil==7.2.2
 uvicorn==0.52.1
-prometheus-client==0.21.1
+prometheus-client==0.26.0
 cryptography>=42.0.0
 lark>=1.1.9
