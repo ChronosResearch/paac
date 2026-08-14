@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # Step 60: Run as non-root user
 RUN groupadd -r paac && useradd -r -g paac -d /app -s /sbin/nologin paac
