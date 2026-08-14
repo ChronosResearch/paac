@@ -6,7 +6,7 @@ jsonschema==4.26.0
 pytest==9.1.1
 click==8.4.2
 loguru==0.7.3
-filelock==3.18.0
+filelock==3.32.2
 fastapi==0.115.0
 pydantic==2.9.2
 psutil==7.2.2
