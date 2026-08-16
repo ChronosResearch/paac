@@ -1,4 +1,4 @@
-# PAAC — Provably Aligned AI Core v7.0
+# PAAC — Provably Aligned AI Core v7.0 Prototype
 
 **386 tests passing · Ed25519 asymmetric attestation · Real AST-based BMC · Bounded Loop Verification · 5 axioms · 43 mutants · 100% robustness**
 
