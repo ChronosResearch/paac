@@ -1,6 +1,41 @@
 # PAPER_CLAIMS_CHECKLIST.md — PAAC v5.0.0
-# EU AI Summer Research Program — EPFL
+# EU AI Summer Research Program, EPFL
 # Generated: 2026-08-02
+
+> **HISTORICAL DOCUMENT, v5 ERA. NOT MAINTAINED, AND NOT A CURRENT STATEMENT OF
+> CORRECTNESS.**
+>
+> This checklist was written against the PAAC v5 codebase and the paper as
+> submitted. It is preserved because it records what was believed and claimed at
+> submission time, which is worth keeping accurate as history. It has
+> deliberately **not** been reconciled line by line against the current code,
+> and several entries below are now known to be wrong.
+>
+> Read `AUDIT_FINDINGS.md` for the current state. Specifically, do not rely on
+> these entries:
+>
+> - **"Multiprocessing uses spawn (A-04 fix), VERIFIED"**. The cited test,
+>   `test_spawn_start_method_configured`, could not run at all in a clean
+>   checkout: it imports `src.main`, which requires `fastapi`, which was
+>   declared in `requirements.txt` but absent from the working environment. A
+>   VERIFIED status resting on a test that raises `ModuleNotFoundError` on
+>   collection is not evidence of anything. The dependency is now installed and
+>   the test passes, but the status was unearned when written.
+> - **Any entry that depends on a safety axiom actually firing.** See
+>   `AUDIT_FINDINGS.md` C-03: `result_bounded` is structurally dead, and
+>   `no_exit` and `no_network` only apply to code that volunteers the sentinel
+>   variables they reference. Axioms that cannot be encoded are silently
+>   dropped as "inapplicable" and the verifier then reports safe having checked
+>   nothing.
+> - **Any entry implying preconditions were validated before use.** See
+>   `AUDIT_FINDINGS.md` C-02: agent-supplied `pre_cond` reached the solver
+>   unchecked, and an unsatisfiable one forced every query to UNSAT, meaning
+>   accepted. Fixed now, but not at the time this document was written.
+>
+> The lesson this document records, and the reason it is kept rather than
+> deleted: "VERIFIED" was recorded against the *existence* of a named test, not
+> against evidence that the test ran, exercised the mechanism it named, and
+> could have failed. Future claim tracking must cite a run, not a test name.
 
 This document maps every claim in the PAAC paper to its verification status.
 Status codes: VERIFIED | PARTIAL | CORRECTED | FUTURE_WORK

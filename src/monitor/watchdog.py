@@ -1,4 +1,5 @@
-# Copyright (c) 2026 Shashank Kumar. All rights reserved.
+# Copyright 2026 Shashank Kumar
+# SPDX-License-Identifier: Apache-2.0
 # This file is part of the PAAC (Provably Aligned Core) project.
 # See LICENSE for terms.
 
@@ -118,16 +119,32 @@ class Watchdog:
 
     def _monitor_loop(self) -> None:
         """Checks elapsed time since last heartbeat every monitor_interval
-        seconds.  Only fires when the liveness thread itself has stalled."""
-        redis_host = os.environ.get("REDIS_HOST", "redis")
-        import redis as _redis
+        seconds.  Only fires when the liveness thread itself has stalled.
 
-        try:
-            r = _redis.Redis(host=redis_host, port=6379, socket_timeout=0.5)
-            r.ping()
-        except Exception:
-            r = None
+        This loop deliberately performs no I/O. It previously opened a Redis
+        connection and PINGed it before entering the loop, then re-PINGed on
+        every iteration. That was removed because it broke the watchdog's only
+        real job in two distinct ways, and bought nothing in return.
 
+        What it cost: the default REDIS_HOST is the bare name "redis", which
+        does not resolve outside a container network, and neither
+        socket_timeout nor socket_connect_timeout bounds name resolution
+        (redis-py resolves via getaddrinfo before it opens a socket). The eager
+        PING therefore blocked this thread for roughly 28 seconds on a
+        developer machine BEFORE the first `while` iteration. Consequences:
+        a genuine liveness stall went undetected for the whole of that window,
+        and stop() could not retire the thread, since setting _monitor_running
+        does nothing while the thread is parked inside a blocking resolver
+        call. Both were observable as test failures in
+        tests/test_watchdog_liveness.py.
+
+        What it bought: a log line. The check's only effect was to emit a
+        warning; it did not alter watchdog behaviour, and it did not influence
+        CodeMonitor's store selection, which CodeMonitor decides for itself and
+        already logs. A liveness monitor is the wrong place to discover the
+        state of an optional cache, so the check is gone rather than merely
+        bounded.
+        """
         while self._monitor_running:
             time.sleep(self.monitor_interval)
             if not self._monitor_running:
@@ -135,17 +152,6 @@ class Watchdog:
 
             with self._lock:
                 elapsed = time.monotonic() - self._last_heartbeat
-
-            # Optional Redis health check — non-blocking, best-effort.
-            if r:
-                try:
-                    r.ping()
-                except Exception as e:
-                    logger.warning(
-                        f"Watchdog: Redis connection lost ({e}). "
-                        "CodeMonitor will degrade to in-memory mode."
-                    )
-                    r = None
 
             if elapsed > self.timeout:
                 logger.error(

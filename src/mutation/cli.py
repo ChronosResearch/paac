@@ -121,11 +121,17 @@ def main(argv: list[str] | None = None) -> int:
     csv_path = os.path.join(args.out_dir, "axiom_mutation_results.csv")
     md_path = os.path.join(args.out_dir, "AXIOM_MUTATION_REPORT.md")
 
-    with open(json_path, "w") as fh:
+    # encoding is explicit because it is load-bearing, not stylistic.
+    # open() without it uses locale.getpreferredencoding(), which is cp1252 on
+    # a default Windows install, and to_markdown() emits non-Latin-1 characters
+    # (status indicators such as U+1F534). Writing the report then died with
+    # UnicodeEncodeError partway through, leaving a truncated file on disk.
+    # The report content is fixed, so the encoding must be too.
+    with open(json_path, "w", encoding="utf-8") as fh:
         fh.write(to_json(results))
-    with open(csv_path, "w") as fh:
+    with open(csv_path, "w", encoding="utf-8", newline="") as fh:
         fh.write(to_csv(results))
-    with open(md_path, "w") as fh:
+    with open(md_path, "w", encoding="utf-8") as fh:
         fh.write(to_markdown(results))
 
     if not args.quiet:
