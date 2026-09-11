@@ -1,11 +1,38 @@
 # PAAC — Provably Aligned AI Core v7.0 Prototype
 
-**386 tests passing · Ed25519 asymmetric attestation · Real AST-based BMC · Bounded Loop Verification · 5 axioms · 43 mutants · 100% robustness**
+**398 tests passing, 2 expected failures · 5 axioms, all effective · Ed25519 asymmetric attestation · Real AST-based BMC · Bounded Loop Verification · 43 mutants · 2 confirmed decomposition vulnerabilities, open**
+
+Read this before the rest of the file. Every figure above is measured, and two of
+them are worse than a reader would assume.
+
+**Suite: 398 passed, 2 xfailed, exit 0** (verified, 219.46s, Windows,
+Python 3.11.9). The earlier claim of "386 tests passing" was never measured; when
+first run the real figure was 400 collected with **5 failing**. The two expected
+failures are deliberate and must not be "fixed" by deleting them: they pin the
+two open decomposition vulnerabilities below, so the defence cannot land without
+someone removing the markers.
+
+**"5 axioms, all effective" is new, and it was not true until recently.** Three of
+the five never fired at all: `result_bounded` was structurally dead because the
+verifier discarded return values, and `no_exit` and `no_network` only applied to
+code that happened to declare the sentinel variables they name. Axioms that could
+not be encoded were silently dropped, and the verifier then reported the function
+safe having checked nothing. The same defect made all four of PAAC's *self*
+verification axioms inert. Both are fixed; see `AUDIT_FINDINGS.md` C-03 and C-04.
+
+**Two confirmed decomposition vulnerabilities are open.** A sequence of
+modifications, each individually accepted by the verifier, can compose into a
+violation of a safety axiom. Both were synthesised by Z3 and confirmed end to end
+through the production entry point and the real runtime. Call-site preconditions
+are unenforced (D-01), and replacing a function does not re-verify its callers
+(D-02). The defence is designed but not built. Full write-up, threat model, and
+the boundary of what the result does and does not establish:
+[`docs/DECOMPOSITION.md`](docs/DECOMPOSITION.md).
 
 PAAC is a deterministic safety wrapper for self-modifying AI agents. It intercepts every proposed code modification, compiles it to the Safe Intermediate Language (SIL), and verifies it against safety axioms using Z3 SMT-based bounded model checking. Only modifications that produce an UNSAT result are accepted.
 
 Paper: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218  
-License: Copyright © 2026 Shashank Kumar. All rights reserved.
+License: Apache-2.0. Copyright 2026 Shashank Kumar. See `LICENSE` and `NOTICE`.
 
 ---
 
@@ -151,7 +178,27 @@ pip install -r requirements.txt
 PYTHONPATH=. python3.11 -m pytest tests/ -v
 ```
 
-Expected: **386 tests pass.**
+Expected: **398 passed, 2 xfailed**, in roughly 3 to 4 minutes.
+
+Both `xfailed` results are correct and must not be "fixed" by deleting the tests.
+They are `test_paac_should_reject_schema_a_composition` and
+`test_paac_should_reject_schema_c_composition` in `tests/test_decomposition.py`,
+each marked `xfail(strict=True)`. They describe the behaviour PAAC ought to have
+once the composition defence exists, and they fail today because it does not.
+Because they are strict, they turn into *failures* the moment the defence lands,
+which forces whoever builds it to come back and convert them.
+
+To reproduce the decomposition findings on their own:
+
+```bash
+PYTHONPATH=. python -m pytest tests/test_decomposition.py -q
+PYTHONPATH=. python -c "from src.decomp import synthesise_all; [print(r.summary()) for r in synthesise_all()]"
+```
+
+If you see a `ModuleNotFoundError` for `fastapi`, install the declared
+dependencies first with `pip install -r requirements.txt`. Several of them
+(`fastapi`, `pydantic`, `uvicorn`, `prometheus-client`) are required for
+`src/main.py` to import at all, and one test imports it.
 
 ---
 

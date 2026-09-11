@@ -1,4 +1,5 @@
-# Copyright (c) 2026 Shashank Kumar. All rights reserved.
+# Copyright 2026 Shashank Kumar
+# SPDX-License-Identifier: Apache-2.0
 # This file is part of the PAAC (Provably Aligned Core) project.
 # See LICENSE for terms.
 
@@ -17,9 +18,11 @@ from loguru import logger
 
 from ..axioms.axiom_parser import Axiom, AxiomParser
 from ..core.exceptions import (
+    AxiomNotEncodableError,
     CompilationError,
     ConfigurationError,
     GroundingError,
+    PreconditionUnsatisfiableError,
     VerificationError,
 )
 from ..core.failsafe import (
@@ -33,7 +36,7 @@ from ..core.failsafe import (
 )
 from ..core.sil_compiler import SILCompiler, SILError as _SILError
 from ..core.tcb_protect import protect_tcb
-from ..core.verifier import BoundedModelChecker
+from ..core.verifier import BoundedModelChecker, check_precondition_satisfiable
 from ..core.verifier import (
     VerificationError as _VerifierError,  # same class via re-export
 )
@@ -49,6 +52,13 @@ _audit_logger.setLevel(logging.INFO)
 
 # Semaphore: at most 4 concurrent Z3 subprocesses to bound resource usage.
 _VERIFY_SEMAPHORE = threading.Semaphore(4)
+
+# Redis startup probe bounds. See the probe call site in __init__ for why a
+# wall-clock deadline is needed in addition to the socket timeouts.
+# The deadline is the larger of the two so that a socket-level timeout gets a
+# chance to fire and report a precise error before the deadline abandons it.
+_REDIS_PROBE_TIMEOUT_S: float = 1.0
+_REDIS_PROBE_DEADLINE_S: float = 2.0
 
 # R-6: Citation must be >= 20 chars and contain a dot (URL / DOI heuristic).
 # Accepts: https://doi.org/..., https://github.com/..., http://..., doi:10....
@@ -109,22 +119,35 @@ class CodeMonitor:
                 CodeMonitor._live_registry[func_name] = entry.new_code
                 logger.info(f"WAL: restored '{func_name}' from write-ahead log.")
 
-        # Redis setup — degrade gracefully to WAL.
+        # Redis setup: degrade gracefully to WAL.
+        #
+        # The socket timeouts below are correct and wanted, but they are NOT
+        # sufficient to bound this probe, and an earlier version of this fix
+        # that relied on them alone did not work. redis-py forwards
+        # socket_connect_timeout to socket.create_connection, which resolves
+        # the host via getaddrinfo BEFORE it opens a socket, and getaddrinfo
+        # is not covered by that timeout. The default REDIS_HOST is the bare
+        # name "redis", which does not resolve outside a container network,
+        # and a failing single-label lookup on Windows can fall through DNS
+        # and then LLMNR/NetBIOS before giving up. Measured cost with
+        # socket_connect_timeout=1.0 already in place: 28 seconds per
+        # CodeMonitor construction, paid on every single construction.
+        #
+        # Enforcing a wall-clock deadline in a worker thread is what actually
+        # bounds it, and it holds regardless of WHY the probe is slow: name
+        # resolution, a blackholed address that never answers SYN, or a host
+        # that completes the handshake and then stalls mid-command.
         redis_host = os.environ.get("REDIS_HOST", "redis")
         self.redis_client = redis.Redis(
-            host=redis_host, port=6379, decode_responses=True
+            host=redis_host,
+            port=6379,
+            decode_responses=True,
+            socket_connect_timeout=_REDIS_PROBE_TIMEOUT_S,
+            socket_timeout=_REDIS_PROBE_TIMEOUT_S,
         )
-        self.use_redis = True
-        try:
-            self.redis_client.ping()
-        except redis.ConnectionError:
-            logger.warning(
-                "Redis is unavailable. Falling back to WAL checkpoint store. "
-                "Checkpoints will be written to disk and replayed on restart."
-            )
-            self.use_redis = False
+        self.use_redis = self._probe_redis(redis_host)
 
-        # Watchdog: two threads — liveness stamps every second,
+        # Watchdog: two threads - liveness stamps every second,
         # monitor checks every 5 s.  Idle periods never trigger recovery.
         self._watchdog_running = True
         self._last_heartbeat = time.monotonic()
@@ -137,6 +160,64 @@ class CodeMonitor:
         )
         self._liveness_thread.start()
         self._watchdog_thread.start()
+
+    # ------------------------------------------------------------------
+    # Checkpoint store selection
+    # ------------------------------------------------------------------
+
+    def _probe_redis(self, redis_host: str) -> bool:
+        """Ping Redis under a hard wall-clock deadline.
+
+        Returns True if Redis is usable as the checkpoint store, False to fall
+        back to the WAL. Never raises: every failure mode means the same thing
+        operationally, which is "use the WAL".
+
+        See the call site in __init__ for why the deadline is enforced here
+        rather than left to socket_connect_timeout.
+        """
+        outcome: dict[str, BaseException | None] = {}
+
+        def _ping() -> None:
+            try:
+                self.redis_client.ping()
+                outcome["error"] = None
+            except BaseException as exc:  # noqa: BLE001
+                # Deliberately broad. This runs on a thread whose exceptions
+                # would otherwise surface through the unraisable hook and be
+                # reported as a crash, and the distinction between failure
+                # modes does not change the decision we make below.
+                outcome["error"] = exc
+
+        probe = threading.Thread(target=_ping, name="paac-redis-probe", daemon=True)
+        started = time.monotonic()
+        probe.start()
+        probe.join(timeout=_REDIS_PROBE_DEADLINE_S)
+        elapsed = time.monotonic() - started
+
+        if probe.is_alive():
+            # The thread cannot be cancelled, so it is abandoned. That is safe:
+            # it is a daemon, it only writes to the local `outcome` dict which
+            # nothing reads after this point, and self.redis_client is left
+            # unused once use_redis is False.
+            logger.warning(
+                f"Redis probe to '{redis_host}' exceeded "
+                f"{_REDIS_PROBE_DEADLINE_S:.1f}s and was abandoned. Falling back "
+                "to WAL checkpoint store. Checkpoints will be written to disk "
+                "and replayed on restart."
+            )
+            return False
+
+        error = outcome.get("error")
+        if error is not None:
+            logger.warning(
+                f"Redis is unavailable ({type(error).__name__}) after "
+                f"{elapsed:.2f}s. Falling back to WAL checkpoint store. "
+                "Checkpoints will be written to disk and replayed on restart."
+            )
+            return False
+
+        logger.info(f"Redis reachable at '{redis_host}' in {elapsed:.2f}s.")
+        return True
 
     # ------------------------------------------------------------------
     # Watchdog
@@ -335,6 +416,27 @@ class CodeMonitor:
 
                 ast, _cfgs = self.compiler.compile(mod.new_code)
 
+                # Precondition satisfiability gate. Must run before BMC, not
+                # instead of it, and must run for every mod regardless of
+                # pcm_mode: an unsatisfiable pre_cond ("1 == 0", "x != x")
+                # forces Z3's precondition-as-constraint encoding to make the
+                # whole BMC query vacuously UNSAT, so every submission would
+                # be accepted without a single axiom actually being checked.
+                # mod.pre_cond is agent-supplied (see agent_adapter.py) and
+                # reaches this point with no other validation, so this is the
+                # only place that stands between an attacker-chosen
+                # contradiction and a silent, total bypass of every axiom in
+                # self.axioms. See PLAN_V8.md §0.5 for the full attack trace.
+                target_func = next(
+                    (f for f in ast.functions if f.name == mod.func_name), None
+                )
+                gate_params = (
+                    [p.name for p in target_func.params] if target_func else []
+                )
+                check_precondition_satisfiable(
+                    mod.pre_cond, gate_params, timeout_ms=self.timeout_ms
+                )
+
                 # A-05 fix: only pass axioms that target this function.
                 applicable = self._get_applicable_axioms(mod.func_name)
 
@@ -362,7 +464,16 @@ class CodeMonitor:
                         "message": "Modification verified and applied.",
                     }
                 else:
-                    CodeMonitor._circuit_breaker.record_failure()
+                    # H-06. A reached verdict of "unsafe" is the verifier
+                    # SUCCEEDING, so it is recorded as a success even though the
+                    # modification is refused. This used to call
+                    # record_failure(), which conflated two opposite things: "Z3
+                    # is broken and I should stop" and "I correctly caught an
+                    # attack and should keep going". Because rejection is the
+                    # expected outcome for hostile input, an adversary could
+                    # open the breaker with five bad submissions and suspend
+                    # verification for 60 seconds at no cost.
+                    CodeMonitor._circuit_breaker.record_success()
                     ce_str = str(counterexample) if counterexample else None
                     _audit_logger.warning(
                         f"REJECTED func={mod.func_name} "
@@ -380,9 +491,38 @@ class CodeMonitor:
 
             except (CompilationError, _SILError) as exc:
                 return {"status": "rejected", "error": f"Compilation failed: {exc}"}
+            except PreconditionUnsatisfiableError as exc:
+                # H-06: the gate firing is the mechanism working, not failing.
+                CodeMonitor._circuit_breaker.record_success()
+                _audit_logger.warning(
+                    f"REJECTED func={mod.func_name} "
+                    f"reason=unsatisfiable_precondition pre_cond={mod.pre_cond!r}"
+                )
+                return {
+                    "status": "rejected",
+                    "error": f"Unsatisfiable precondition: {exc}",
+                }
             except (VerificationError, _VerifierError) as exc:
+                # H-06: this one stays a failure, and is the only kind that
+                # should be. Reaching here means no verdict was produced: a Z3
+                # timeout, a crashed subprocess, or an unknown result. That is
+                # the condition the breaker exists to detect, because retrying a
+                # broken verifier in a tight loop helps nobody.
                 CodeMonitor._circuit_breaker.record_failure()
                 return {"status": "rejected", "error": f"Verification failed: {exc}"}
+            except AxiomNotEncodableError as exc:
+                # C-03: the axiom set cannot be evaluated against this function.
+                # Fail closed, and count it as a mechanism failure, because the
+                # operator has to change configuration before anything can be
+                # verified. Unlike a rejection, retrying will not help.
+                CodeMonitor._circuit_breaker.record_failure()
+                _audit_logger.warning(
+                    f"REJECTED func={mod.func_name} reason=axiom_not_encodable"
+                )
+                return {
+                    "status": "rejected",
+                    "error": f"Axiom set cannot be evaluated: {exc}",
+                }
             except GroundingError as exc:
                 return {"status": "rejected", "error": f"Grounding failed: {exc}"}
 
@@ -414,7 +554,9 @@ class CodeMonitor:
         check_result = checker.check(mod.proof)
 
         if not check_result.accepted:
-            CodeMonitor._circuit_breaker.record_failure()
+            # H-06: a rejected proof is the checker working. See the note on the
+            # non-PCM rejection path above.
+            CodeMonitor._circuit_breaker.record_success()
             _audit_logger.warning(
                 f"PCM REJECTED func={mod.func_name} "
                 f"reason={check_result.reason!r} "

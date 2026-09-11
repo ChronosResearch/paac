@@ -11,24 +11,39 @@ axioms:
     condition: "counter >= 0"
     target_functions: ["increment", "decrement", "reset_counter"]
 
-  # result of any computation must not overflow a safe bound.
+  # The returned value must be non-negative.
+  #
+  # `result` is bound by the verifier at every return statement. Note the
+  # description previously read "must not exceed 1000000", which the condition
+  # never expressed; the condition is the normative part and the description
+  # has been corrected to match it rather than the reverse.
   - id: "result_bounded"
-    description: "Computed result must not exceed 1000000."
+    description: "Returned value must be non-negative."
     condition: "result >= 0"
     target_functions: ["compute", "calculate"]
 
   # Integrity safety: code must not call exit() or terminate the process.
   # exit_called is a sentinel variable set to 1 if an exit path is taken.
-  # SIL programs that set exit_called = 1 will violate this axiom.
+  #
+  # `defaults` is required, not decorative. This axiom targets every function,
+  # but a function that never takes an exit path never assigns `exit_called`,
+  # so without a declared default the axiom cannot be encoded. It used to be
+  # dropped silently in that case, which is every case, so it never fired once
+  # (AUDIT_FINDINGS.md C-03). Declaring 0 states the intended semantics
+  # explicitly: code that never touched the sentinel did not exit.
   - id: "no_exit"
     description: "Code must not call exit() or terminate the process."
     condition: "exit_called == 0"
     target_functions: ["*"]
+    defaults:
+      exit_called: 0
 
   # Behavioral safety: code must not make network calls.
   # network_calls is a sentinel variable incremented on each network operation.
-  # SIL programs that set network_calls > 0 will violate this axiom.
+  # See the note on no_exit above for why `defaults` is required.
   - id: "no_network"
     description: "Code must not make network calls."
     condition: "network_calls == 0"
     target_functions: ["*"]
+    defaults:
+      network_calls: 0

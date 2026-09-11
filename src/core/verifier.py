@@ -9,7 +9,11 @@ import z3
 from loguru import logger
 
 from src.axioms.axiom_parser import Axiom
-from src.core.exceptions import VerificationError  # re-exported for callers
+from src.core.exceptions import (  # re-exported for callers
+    AxiomNotEncodableError,
+    PreconditionUnsatisfiableError,
+    VerificationError,
+)
 from src.core.sil_compiler import (
     ArrayAccessNode,
     AssertStmtNode,
@@ -254,7 +258,28 @@ class StmtEncoder:
             self.violation_flags.append(violation)
 
         elif isinstance(stmt, ReturnStmtNode):
-            _ = self.expr_enc.encode(stmt.value)
+            # Bind the returned value to the name `result` so that axioms can
+            # talk about it. Before this, the encoded value was computed and
+            # thrown away (`_ = self.expr_enc.encode(...)`), so no variable
+            # named `result` ever entered the SSA environment. The consequence
+            # was that `result_bounded: result >= 0` could not be encoded for
+            # ANY function and was silently dropped every time, making the
+            # axiom dead for the entire lifetime of the codebase. See
+            # AUDIT_FINDINGS.md C-03.
+            #
+            # `result` is written as an ordinary SSA variable, so the existing
+            # phi-merge machinery treats it like any other variable when
+            # returns appear on both sides of a branch.
+            #
+            # Known limitation, deliberately not papered over: BMC here encodes
+            # statements as straight-line code and does not model a `return` as
+            # transferring control. In a function with several returns on the
+            # same path, each one rebinds `result`, so an axiom sees the last
+            # binding on that path rather than the one that would actually have
+            # fired. Guarding this properly needs return-aware path conditions,
+            # which is a separate change; SIL functions in the current corpus
+            # return once per path.
+            self.env.write("result", self.expr_enc.encode(stmt.value))
 
         elif isinstance(stmt, IfStmtNode):
             cond = self.expr_enc.encode(stmt.condition)
@@ -314,6 +339,8 @@ def _encode_axiom(
     ctx: z3.Context,
     env: SSAEnv,
     param_names: list[str] | None = None,
+    *,
+    on_unbound: str = "skip",
 ) -> "z3.BoolRef | None":
     """
     Parse the axiom condition string as a SIL expression and encode it to Z3
@@ -329,8 +356,21 @@ def _encode_axiom(
          so IdentifierNode lookups call env.read(), returning the current SSA
          expression (which may be a concrete Z3 value like IntVal(1)).
 
-    Returns None when the axiom references variables not present in the current
-    env (inapplicable axiom — skipped with a debug log).
+    on_unbound controls what happens when the condition names a variable that
+    is neither bound in *env* nor covered by axiom.defaults:
+
+      "skip"  -> return None, the historical behaviour. Correct for
+                 preconditions, where an unresolvable name genuinely cannot
+                 become the vacuous False constraint the satisfiability gate
+                 exists to catch, so skipping is safe.
+      "error" -> raise AxiomNotEncodableError. Correct for safety axioms, where
+                 silently dropping the axiom means the verifier reports safe
+                 having checked nothing. See AUDIT_FINDINGS.md C-03.
+
+    The default stays "skip" so that precondition call sites keep their existing
+    behaviour without needing to opt in; the axiom loop in _verify_inner passes
+    "error" explicitly.
+
     Raises VerificationError only for syntactically invalid SIL (Step 22).
     """
     # Build param list from ALL variables currently in env (params + body vars).
@@ -355,6 +395,26 @@ def _encode_axiom(
         if name not in seen_vars:
             seen_vars.add(name)
             all_vars.append(name)
+
+    # Bind declared defaults for any variable this axiom needs that the function
+    # never assigned. This is what lets a sentinel axiom such as
+    # `no_exit: exit_called == 0` apply to a function that simply never touches
+    # `exit_called`: absence is bound to the declared value (0) and the axiom is
+    # then genuinely evaluated, rather than being dropped as "inapplicable" and
+    # never checked at all.
+    #
+    # The binding is a concrete Z3 value, not a fresh symbol. A fresh symbol
+    # would leave the sentinel unconstrained, and Z3 would happily choose
+    # exit_called = 1 to satisfy the violation disjunction, turning every
+    # function into a false positive.
+    for var, value in sorted(axiom.defaults.items()):
+        if var in seen_vars:
+            # The function binds it for real, so the real value wins. A default
+            # must never override observed program state.
+            continue
+        env.write(var, z3.IntVal(value, ctx=ctx))
+        seen_vars.add(var)
+        all_vars.append(var)
 
     param_str = ", ".join(f"{n}: int" for n in all_vars)
     sil_wrapper = (
@@ -381,16 +441,118 @@ def _encode_axiom(
             "Arity mismatch",
         )
         if any(m in str(exc) for m in _inapplicable_markers):
-            logger.debug(f"Axiom '{axiom.id}' inapplicable to current function: {exc}")
-            return None
+            return _handle_unbound(axiom, exc, on_unbound)
         raise VerificationError(
             f"Axiom '{axiom.id}' has invalid SIL syntax: {exc}"
         ) from exc
     except VerificationError:
         raise
+    except AxiomNotEncodableError:
+        raise
     except Exception as exc:  # noqa: BLE001
-        logger.debug(f"Axiom '{axiom.id}' inapplicable to current function: {exc}")
-        return None
+        return _handle_unbound(axiom, exc, on_unbound)
+
+
+def _handle_unbound(
+    axiom: Axiom, exc: Exception, on_unbound: str
+) -> "z3.BoolRef | None":
+    """Decide what an unencodable axiom means, per the caller's policy.
+
+    Split out so that the two call sites cannot drift apart: it is the
+    difference between "skip a precondition we cannot resolve" and "refuse to
+    pretend we checked a safety axiom we could not evaluate".
+    """
+    if on_unbound == "error":
+        raise AxiomNotEncodableError(
+            f"Axiom '{axiom.id}' targets this function but could not be "
+            f"encoded: {exc}. The axiom references state the function never "
+            f"binds. Either the axiom does not belong on this function, or it "
+            f"needs a 'defaults' entry in config/axioms.yaml declaring the "
+            f"value to assume when that state is absent, for example "
+            f"'defaults: {{exit_called: 0}}'. Refusing to continue: dropping "
+            f"the axiom here would mean reporting this modification safe "
+            f"without having checked it (AUDIT_FINDINGS.md C-03)."
+        ) from exc
+
+    logger.debug(f"Axiom '{axiom.id}' skipped, not encodable here: {exc}")
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Precondition satisfiability gate
+#
+# _verify_inner treats pre_cond as a solver CONSTRAINT, not a violation flag
+# (paper §3.4). That is correct for a genuine precondition, but it also means
+# an unsatisfiable pre_cond, e.g. "1 == 0", forces the whole query to UNSAT
+# regardless of what the modification's body actually does: Z3 conjoins
+# `_z3_pre` with the axiom-violation disjunction, and False AND anything is
+# False. Every submitted modification is accepted, none of the axioms are
+# actually checked.
+#
+# The Inner Agent supplies pre_cond directly (src/monitor/agent_adapter.py:
+# `pre_cond=data.get("precondition", "true")`), and nothing upstream of the
+# verifier inspects it. This function is the gate: it checks pre_cond's own
+# satisfiability in isolation, over the function's declared parameters, and
+# raises PreconditionUnsatisfiableError if no input can satisfy it. It must
+# run before BMC, not instead of it: an unsatisfiable precondition is never a
+# legitimate submission, so the correct response is rejection, not a silent
+# pass-through to a vacuous "safe" result.
+# ---------------------------------------------------------------------------
+
+
+def check_precondition_satisfiable(
+    pre_cond: str,
+    param_names: list[str],
+    timeout_ms: int = 5000,
+) -> None:
+    """
+    Raise PreconditionUnsatisfiableError if *pre_cond* is unsatisfiable on its
+    own, over the given parameter names.
+
+    An empty or whitespace-only pre_cond is trivially satisfiable (it encodes
+    to no constraint at all) and is not checked here.
+
+    This runs in its own fresh Context and Solver so the check cannot be
+    contaminated by, or leak into, the caller's BMC query.
+    """
+    stripped = pre_cond.strip()
+    if not stripped:
+        return
+
+    ctx = z3.Context()
+    solver = z3.Solver(ctx=ctx)
+    solver.set("timeout", timeout_ms)
+
+    env = SSAEnv(ctx)
+    for name in param_names:
+        env.declare_param(name, "int")
+
+    axiom = Axiom("_precond_sat_check", "", stripped, ["*"])
+    z3_cond = _encode_axiom(axiom, ctx, env, param_names)
+
+    if z3_cond is None:
+        # Condition referenced a name outside param_names and was skipped as
+        # "inapplicable" by _encode_axiom. It will be skipped identically at
+        # verification time (see _verify_inner), so it can never become the
+        # False constraint this gate exists to catch. Nothing to check.
+        return
+
+    solver.add(z3_cond)
+    result = solver.check()
+
+    if result == z3.unsat:
+        raise PreconditionUnsatisfiableError(
+            f"Precondition {stripped!r} is unsatisfiable: no assignment of "
+            f"{param_names or '(no parameters)'} makes it true. An "
+            "unsatisfiable precondition forces every subsequent BMC query to "
+            "UNSAT regardless of the modification's actual safety, so it is "
+            "rejected here rather than silently accepted."
+        )
+    if result != z3.sat:
+        raise VerificationError(
+            f"Precondition satisfiability check returned {result} "
+            f"(expected sat or unsat) for {stripped!r}."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -959,12 +1121,30 @@ class BoundedModelChecker:
                 seen.add(base)
                 param_names.append(base)
 
+        # on_unbound="error": an axiom that targets this function and cannot be
+        # encoded is a hard stop, not a skip. See AUDIT_FINDINGS.md C-03 and
+        # AxiomNotEncodableError. `axioms` has already been filtered by
+        # target_functions upstream, so everything reaching this loop is an
+        # axiom the operator asserted applies here.
+        encoded_axioms = 0
         for axiom in axioms:
-            z3_cond = _encode_axiom(axiom, ctx, env, param_names)
+            z3_cond = _encode_axiom(axiom, ctx, env, param_names, on_unbound="error")
             if z3_cond is not None:
+                encoded_axioms += 1
                 stmt_enc.violation_flags.append(z3.Not(z3_cond))
 
         if not stmt_enc.violation_flags:
+            # Reaching here means the function has no assertions of its own AND
+            # no axiom targets it. That is genuinely vacuous rather than a
+            # silently skipped check: any axiom that targeted this function and
+            # failed to encode raised above instead of arriving here.
+            logger.warning(
+                f"No safety property applies to '{func.name}': "
+                f"{len(axioms)} axiom(s) targeted it, {encoded_axioms} encoded, "
+                f"and the function contains no assertions. Reporting safe "
+                f"because there is nothing to check, which is not the same as "
+                f"having checked something."
+            )
             self.__cache[cache_key] = (True, None)
             return True, None, loop_report
 

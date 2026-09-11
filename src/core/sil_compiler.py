@@ -1,4 +1,5 @@
-# Copyright (c) 2026 Shashank Kumar. All rights reserved.
+# Copyright 2026 Shashank Kumar
+# SPDX-License-Identifier: Apache-2.0
 import os
 import re
 from dataclasses import dataclass

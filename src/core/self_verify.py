@@ -60,30 +60,46 @@ from src.core.verifier import BoundedModelChecker
 # Self-axioms: structural invariants PAAC must satisfy
 # ---------------------------------------------------------------------------
 
+# Every one of these targets ["*"] while naming a variable that most TCB stubs
+# never bind, so before the C-03 fix all four were silently dropped for most
+# stubs. Self-verification reported success across the TCB while checking
+# almost nothing on it, which made the bootstrap claim considerably weaker than
+# it read. The `defaults` entries below are what make these axioms actually
+# encode; see AUDIT_FINDINGS.md C-03 and Axiom.defaults.
+#
+# Each default is chosen so that absence is not a violation: a stub that has no
+# timeout, no loop, no safe flag and no cache key cannot be wrong about them.
+# That is the sound direction for a structural invariant. It is stated per
+# axiom rather than inferred, because "0 is fine when missing" is a semantic
+# claim about the specific quantity, not a general truth.
 SELF_AXIOMS: list[Axiom] = [
     Axiom(
         id="self_nonneg_timeout",
         description="Verification timeout must be positive.",
         condition="timeout_ms >= 1",
         target_functions=["*"],
+        defaults={"timeout_ms": 1},
     ),
     Axiom(
         id="self_nonneg_loop_bound",
         description="Loop iteration count must be positive.",
         condition="loop_limit >= 1",
         target_functions=["*"],
+        defaults={"loop_limit": 1},
     ),
     Axiom(
         id="self_safe_flag",
         description="Safe flag is non-negative (boolean 0/1).",
         condition="safe_flag >= 0",
         target_functions=["*"],
+        defaults={"safe_flag": 0},
     ),
     Axiom(
         id="self_nonneg_key_len",
         description="Cache key length must be positive.",
         condition="key_len >= 1",
         target_functions=["*"],
+        defaults={"key_len": 1},
     ),
 ]
 
