@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<!--
+  PAAC project page.
+  Copyright 2026 Shashank Kumar. SPDX-License-Identifier: Apache-2.0
+
+  Self-contained: no external fonts, scripts, trackers or images. Every figure on
+  this page is measured, and the command that produces it is printed next to it.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PAAC — proving the diff before it lands</title>
+<meta name="description" content="PAAC verifies every code modification a self-modifying AI agent proposes, using Z3 bounded model checking. Two decomposition attacks against it are open and published undefended.">
+<style>
+  :root{
+    --sky-top:#dfe6d8;
+    --sky-mid:#c9d6c4;
+    --sky-deep:#5f7263;
+    --mist:#eef1e8;
+    --forest:#7d8c7c;
+    --forest-far:#9aa899;
+    --field:#c3b183;
+    --field-deep:#a8955f;
+    --rust:#9c3b28;
+    --rust-deep:#7a2c1d;
+    --rust-light:#c96a4f;
+    --ink:#22261f;
+    --ink-soft:#4c5347;
+    --paper:#f7f5ee;
+    --line:#d9d5c6;
+    --radius:14px;
+    --wrap:1120px;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size:16px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--rust)}
+  a:hover{color:var(--rust-deep)}
+  :focus-visible{outline:3px solid var(--rust);outline-offset:3px}
+
+  .wrap{max-width:var(--wrap);margin:0 auto;padding:0 26px}
+  .skip{
+    position:absolute;left:-9999px;top:0;background:#fff;color:var(--ink);
+    padding:10px 16px;z-index:99;border-radius:0 0 8px 0
+  }
+  .skip:focus{left:0}
+
+  /* ---------- top nav: small uppercase letterspaced links ---------- */
+  .topbar{
+    position:absolute;top:0;left:0;right:0;z-index:5;
+    padding:18px 0;
+  }
+  .topbar .wrap{display:flex;align-items:center;gap:18px}
+  .nav{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:0;padding:0;list-style:none}
+  .nav a{
+    display:inline-block;
+    font-size:11px;letter-spacing:.20em;text-transform:uppercase;
+    font-weight:600;color:var(--ink);text-decoration:none;
+    padding:6px 10px;border-radius:4px;
+  }
+  .nav a:hover{background:rgba(255,255,255,.55)}
+  .nav a[aria-current="page"]{background:#fff;color:var(--ink)}
+  .ext{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .ext a{
+    font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    font-weight:600;color:var(--ink-soft);text-decoration:none
+  }
+  .ext a:hover{color:var(--rust-deep);text-decoration:underline}
+
+  /* ---------- hero ---------- */
+  .hero{
+    position:relative;overflow:hidden;
+    min-height:min(94vh,760px);
+    display:flex;align-items:center;
+    background:linear-gradient(180deg,var(--sky-top) 0%,var(--sky-mid) 34%,var(--sky-deep) 62%,#6d7d63 74%,var(--field) 100%);
+  }
+  .hero-art{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .hero .wrap{position:relative;z-index:2;width:100%;padding-top:70px;padding-bottom:56px}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.86fr);gap:28px;align-items:center}
+
+  .display{
+    margin:0;
+    font-size:clamp(3.1rem,10.5vw,7.6rem);
+    line-height:.86;
+    letter-spacing:-.02em;
+    font-weight:800;
+    color:#fff;
+    text-transform:lowercase;
+  }
+  .display span{display:block}
+  .display .l2{margin-left:.06em}
+  .lede{
+    margin:22px 0 0;max-width:34ch;
+    color:#f2f5ec;font-size:15.5px;line-height:1.62;
+  }
+  .cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+  .btn{
+    display:inline-block;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+    font-weight:700;text-decoration:none;padding:12px 18px;border-radius:999px;
+  }
+  .btn-solid{background:var(--rust);color:#fff}
+  .btn-solid:hover{background:var(--rust-deep);color:#fff}
+  .btn-ghost{background:rgba(255,255,255,.92);color:var(--ink)}
+  .btn-ghost:hover{background:#fff;color:var(--ink)}
+
+  .warnflag{
+    margin-top:26px;padding:13px 16px;max-width:44ch;
+    background:rgba(122,44,29,.92);color:#fdf1ec;
+    border-left:3px solid #f0c4b6;border-radius:0 8px 8px 0;
+    font-size:13.5px;line-height:1.55;
+  }
+  .warnflag strong{color:#fff}
+
+  /* ---------- generic sections ---------- */
+  section{padding:76px 0}
+  .band{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .eyebrow{
+    font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    font-weight:700;color:var(--rust);margin-bottom:12px
+  }
+  h2{font-size:clamp(1.6rem,3.4vw,2.3rem);line-height:1.14;margin:0 0 16px;letter-spacing:-.015em}
+  h3{font-size:1.06rem;margin:0 0 8px;letter-spacing:-.005em}
+  .sub{max-width:66ch;color:var(--ink-soft);margin:0 0 26px}
+
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .card{
+    background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 22px 20px
+  }
+  .band .card{background:#fbfaf5}
+  .card p{margin:0;color:var(--ink-soft);font-size:14.6px}
+  .stat .n{font-size:2.1rem;font-weight:800;letter-spacing:-.02em;line-height:1.05}
+  .stat .n span{font-size:.9rem;font-weight:700;letter-spacing:0}
+  .stat .l{font-size:12.6px;color:var(--ink-soft);margin-top:6px;line-height:1.45}
+  .stat.bad .n{color:var(--rust)}
+
+  pre{
+    margin:14px 0 0;padding:14px 16px;overflow-x:auto;
+    background:#23281f;color:#e6ecdf;border-radius:10px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12.6px;line-height:1.6
+  }
+  pre .c{color:#9db38f}
+  code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:.92em;background:#eceade;padding:1px 5px;border-radius:4px
+  }
+  .band code{background:#f0eee2}
+
+  .limits{
+    background:#fdf6ec;border:1px solid #f0dfc4;border-left:3px solid var(--field-deep);
+    border-radius:var(--radius);padding:24px 26px
+  }
+  .limits h3{color:#7c3d09}
+  .limits ul{margin:0;padding-left:19px;color:#6b4318;font-size:14.6px}
+  .limits li{margin-bottom:9px}
+  .limits li:last-child{margin-bottom:0}
+
+  .steps{counter-reset:s;list-style:none;padding:0;margin:26px 0 0}
+  .steps li{
+    counter-increment:s;position:relative;padding:0 0 0 46px;margin-bottom:18px;
+    color:var(--ink-soft);font-size:14.8px
+  }
+  .steps li::before{
+    content:counter(s);position:absolute;left:0;top:-1px;
+    width:30px;height:30px;border-radius:50%;
+    background:var(--rust);color:#fff;
+    font-size:13px;font-weight:700;
+    display:flex;align-items:center;justify-content:center
+  }
+  .steps strong{color:var(--ink)}
+
+  table{width:100%;border-collapse:collapse;margin-top:18px;font-size:14.4px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .no{color:var(--rust);font-weight:700}
+
+  .divider{height:1px;background:var(--line);margin:0}
+
+  footer{padding:44px 0 56px;color:var(--ink-soft);font-size:13.6px}
+  footer .wrap{display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between}
+  footer strong{color:var(--ink)}
+
+  @media (max-width:860px){
+    .hero-grid{grid-template-columns:1fr}
+    .hero-figure{display:none}
+    .g3,.g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width:560px){
+    .g2,.g3,.g4{grid-template-columns:1fr}
+    .ext{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#what">Skip to content</a>
+
+<!-- ── Top bar ───────────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="wrap">
+    <nav aria-label="Sections">
+      <ul class="nav">
+        <li><a href="#top" aria-current="page">Home</a></li>
+        <li><a href="#what">What</a></li>
+        <li><a href="#broke">Attacks</a></li>
+        <li><a href="#numbers">Numbers</a></li>
+        <li><a href="#limits">Limits</a></li>
+      </ul>
+    </nav>
+    <div class="ext">
+      <a href="https://github.com/ChronosResearch/paac">GitHub</a>
+      <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218">Paper</a>
+    </div>
+  </div>
+</header>
+
+<!-- ── Hero ──────────────────────────────────────────────────────────────── -->
+<div id="top" class="hero">
+
+  <!-- Background: layered sky, mist, treeline, field. Decorative. -->
+  <svg class="hero-art" viewBox="0 0 1440 760" preserveAspectRatio="xMidYMax slice"
+       aria-hidden="true" focusable="false">
+    <!-- mist band -->
+    <ellipse cx="720" cy="470" rx="1000" ry="150" fill="#eef1e8" opacity=".30"/>
+    <!-- far treeline -->
+    <path d="M0 470 L40 432 L74 462 L108 418 L146 458 L182 424 L214 460 L252 430
+             L288 462 L322 436 L360 464 L398 442 L432 468 L470 448 L500 470 L0 470 Z"
+          fill="#9aa899" opacity=".55"/>
+    <path d="M1440 476 L1400 440 L1366 470 L1330 436 L1294 468 L1258 444 L1222 472
+             L1186 452 L1150 476 L1440 476 Z" fill="#9aa899" opacity=".40"/>
+    <!-- near treeline, left -->
+    <path d="M0 500 L26 452 L52 492 L80 440 L112 486 L140 448 L168 494 L198 462
+             L226 500 L252 474 L280 504 L0 504 Z" fill="#7d8c7c" opacity=".78"/>
+    <!-- field -->
+    <path d="M0 512 C 260 486, 520 528, 760 508 C 1000 488, 1220 524, 1440 500 L1440 760 L0 760 Z"
+          fill="#c3b183"/>
+    <path d="M0 566 C 300 542, 600 586, 900 560 C 1130 540, 1300 574, 1440 556 L1440 760 L0 760 Z"
+          fill="#b9a878"/>
+    <path d="M0 648 C 340 626, 700 668, 1040 642 C 1240 626, 1340 654, 1440 644 L1440 760 L0 760 Z"
+          fill="#a8955f" opacity=".85"/>
+    <!-- sparse grass strokes -->
+    <g stroke="#8f7f4e" stroke-width="1.6" opacity=".45" stroke-linecap="round">
+      <path d="M120 700 q6 -34 -2 -54"/><path d="M188 712 q-7 -30 3 -52"/>
+      <path d="M262 694 q5 -32 -3 -50"/><path d="M338 716 q-6 -28 4 -48"/>
+      <path d="M980 702 q7 -33 -2 -52"/><path d="M1058 714 q-6 -30 3 -50"/>
+      <path d="M1134 696 q5 -31 -3 -49"/><path d="M1212 718 q-7 -29 4 -47"/>
+      <path d="M1300 700 q6 -32 -2 -50"/><path d="M1380 712 q-6 -28 3 -46"/>
+    </g>
+  </svg>
+
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <h1 class="display"><span>prove</span><span class="l2">the diff</span></h1>
+        <p class="lede">
+          Every code change a self-modifying agent proposes, decided by an SMT
+          solver before it lands. One modification at a time, and that turns out
+          to be exactly the problem.
+        </p>
+
+        <div class="warnflag">
+          <strong>Two decomposition attacks against PAAC are open.</strong>
+          Each step individually accepted by the real verifier; the composition
+          violates a safety axiom. Synthesised by Z3, confirmed end to end,
+          published without a defence.
+        </div>
+
+        <div class="cta">
+          <a class="btn btn-solid" href="#broke">Read the attacks</a>
+          <a class="btn btn-ghost" href="https://github.com/ChronosResearch/paac">Source</a>
+        </div>
+      </div>
+
+      <!-- Illustration: three individually-safe steps composing below the line. -->
+      <div class="hero-figure" aria-hidden="true">
+        <svg viewBox="0 0 460 380" role="img" focusable="false"
+             style="width:100%;height:auto;display:block">
+          <title>Three accepted steps composing to cross a safety threshold</title>
+          <!-- the axiom line -->
+          <line x1="26" y1="214" x2="434" y2="214" stroke="#2f3529"
+                stroke-width="2.4" stroke-dasharray="9 7" opacity=".65"/>
+          <text x="26" y="204" fill="#2f3529" opacity=".8"
+                font-family="ui-monospace,Menlo,Consolas,monospace" font-size="13">
+            counter &gt;= 0
+          </text>
+
+          <!-- step bars, each ending above the line -->
+          <g fill="#c96a4f">
+            <rect x="60"  y="120" width="52" height="94" rx="6"/>
+            <rect x="150" y="146" width="52" height="68" rx="6"/>
+            <rect x="240" y="170" width="52" height="44" rx="6"/>
+          </g>
+          <g fill="#7a2c1d" opacity=".92">
+            <rect x="60"  y="120" width="52" height="9" rx="4"/>
+            <rect x="150" y="146" width="52" height="9" rx="4"/>
+            <rect x="240" y="170" width="52" height="9" rx="4"/>
+          </g>
+          <!-- ticks: each step accepted -->
+          <g stroke="#2f3529" stroke-width="2.6" fill="none" stroke-linecap="round" opacity=".7">
+            <path d="M74 104 l8 8 l14 -18"/>
+            <path d="M164 130 l8 8 l14 -18"/>
+            <path d="M254 154 l8 8 l14 -18"/>
+          </g>
+
+          <!-- the composition, crossing below -->
+          <rect x="330" y="214" width="52" height="86" rx="6" fill="#9c3b28"/>
+          <rect x="330" y="291" width="52" height="9" rx="4" fill="#5e2116"/>
+          <path d="M356 316 l0 24 M346 332 l10 10 l10 -10"
+                stroke="#9c3b28" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <text x="300" y="360" fill="#7a2c1d"
+                font-family="ui-monospace,Menlo,Consolas,monospace"
+                font-size="14" font-weight="700">counter = -1</text>
+
+          <!-- arrows between steps -->
+          <g stroke="#2f3529" stroke-width="2" fill="none" opacity=".45" stroke-linecap="round">
+            <path d="M120 190 l22 0 M136 184 l6 6 l-6 6"/>
+            <path d="M210 190 l22 0 M226 184 l6 6 l-6 6"/>
+            <path d="M300 196 l22 0 M316 190 l6 6 l-6 6"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── What it is ────────────────────────────────────────────────────────── -->
+<section id="what">
+  <div class="wrap">
+    <div class="eyebrow">What it is</div>
+    <h2>A solver sits between the agent and its own source</h2>
+    <p class="sub">
+      PAAC is a deterministic wrapper. It intercepts a proposed modification,
+      compiles it to a restricted language called SIL, encodes it into a single Z3
+      query, and admits it only when the solver proves no input inside the
+      declared bounds can drive the program into a state violating a safety axiom.
+      A refusal comes back with a concrete counterexample, not a score.
+    </p>
+
+    <ol class="steps">
+      <li><strong>Intercept.</strong> Every modification path routes through one
+        entry point. That entry point is the trust boundary.</li>
+      <li><strong>Compile.</strong> SIL has bounded loops, no recursion, no heap,
+        no concurrency. That restriction is why the decision is cheap, and it is
+        also why SIL cannot express most real code.</li>
+      <li><strong>Encode.</strong> Single static assignment, loop unrolling to the
+        declared bound, and the negation of each applicable axiom added to a
+        violation disjunction.</li>
+      <li><strong>Decide.</strong> UNSAT accepts. SAT rejects and returns the
+        model as a counterexample. Unknown or timeout is an error, never an
+        acceptance.</li>
+      <li><strong>Attest.</strong> An accepted result is signed with Ed25519 over
+        a canonical payload, so a third party can check that verification
+        happened.</li>
+    </ol>
+  </div>
+</section>
+
+<div class="wrap"><div class="divider"></div></div>
+
+<!-- ── The attacks ───────────────────────────────────────────────────────── -->
+<section id="broke" class="band">
+  <div class="wrap">
+    <div class="eyebrow">The result</div>
+    <h2>We pointed Z3 at our own acceptance condition</h2>
+    <p class="sub">
+      PAAC decides one modification at a time and then writes it into the live
+      registry. Nothing re-examines the accumulated program. So we asked a solver
+      for a program and a modification, each individually accepted, whose
+      composition is not safe. Two of three declared schemas produced one. The
+      adversary is Z3 rather than an LLM or random search, so anyone can replay
+      the query.
+    </p>
+
+    <div class="grid g3" style="margin-bottom:26px">
+      <div class="card stat"><div class="n">3</div><div class="l">schemas declared, chosen by hand after reading the code</div></div>
+      <div class="card stat bad"><div class="n">2</div><div class="l">confirmed witnesses, accepted end to end by the real verifier</div></div>
+      <div class="card stat bad"><div class="n">0 <span>of 2</span></div><div class="l">rejected by PAAC today. There is no defence yet</div></div>
+    </div>
+
+    <table>
+      <caption class="sub" style="caption-side:top;text-align:left;margin-bottom:8px">
+        Both witnesses violate <code>counter_in_range</code> at runtime.
+      </caption>
+      <thead>
+        <tr><th>Schema</th><th>Outcome</th><th class="num">Steps accepted</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>A.</strong> Call-chain precondition escape</td>
+          <td class="no">witness</td><td class="num">2 of 2</td>
+        </tr>
+        <tr>
+          <td><strong>B.</strong> Sentinel accumulation</td>
+          <td>not expressible</td><td class="num">n/a</td>
+        </tr>
+        <tr>
+          <td><strong>C.</strong> Contract weakening across versions</td>
+          <td class="no">witness</td><td class="num">3 of 3</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid g2" style="margin-top:30px">
+      <div class="card">
+        <h3>A. The call site never discharges the contract</h3>
+        <p>
+          <code>decrement</code> is proven safe only for <code>counter &gt;= 1</code>.
+          <code>reset_counter</code> calls it with <code>0</code>. Both accepted; at
+          runtime the callee computes <code>-1</code>. A call is encoded as an
+          uninterpreted function over its arguments, so a precondition is an
+          assumption inside the callee and an obligation on nobody.
+        </p>
+        <p style="margin-top:10px">
+          Submitting the caller together with the callee does not help. The compiler
+          rejects a call to an undefined function, so the callee is already in front
+          of the verifier, and the composition is still accepted.
+        </p>
+      </div>
+      <div class="card">
+        <h3>C. A blameless change invalidates an old proof</h3>
+        <p>
+          <code>decrement</code> subtracts 1 and admits <code>counter &gt;= 1</code>.
+          A caller is accepted against it. Then <code>decrement</code> is replaced by
+          a version that subtracts 2 and admits <code>counter &gt;= 2</code>, safe on
+          its own terms. The caller still passes <code>1</code>.
+        </p>
+        <p style="margin-top:10px">
+          This is the deeper of the two. Schema A never had a covering proof at the
+          call site; schema C <em>had</em> one and lost it. So enforcing call-site
+          obligations at submission time would not close it. Replacing a function
+          has to re-verify its callers.
+        </p>
+      </div>
+    </div>
+
+    <div class="limits" style="margin-top:26px">
+      <h3>What these results do not establish</h3>
+      <ul>
+        <li><strong>Two witnesses is not a measured attack surface.</strong> The
+          denominator is three hand-written schemas. It is not an estimate of how
+          many decomposition attacks exist against PAAC.</li>
+        <li><strong>The boundaries are narrow.</strong> Two functions, one call
+          site, a literal argument, one arithmetic operation each, no loops, no
+          branches, holes in <code>[-8, 8]</code>.</li>
+        <li><strong>One axiom.</strong> Both violate <code>counter_in_range</code>.
+          Decomposition against the other four has not been attempted.</li>
+        <li><strong>A null result would have been bounded too.</strong> UNSAT would
+          mean "no decomposition in this schema for these holes", never "PAAC is
+          decomposition resistant".</li>
+        <li><strong>One platform.</strong> Windows, Python 3.11.9.</li>
+      </ul>
+    </div>
+
+    <p class="sub" style="margin-top:26px">Reproduce both, no seed and no sampling:</p>
+    <pre><span class="c"># prints every schema next to its boundary, and the summary with its denominator</span>
+PYTHONPATH=. python scripts/run_decomposition.py
+
+<span class="c"># the two strict xfail tests that pin the vulnerabilities</span>
+PYTHONPATH=. python -m pytest tests/test_decomposition.py -q</pre>
+  </div>
+</section>
+
+<!-- ── Numbers ───────────────────────────────────────────────────────────── -->
+<section id="numbers">
+  <div class="wrap">
+    <div class="eyebrow">Measured</div>
+    <h2>Every figure here has a command next to it</h2>
+    <p class="sub">
+      Measured at commit <code>a78745d</code> on Windows with Python 3.11.9. An
+      earlier claim of "386 tests passing" was never measured; when the suite was
+      first actually run, five tests were failing.
+    </p>
+
+    <div class="grid g4">
+      <div class="card stat"><div class="n">398</div><div class="l">tests passing, plus 2 deliberate expected failures</div></div>
+      <div class="card stat"><div class="n">43</div><div class="l">axiom mutants, 100% killed, no axiom vacuous</div></div>
+      <div class="card stat"><div class="n">5</div><div class="l">safety axioms, all effective. Three used to fire never</div></div>
+      <div class="card stat"><div class="n">2,101</div><div class="l">lines in the enforced trusted computing base</div></div>
+    </div>
+
+    <pre><span class="c"># 398 passed, 2 xfailed, exit 0, 187.64s</span>
+PYTHONPATH=. python -m pytest tests/ -q
+
+<span class="c"># 43 mutants across 5 axioms, robustness 100%</span>
+PYTHONPATH=. python -m pytest tests/test_mutation_testing.py -q</pre>
+
+    <div class="grid g2" style="margin-top:30px">
+      <div class="card">
+        <h3>The two expected failures are load-bearing</h3>
+        <p>
+          They are strict <code>xfail</code> pins on the two decomposition
+          witnesses. Being strict, they turn into outright failures the moment a
+          composition defence lands, which forces whoever builds it to come back
+          and confirm the attacks are actually rejected. They must not be deleted
+          to make a suite green.
+        </p>
+      </div>
+      <div class="card">
+        <h3>The 200 ms floor is not the cost</h3>
+        <p>
+          Verification responses are padded to a 200 ms floor to remove the timing
+          channel. The real end-to-end cost of one interception on this platform is
+          2.0 to 2.4 seconds, dominated by process isolation rather than by the
+          solver. Size a deployment against the second number.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="divider"></div></div>
+
+<!-- ── Limits ────────────────────────────────────────────────────────────── -->
+<section id="limits" class="band">
+  <div class="wrap">
+    <div class="eyebrow">Scope</div>
+    <h2>What this is not</h2>
+    <p class="sub">
+      PAAC is a verification primitive for code diffs, not an alignment technique.
+      It does not make an agent's objectives safer, detect deception, or constrain
+      what a capable system does inside an accepted modification. Below is the
+      list a reviewer would otherwise have to find, ordered by how much each limits
+      the safety claim.
+    </p>
+
+    <div class="limits">
+      <h3>Ordered by how much each limits the claim</h3>
+      <ul>
+        <li><strong>Composition is unguarded.</strong> Two confirmed witnesses,
+          zero rejected. This is the binding limitation and everything below it is
+          smaller.</li>
+        <li><strong>The precondition still comes from the agent.</strong> A
+          satisfiability gate now rejects unsatisfiable ones, which closes a total
+          verifier bypass. It does not change the fact that an obligation on the
+          caller is supplied by the callee's author.</li>
+        <li><strong>SIL cannot express real agent code.</strong> No heap, no
+          pointers, no recursion, no concurrency. This is the standing objection
+          and it is correct. It is also the reason the decision procedure is
+          tractable.</li>
+        <li><strong>Loop bounds are declared, not inferred.</strong> Soundness
+          requires the declared bound to cover every reachable input. An
+          under-bounded loop is classified unsafe, which is the safe direction.</li>
+        <li><strong>Self-verification checks tautologies.</strong> The shipped
+          stubs assert properties implied by their own guards, so UNSAT follows
+          syntactically. It is not a proof about the verifier.</li>
+        <li><strong>The bounded-loop Z3 step is a certificate, not a proof.</strong>
+          It asserts that a literal already constrained below the cap exceeds it.
+          The denial-of-service guarantee is real and comes from the parser and the
+          runtime.</li>
+        <li><strong>Attestation verification is self-referential.</strong> The
+          endpoint checks a record against the public key inside that same record,
+          so it proves consistency rather than provenance until an expected key is
+          pinned.</li>
+        <li><strong>Proof-carrying certificates are symmetric.</strong> HMAC under
+          a key with a publicly known default, and the proof checker has never been
+          differentially tested against the solver it replaces.</li>
+        <li><strong>Compiler gaps.</strong> Division by zero is undetected. A
+          missing return is a warning. Strings encode to unconstrained integers.</li>
+        <li><strong>Unauthenticated by default.</strong> With no API key configured
+          the check is skipped and every endpoint is open.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="wrap">
+    <div>
+      <strong>Chronos Research</strong><br>
+      Licensed under Apache-2.0. Copyright 2026 Shashank Kumar.
+    </div>
+    <div>
+      <a href="https://github.com/ChronosResearch/paac">Source</a> ·
+      <a href="https://github.com/ChronosResearch/paac/blob/main/docs/DECOMPOSITION.md">Decomposition write-up</a> ·
+      <a href="https://github.com/ChronosResearch/paac/blob/main/AUDIT_FINDINGS.md">Audit findings</a> ·
+      <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6879218">Paper</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
