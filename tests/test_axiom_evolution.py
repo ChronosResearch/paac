@@ -1,4 +1,4 @@
-"""tests/test_axiom_evolution.py — Feature 5: Verified Self-Evolving Axioms"""
+"""tests/test_axiom_evolution.py, Feature 5: Verified Self-Evolving Axioms"""
 
 from src.axioms.axiom_parser import Axiom
 from src.core.axiom_evolution import (

@@ -1,4 +1,4 @@
-# PAAC default configuration — v5.0.0
+# PAAC default configuration: v5.0.0
 # All values can be overridden via environment variables.
 # See docs/DEPLOYMENT.md for the full variable reference.
 
@@ -74,7 +74,7 @@ multi_agent:
 
 # Proof-Carrying Modification (PCM)
 pcm:
-  enabled: false                       # PAAC_PCM_MODE — set true to require proofs
+  enabled: false                       # PAAC_PCM_MODE, set true to require proofs
   audit_log: "pcm_audit.jsonl"         # PAAC_PCM_LOG
   # HMAC key for certificates loaded from PAAC_CERT_KEY env var (hex 32 bytes)
-  # If not set, a default key is used (insecure — change in production)
+  # If not set, a default key is used (insecure: change in production)

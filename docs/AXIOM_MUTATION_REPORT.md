@@ -14,7 +14,7 @@ Generated: 2026-08-03 09:02 UTC
 | Vacuous axioms | 0 |
 | Critical axiom | no_negative_balance |
 
-**Verdict**: STRONG — axiom set is robust and non-vacuous.
+**Verdict**: STRONG, axiom set is robust and non-vacuous.
 
 > 🔴 **Most critical axiom**: `no_negative_balance`
 > Weakening this axiom causes the largest degradation in safety coverage.
@@ -205,7 +205,7 @@ Generated: 2026-08-03 09:02 UTC
 
 ## Paper Section: Axiom Robustness via Mutation Testing
 
-We introduce *axiom mutation testing* as a quantitative method to evaluate the robustness of a safety axiom set. Inspired by mutation testing in software engineering [Jia & Harman, 2011], we apply six mutation operators to each axiom and measure how many mutations are *killed* — i.e., cause a change in verification outcome on a targeted probe suite.
+We introduce *axiom mutation testing* as a quantitative method to evaluate the robustness of a safety axiom set. Inspired by mutation testing in software engineering [Jia & Harman, 2011], we apply six mutation operators to each axiom and measure how many mutations are *killed*, i.e., cause a change in verification outcome on a targeted probe suite.
 
 **Mutation operators:**
 
@@ -218,9 +218,9 @@ We introduce *axiom mutation testing* as a quantitative method to evaluate the r
 | `vacuous` | Replace condition with `true` | Zero probes killed → axiom is vacuous |
 | `noop` | Identity (baseline) | Zero probes killed (sanity check) |
 
-**Robustness Score** is defined as the fraction of non-noop mutants that are killed, with a penalty of 0 for any vacuous axiom. A score of 1.0 means every mutation changes at least one verification outcome — the axiom set is maximally discriminating.
+**Robustness Score** is defined as the fraction of non-noop mutants that are killed, with a penalty of 0 for any vacuous axiom. A score of 1.0 means every mutation changes at least one verification outcome, the axiom set is maximally discriminating.
 
 **Results**: Our axiom set achieves a Suite Robustness Score of **100.0%** across 5 axioms and 40 mutants. 40 of 40 mutants were killed (Mutation Score: 100.0%).
-No vacuous axioms were detected — every axiom actively constrains at least one program.
+No vacuous axioms were detected, every axiom actively constrains at least one program.
 
 To our knowledge, no prior AI safety monitor has applied mutation testing to formally evaluate axiom robustness. This metric directly answers the reviewer question: *'How do we know your axioms are good?'*

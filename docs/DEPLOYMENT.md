@@ -1,4 +1,4 @@
-# PAAC Deployment Guide — v5.0.0
+# PAAC Deployment Guide: v5.0.0
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@
 
 | Feature | Description |
 |---|---|
-| PCM | Proof-Carrying Modification — agents submit formal proofs |
+| PCM | Proof-Carrying Modification, agents submit formal proofs |
 | PCM Certificates | HMAC-SHA256 certificates for every accepted proof |
 | Axiom Coverage | Measures which axioms are actively evaluated |
 | CEGAR Repair | Automatic axiom strengthening from counterexamples |
@@ -74,7 +74,7 @@ docker run --rm paac:v5.0.0 python3.11 -c "import z3; print(z3.get_version_strin
 
 ```bash
 cp .env.example .env
-# Edit .env — set PAAC_API_KEY, PAAC_CERT_KEY, PAAC_ATTEST_KEY
+# Edit .env: set PAAC_API_KEY, PAAC_CERT_KEY, PAAC_ATTEST_KEY
 docker-compose -f docker/docker-compose.yml up -d
 ```
 
@@ -162,16 +162,16 @@ environment:
   - PAAC_PCM_LOG=/app/data/pcm_audit.jsonl
 ```
 
-Third parties can verify certificates without access to PAAC — they only need
+Third parties can verify certificates without access to PAAC, they only need
 the shared HMAC key (`PAAC_CERT_KEY`).
 
 ## Monitoring
 
-- `/health` — returns `healthy` / `degraded` / `unhealthy` with circuit breaker state
-- `/metrics` — Prometheus metrics (verifications_total, latency histogram, active gauge)
-- `audit.log` — append-only audit log of all accepted/rejected modifications
-- `paac_core.log` — structured JSON debug log (rotates at 10 MB)
-- `pcm_audit.jsonl` — PCM certificate audit log (append-only JSONL)
+- `/health`, returns `healthy` / `degraded` / `unhealthy` with circuit breaker state
+- `/metrics`, Prometheus metrics (verifications_total, latency histogram, active gauge)
+- `audit.log`, append-only audit log of all accepted/rejected modifications
+- `paac_core.log`, structured JSON debug log (rotates at 10 MB)
+- `pcm_audit.jsonl`, PCM certificate audit log (append-only JSONL)
 
 ## Known Deployment Limitation
 

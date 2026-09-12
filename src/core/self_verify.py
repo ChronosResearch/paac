@@ -14,7 +14,7 @@ We use a *property-based stub* approach:
    - All assert statements, translated to SIL asserts
    - Simple assignments and comparisons
    - Loops (translated to bounded SIL while loops with a conservative bound)
-   External calls (Z3, Redis, OS) become uninterpreted — they are dropped
+   External calls (Z3, Redis, OS) become uninterpreted, they are dropped
    and the stub asserts only what the Python code asserts explicitly.
 
 2. Each stub is verified against SELF_AXIOMS that encode PAAC's own
@@ -36,9 +36,9 @@ Limitations (documented honestly)
 
 Stages
 ------
-  Stage 1 — translate TCB functions to SIL stubs
-  Stage 2 — verify each stub against SELF_AXIOMS
-  Stage 3 — if all pass, record attestation and mark TCB as trusted
+  Stage 1, translate TCB functions to SIL stubs
+  Stage 2, verify each stub against SELF_AXIOMS
+  Stage 3, if all pass, record attestation and mark TCB as trusted
 """
 
 from __future__ import annotations
@@ -127,7 +127,7 @@ TCB_STUBS: dict[str, str] = {
     # BoundedModelChecker._verify_inner: given timeout_ms >= 1, assert timeout_ms >= 1
     # Precondition: timeout_ms >= 1 (caller contract)
     # Postcondition: timeout_ms >= 1 (invariant preserved)
-    # Z3 result: UNSAT (safe) — no input satisfying precondition violates postcondition
+    # Z3 result: UNSAT (safe): no input satisfying precondition violates postcondition
     "bmc_verify_inner": textwrap.dedent("""\
         func bmc_verify_inner(timeout_ms: int) -> int {
             if timeout_ms >= 1 {
@@ -514,13 +514,13 @@ class SelfVerifier:
 
         if all_passed:
             msg = (
-                f"Stage 3: PAAC self-verification PASSED — "
+                f"Stage 3: PAAC self-verification PASSED, "
                 f"{len(stub_results)} TCB stubs verified in {elapsed_ms:.0f}ms."
             )
         else:
             failed = sum(1 for v in stub_results.values() if not v)
             msg = (
-                f"Stage 2: PAAC self-verification FAILED — "
+                f"Stage 2: PAAC self-verification FAILED, "
                 f"{failed}/{len(stub_results)} stub(s) violated invariants."
             )
 

@@ -93,7 +93,7 @@ def test_array_access_in_runtime():
 
 
 # ---------------------------------------------------------------------------
-# Step 13: Unary minus and not — parse and evaluate correctly
+# Step 13: Unary minus and not: parse and evaluate correctly
 # ---------------------------------------------------------------------------
 
 
@@ -143,12 +143,12 @@ def test_array_sum_verifies():
     """
     ast = compile_sil(code)
     bmc = BoundedModelChecker()
-    # total >= 0 is not provable without constraints on arr — expect SAT or UNSAT
+    # total >= 0 is not provable without constraints on arr: expect SAT or UNSAT
     # The i >= 0 invariant IS provable.
     safe, ce = bmc.verify(ast, [])
-    # total >= 0 can be violated (arr values can be negative) — SAT expected
+    # total >= 0 can be violated (arr values can be negative): SAT expected
     # But i >= 0 is always true. The verifier finds the total >= 0 violation.
-    # This is correct behavior — document it.
+    # This is correct behavior: document it.
     print(f"\nArray sum verification: safe={safe}, ce={ce}")
 
 
@@ -303,9 +303,9 @@ def test_assert_checked_at_runtime():
     """
     ast = compile_sil(code)
     runtime = SILRuntime(ast)
-    # Positive value — should pass
+    # Positive value: should pass
     assert runtime.execute("check", [5]) == 5
-    # Negative value — should raise
+    # Negative value: should raise
     with pytest.raises(SILRuntimeError, match="Assertion failed"):
         runtime.execute("check", [-1])
 
@@ -370,7 +370,7 @@ def test_static_fallback_safe_program():
 
 
 # ---------------------------------------------------------------------------
-# Step 55: Simulate Redis down — WAL fallback
+# Step 55: Simulate Redis down: WAL fallback
 # ---------------------------------------------------------------------------
 
 
@@ -392,7 +392,7 @@ def test_wal_fallback_on_redis_down(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Step 55: Simulate circuit breaker open — all requests rejected
+# Step 55: Simulate circuit breaker open: all requests rejected
 # ---------------------------------------------------------------------------
 
 
@@ -408,7 +408,7 @@ def test_circuit_breaker_open_rejects_all():
 
 
 # ---------------------------------------------------------------------------
-# Step 55: Simulate Z3 crash — static fallback activates
+# Step 55: Simulate Z3 crash: static fallback activates
 # ---------------------------------------------------------------------------
 
 
@@ -422,7 +422,7 @@ def test_z3_fallback_on_verification_error(monkeypatch):
 
     monkeypatch.setattr(bmc, "_verify_subprocess", mock_subprocess)
 
-    # Safe program — static fallback says safe, but re-raises since it can't prove safety
+    # Safe program: static fallback says safe, but re-raises since it can't prove safety
     with pytest.raises(VerificationError):
         bmc.verify(ast, [])
 

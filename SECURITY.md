@@ -1,4 +1,4 @@
-# PAAC Security Policy — v7.0
+# PAAC Security Policy: v7.0
 
 ## Supported Versions
 
@@ -32,7 +32,7 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
    rejected before execution. The Z3 BMC pipeline provides formal guarantees
    within the bounds of the SIL language.
 
-2. **Under-bounded loops (A-01 — fixed v4.2.0)**: After unrolling K iterations,
+2. **Under-bounded loops (A-01, fixed v4.2.0)**: After unrolling K iterations,
    the verifier adds a violation flag if the loop condition is still true.
    Programs whose loops cannot exit within the declared bound are correctly
    classified as UNSAFE.
@@ -44,7 +44,7 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
 4. **Recursion**: Direct and mutual recursion are rejected at compile time via
    call-graph cycle detection.
 
-5. **Duplicate parameter names (H-02 — fixed v5.0.0)**: The type checker now
+5. **Duplicate parameter names (H-02, fixed v5.0.0)**: The type checker now
    rejects functions with duplicate parameter names at compile time.
 
 6. **Resource exhaustion**: Z3 runs in a subprocess with RLIMIT_AS (1 GB) and
@@ -54,13 +54,13 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
    The subprocess echoes it back; mismatches are rejected (constant-time
    comparison via `secrets.compare_digest`).
 
-8. **API timing attacks (A-03 — fixed v4.2.0)**: API key comparison uses
+8. **API timing attacks (A-03, fixed v4.2.0)**: API key comparison uses
    `secrets.compare_digest`.
 
-9. **Cache poisoning (A-02 — fixed v4.2.0)**: The internal verification cache
+9. **Cache poisoning (A-02, fixed v4.2.0)**: The internal verification cache
    is name-mangled (`__cache`) and exposed only as a read-only property.
 
-10. **Axiom scope leakage (A-05 — fixed v4.2.0)**: Axioms are filtered by
+10. **Axiom scope leakage (A-05, fixed v4.2.0)**: Axioms are filtered by
     `target_functions` before each verification call.
 
 11. **TCB tampering**: TCB source files are chmod'd read-only at startup on Linux.
@@ -69,11 +69,11 @@ We will acknowledge within 48 hours and provide a fix timeline within 7 days.
     certificate fields. Any field modification invalidates the signature.
     `hmac.compare_digest` is used for constant-time comparison.
 
-13. **Unsafe eval (H-01 — fixed v5.0.0)**: The runtime axiom evaluator no longer
+13. **Unsafe eval (H-01, fixed v5.0.0)**: The runtime axiom evaluator no longer
     uses `eval()`. It compiles the axiom condition through the SIL compiler and
     executes it via the SIL runtime, eliminating the code-injection surface.
 
-14. **Duplicate loop violation (C-01 — fixed v5.0.0)**: The duplicate
+14. **Duplicate loop violation (C-01, fixed v5.0.0)**: The duplicate
     `still_running` violation flag in `StmtEncoder` was removed, preventing
     spurious SAT results for loop-heavy programs.
 

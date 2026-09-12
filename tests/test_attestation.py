@@ -1,4 +1,4 @@
-"""tests/test_attestation.py — Feature 3: Asymmetric Cryptographic Attestation (Ed25519)"""
+"""tests/test_attestation.py, Feature 3: Asymmetric Cryptographic Attestation (Ed25519)"""
 
 import json
 
@@ -103,7 +103,7 @@ def test_cross_engine_verification_fails():
     engine1 = AttestationEngine(private_key=priv1)
     engine2 = AttestationEngine(private_key=priv2)
     record = engine1.attest("mod_e1b", "h", "a", True, None)
-    # Verify using engine2's public key — must fail
+    # Verify using engine2's public key: must fail
     from src.core.attestation import _serialize_public_key
     pub2_pem = _serialize_public_key(pub2)
     assert engine2.verify_with_public_key(record, pub2_pem) is False
@@ -200,7 +200,7 @@ def test_asymmetric_property():
         commitment=record.commitment,  # reuse original signature
         public_key_pem=record.public_key_pem,
     )
-    # Must fail — signature covers the payload, not just the public key
+    # Must fail: signature covers the payload, not just the public key
     assert engine.verify(forged) is False
 
 
@@ -222,7 +222,7 @@ def test_attest_with_proof_hash():
         proof_hash=proof_hash,
     )
     assert record.proof_hash == proof_hash
-    # Signature must cover proof_hash — verify passes
+    # Signature must cover proof_hash: verify passes
     assert engine.verify(record) is True
 
 

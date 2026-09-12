@@ -11,15 +11,15 @@ A semantic backdoor is a program that:
   - Passes verification under the original form.
   - Fails verification (SAT) under a semantically equivalent variant.
 
-This is impossible for a correct program — if P is safe, every semantically
+This is impossible for a correct program, if P is safe, every semantically
 equivalent P' must also be safe.
 
 Variant Generation
 ------------------
-1. Variable renaming   — rename all locals to canonical names (v0, v1, …)
-2. Algebraic identity  — replace x + 0 with x, x * 1 with x, x - 0 with x
-3. Assertion rewrite   — replace assert (a and b) with assert a; assert b
-4. Loop bound increase — increase loop bound by 1 (sound: more unrollings)
+1. Variable renaming, rename all locals to canonical names (v0, v1, …)
+2. Algebraic identity, replace x + 0 with x, x * 1 with x, x - 0 with x
+3. Assertion rewrite, replace assert (a and b) with assert a; assert b
+4. Loop bound increase, increase loop bound by 1 (sound: more unrollings)
 
 Consistency Scoring
 -------------------
@@ -333,7 +333,7 @@ class CTVPEngine:
                 accepted=True,
                 consistency_score=1.0,
                 variant_results=results,
-                message="Only one variant — no cross-trace comparison possible.",
+                message="Only one variant, no cross-trace comparison possible.",
             )
 
         agreements = sum(
@@ -368,11 +368,11 @@ class CTVPEngine:
             )
 
         if score >= t_soft:
-            msg = f"CTVP: ACCEPT — C={score:.2f} >= T_soft={t_soft:.2f}."
+            msg = f"CTVP: ACCEPT, C={score:.2f} >= T_soft={t_soft:.2f}."
         elif score >= t_strict:
-            msg = f"CTVP: WARN — C={score:.2f} in [{t_strict:.2f}, {t_soft:.2f})."
+            msg = f"CTVP: WARN, C={score:.2f} in [{t_strict:.2f}, {t_soft:.2f})."
         else:
-            msg = f"CTVP: REJECT — C={score:.2f} < T_strict={t_strict:.2f}."
+            msg = f"CTVP: REJECT, C={score:.2f} < T_strict={t_strict:.2f}."
 
         accepted = score >= t_strict
         logger.info(msg)

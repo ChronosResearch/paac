@@ -89,7 +89,7 @@ class RuntimeTrace:
 def _eval_axiom_condition(condition: str, env: dict[str, Any]) -> bool:
     """
     Evaluate a SIL axiom condition string against a concrete environment.
-    Uses the SIL compiler + runtime evaluator — no eval() call.
+    Uses the SIL compiler + runtime evaluator, no eval() call.
     Returns True if the condition holds, False otherwise.
     Fails open (returns True) when the axiom references variables not in env
     (axiom inapplicable to this call site).

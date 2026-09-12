@@ -25,7 +25,7 @@ paac-venv/
 .mypy_cache/
 .ruff_cache/
 
-# Runtime data files (written during operation and tests — not source)
+# Runtime data files (written during operation and tests, not source)
 *.wal
 *.jsonl
 checkpoints.wal
@@ -35,3 +35,9 @@ audit.log
 paac_core.log
 paac_core.*.log
 paac_monitor.lock
+
+# Paper source, kept local
+# The LaTeX source and its build output stay on disk and out of the repository.
+# The published PDF is uploaded separately. Remove this entry if the paper should
+# be versioned alongside the artefact.
+/paper/

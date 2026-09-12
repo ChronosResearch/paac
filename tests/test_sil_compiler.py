@@ -79,7 +79,7 @@ def test_null_byte_raises_error():
 
 # Step 7: Mutual recursion detection
 def test_mutual_recursion_rejected():
-    """A calls B and B calls A — must be rejected as a cycle."""
+    """A calls B and B calls A, must be rejected as a cycle."""
     code = """
     func a(x: int) -> int {
         return b(x);

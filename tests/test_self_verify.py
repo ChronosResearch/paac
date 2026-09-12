@@ -1,4 +1,4 @@
-"""tests/test_self_verify.py — Feature 2: Bootstrap Self-Verification"""
+"""tests/test_self_verify.py, Feature 2: Bootstrap Self-Verification"""
 
 from src.core.self_verify import (
     SELF_AXIOMS,
@@ -83,7 +83,7 @@ def test_self_verifier_passes_all_stubs():
     # All stubs must be SAFE (UNSAT) with preconditioned design
     for name, safe in result.stub_results.items():
         assert safe is True, (
-            f"Stub '{name}' returned SAT (unsafe) — preconditioned stub should be UNSAT. "
+            f"Stub '{name}' returned SAT (unsafe), preconditioned stub should be UNSAT. "
             f"CE: {result.counterexamples.get(name)}"
         )
     assert result.passed is True

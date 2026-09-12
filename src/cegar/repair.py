@@ -111,7 +111,7 @@ def _generate_candidates(axiom: Axiom, ce: dict[str, Any]) -> list[str]:
         ce_val = _extract_ce_value(ce, var)
 
         if op in (">=", ">"):
-            # Counterexample has var < threshold — tighten upward
+            # Counterexample has var < threshold: tighten upward
             if ce_val is not None:
                 # Set threshold to ce_val + 1 (just above the violating value)
                 new_threshold = ce_val + 1
@@ -135,7 +135,7 @@ def _generate_candidates(axiom: Axiom, ce: dict[str, Any]) -> list[str]:
                 candidates.append(f"{var} < {threshold}")
 
         elif op == "==":
-            # Equality is already tight — try adding a range constraint
+            # Equality is already tight: try adding a range constraint
             candidates.append(f"{var} >= {threshold} and {var} <= {threshold}")
 
         elif op == "!=":
@@ -327,7 +327,7 @@ def repair_axiom(
                 target_functions=list(current_axiom.target_functions),
             )
         else:
-            # No candidate worked in this iteration — stop rather than
+            # No candidate worked in this iteration: stop rather than
             # cycling on a conservative-but-still-unsafe candidate.
             # Continuing with a candidate that failed re-verification would
             # produce an infinite loop without making progress.

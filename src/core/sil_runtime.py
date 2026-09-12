@@ -19,7 +19,7 @@ from src.core.sil_compiler import (
     WhileStmtNode,
 )
 
-# Steps 18-19: Global caps — can be overridden via environment variables (Step 66).
+# Steps 18-19: Global caps: can be overridden via environment variables (Step 66).
 MAX_LOOP_BOUND: int = int(os.environ.get("PAAC_MAX_LOOP_BOUND", "10000"))
 MAX_INSTRUCTIONS: int = int(os.environ.get("PAAC_MAX_INSTRUCTIONS", "100000"))
 
@@ -152,7 +152,7 @@ class SILRuntime:
             elif expr.operator == "or":
                 return l or r
         elif isinstance(expr, ArrayAccessNode):
-            # Step 12: Array access — arrays are dicts mapping int index -> int value.
+            # Step 12: Array access: arrays are dicts mapping int index -> int value.
             arr = self._eval_expr(IdentifierNode(expr.array_name))
             idx = self._eval_expr(expr.index)
             if isinstance(arr, dict):

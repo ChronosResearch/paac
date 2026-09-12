@@ -43,7 +43,7 @@ from ..core.verifier import (
 from ..pcm.proof_checker import ProofChecker
 from ..pcm.certificate import CertificateStore, generate_certificate
 
-# Audit logger — writes counterexamples and rejections to a persistent file.
+# Audit logger: writes counterexamples and rejections to a persistent file.
 _audit_logger = logging.getLogger("paac.audit")
 _audit_handler = logging.FileHandler("audit.log")
 _audit_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
@@ -82,7 +82,7 @@ class CodeMonitor:
     # In-process function registry: func_name -> current live code string.
     _live_registry: dict[str, str] = {}  # noqa: RUF012
 
-    # Shared circuit breaker — one instance per process.
+    # Shared circuit breaker: one instance per process.
     _circuit_breaker: CircuitBreaker = CircuitBreaker()
 
     def __init__(self, config: dict[str, Any]):
@@ -105,7 +105,7 @@ class CodeMonitor:
         if not self.axioms:
             raise ConfigurationError(
                 f"No safety axioms loaded from '{axiom_path}'. "
-                "PAAC cannot operate without axioms — failing closed."
+                "PAAC cannot operate without axioms, failing closed."
             )
         logger.info(f"Loaded {len(self.axioms)} safety axioms from '{axiom_path}'.")
 
@@ -239,7 +239,7 @@ class CodeMonitor:
                 self._last_heartbeat = time.monotonic()
                 _count += 1
             if _count % 10 == 0:
-                logger.debug(f"CodeMonitor liveness thread alive — tick #{_count}.")
+                logger.debug(f"CodeMonitor liveness thread alive, tick #{_count}.")
 
     def _watchdog_loop(self) -> None:
         _timeout = int(os.environ.get("PAAC_WATCHDOG_TIMEOUT", "60"))
@@ -249,7 +249,7 @@ class CodeMonitor:
                 elapsed = time.monotonic() - self._last_heartbeat
             if elapsed > _timeout:
                 logger.error(
-                    f"Watchdog: liveness thread stalled for {elapsed:.1f}s — "
+                    f"Watchdog: liveness thread stalled for {elapsed:.1f}s, "
                     "triggering self-healing reset."
                 )
                 self._watchdog_recover()
@@ -404,7 +404,7 @@ class CodeMonitor:
                 except CircuitOpenError as exc:
                     return {"status": "error", "error": str(exc), "http_status": 503}
 
-                # R-6: Citation validation — >= 20 chars with a dot.
+                # R-6: Citation validation: >= 20 chars with a dot.
                 if self.grounding_config.get("require_source_citations", True):
                     citation = mod.source_citation or ""
                     stripped = citation.strip()

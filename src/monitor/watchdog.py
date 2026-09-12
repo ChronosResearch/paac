@@ -21,17 +21,17 @@ class Watchdog:
     """
     Two-thread watchdog design:
 
-    1. _liveness_thread  — runs every `heartbeat_interval` seconds and stamps
+    1. _liveness_thread, runs every `heartbeat_interval` seconds and stamps
        `last_heartbeat` as long as the process is alive.  This is the
        continuous heartbeat; it is completely independent of request traffic.
 
-    2. _monitor_thread   — runs every `monitor_interval` seconds and compares
+    2. _monitor_thread, runs every `monitor_interval` seconds and compares
        `last_heartbeat` against `timeout`.  It only fires _trigger_recovery()
        when the liveness thread itself has stopped updating the timestamp,
        which means the process is genuinely hung or the liveness thread died.
 
     Callers (e.g. the /verify endpoint) may still call heartbeat() to signal
-    application-level liveness, but that is now optional — idle periods will
+    application-level liveness, but that is now optional, idle periods will
     not cause false positives.
     """
 
@@ -78,7 +78,7 @@ class Watchdog:
         self._liveness_thread.start()
         self._monitor_thread.start()
         logger.info(
-            f"Watchdog started — liveness every {self.heartbeat_interval}s, "
+            f"Watchdog started, liveness every {self.heartbeat_interval}s, "
             f"monitor every {self.monitor_interval}s, timeout {self.timeout}s."
         )
 
@@ -105,7 +105,7 @@ class Watchdog:
     def _liveness_loop(self) -> None:
         """Stamps last_heartbeat every heartbeat_interval seconds.
         As long as this thread is scheduled by the OS, the watchdog will
-        not fire — idle periods are safe."""
+        not fire, idle periods are safe."""
         while self._liveness_running:
             time.sleep(self.heartbeat_interval)
             if not self._liveness_running:
@@ -115,7 +115,7 @@ class Watchdog:
                 self._heartbeat_count += 1
                 count = self._heartbeat_count
             if count % 10 == 0:
-                logger.debug(f"Watchdog liveness thread alive — heartbeat #{count}.")
+                logger.debug(f"Watchdog liveness thread alive, heartbeat #{count}.")
 
     def _monitor_loop(self) -> None:
         """Checks elapsed time since last heartbeat every monitor_interval

@@ -9,7 +9,7 @@ Metrics are exposed at `GET /metrics` in Prometheus text format.
 | Metric | Labels | Description |
 |---|---|---|
 | `verifications_total` | `outcome={accepted,rejected,error}` | Total verification requests |
-| `verification_errors_total` | — | Total Z3/compilation errors |
+| `verification_errors_total` |, | Total Z3/compilation errors |
 | `circuit_breaker_state_changes_total` | `state={OPEN,CLOSED,HALF_OPEN}` | Circuit breaker transitions |
 
 ### Histograms
@@ -36,7 +36,7 @@ Metrics are exposed at `GET /metrics` in Prometheus text format.
   expr: circuit_breaker_state_changes_total{state="OPEN"} > 0
   for: 0m
   annotations:
-    summary: "PAAC circuit breaker is OPEN — all verifications suspended"
+    summary: "PAAC circuit breaker is OPEN, all verifications suspended"
 
 # High error rate
 - alert: PaacHighErrorRate
@@ -71,11 +71,11 @@ Metrics are exposed at `GET /metrics` in Prometheus text format.
 Import the dashboard from `docs/grafana_dashboard.json`.
 
 Key panels:
-1. **Verification Rate** — `rate(verifications_total[1m])` by outcome
-2. **Latency Heatmap** — `verification_latency_seconds` histogram
-3. **Active Verifications** — `active_verifications` gauge
-4. **Circuit Breaker State** — `circuit_breaker_state_changes_total`
-5. **Error Rate** — `rate(verification_errors_total[5m])`
+1. **Verification Rate**, `rate(verifications_total[1m])` by outcome
+2. **Latency Heatmap**, `verification_latency_seconds` histogram
+3. **Active Verifications**, `active_verifications` gauge
+4. **Circuit Breaker State**, `circuit_breaker_state_changes_total`
+5. **Error Rate**, `rate(verification_errors_total[5m])`
 
 ---
 

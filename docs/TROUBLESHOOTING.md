@@ -22,7 +22,7 @@ echo $AXIOM_PATH
 
 **Fix**:
 1. Increase timeout: set `PAAC_VERIFICATION_TIMEOUT_MS=10000`
-2. Simplify the SIL program — reduce loop bounds or assertion complexity.
+2. Simplify the SIL program, reduce loop bounds or assertion complexity.
 3. Check if the program has many nested loops (each unrolled up to `bound` times).
 
 ---
@@ -34,12 +34,12 @@ echo $AXIOM_PATH
 **Fix**: Ensure the axiom condition uses only variable names that appear as parameters
 in the functions being verified. Example:
 ```yaml
-# Wrong — 'x' is not a parameter of 'compute'
+# Wrong: 'x' is not a parameter of 'compute'
 - id: "result_positive"
   condition: "x >= 0"
   target_functions: ["compute"]
 
-# Correct — 'result' is a parameter of 'compute'
+# Correct: 'result' is a parameter of 'compute'
 - id: "result_positive"
   condition: "result >= 0"
   target_functions: ["compute"]

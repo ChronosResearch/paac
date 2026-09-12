@@ -22,8 +22,8 @@ confidence level (±sqrt(p(1-p)/n) by the CLT).
 
 Configuration
 -------------
-  PAAC_PROB_DOMAIN   : int  — half-width of per-parameter domain (default 100)
-  PAAC_PROB_SAMPLES  : int  — number of random samples (default 200)
+  PAAC_PROB_DOMAIN   : int, half-width of per-parameter domain (default 100)
+  PAAC_PROB_SAMPLES  : int, number of random samples (default 200)
 """
 
 from __future__ import annotations
@@ -159,7 +159,7 @@ class ProbabilisticVerifier:
                     param_names.append(p.name)
 
         if not param_names:
-            # No parameters — deterministic; delegate to boolean check.
+            # No parameters: deterministic; delegate to boolean check.
             return self._deterministic_check(ast, prob_axioms)
 
         # Sample random inputs and check each.

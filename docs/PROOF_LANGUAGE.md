@@ -5,7 +5,7 @@
 The PAAC Proof Language (PPL) is a lightweight, JSON-encoded formal language for
 expressing safety proofs of SIL programs. A proof is a structured argument that a
 SIL function satisfies a set of safety axioms. The proof checker validates each step
-without calling Z3 — it is a pure symbolic evaluator over integer arithmetic.
+without calling Z3, it is a pure symbolic evaluator over integer arithmetic.
 
 ---
 
@@ -119,7 +119,7 @@ consistent with the current environment.
 
 ### 7. `Conclude`
 
-Final step — asserts the function is safe with respect to all declared axioms.
+Final step, asserts the function is safe with respect to all declared axioms.
 
 ```json
 { "type": "Conclude", "result": "safe", "covered_axioms": ["no_negative_balance"] }

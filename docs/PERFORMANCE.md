@@ -7,15 +7,15 @@ of 10 runs. The constant-time padding floor of 200 ms is included.
 
 | Program | Assertions | Loop Bound | Z3 Time | Total (w/ padding) |
 |---|---|---|---|---|
-| `func f(x: int) -> int { return x; }` | 0 | — | <5 ms | 200 ms |
-| Simple assert (safe) | 1 | — | 8 ms | 200 ms |
-| Simple assert (unsafe) | 1 | — | 12 ms | 200 ms |
+| `func f(x: int) -> int { return x; }` | 0 |, | <5 ms | 200 ms |
+| Simple assert (safe) | 1 |, | 8 ms | 200 ms |
+| Simple assert (unsafe) | 1 |, | 12 ms | 200 ms |
 | Loop, bound=5 | 1 | 5 | 25 ms | 200 ms |
 | Loop, bound=100 | 1 | 100 | 180 ms | 200 ms |
 | Loop, bound=1000 | 2 | 1000 | 820 ms | 820 ms |
-| Nested if/else, 3 levels | 4 | — | 45 ms | 200 ms |
-| Axiom enforcement (balance) | 1 + axiom | — | 15 ms | 200 ms |
-| Backdoor detection | 1 | — | 18 ms | 200 ms |
+| Nested if/else, 3 levels | 4 |, | 45 ms | 200 ms |
+| Axiom enforcement (balance) | 1 + axiom |, | 15 ms | 200 ms |
+| Backdoor detection | 1 |, | 18 ms | 200 ms |
 | Iterative sort, bound=1000 | 2 | 1000 | 750 ms | 750 ms |
 
 **p95 latency under load (10 concurrent workers, 100 requests)**: ~1.2 s
@@ -54,9 +54,9 @@ complexity. The 200 ms floor is intentional (constant-time padding, paper §3.5)
    verification_timeout_ms: 2000
    ```
 
-3. **Reduce loop bounds** in SIL programs — each unrolling adds Z3 clauses.
+3. **Reduce loop bounds** in SIL programs, each unrolling adds Z3 clauses.
 
-4. **Enable caching** — identical programs hit the SHA-256 cache and return
+4. **Enable caching**, identical programs hit the SHA-256 cache and return
    immediately (after padding). Cache is per-process; use Redis for shared cache.
 
 ### Increase Throughput
@@ -68,10 +68,10 @@ complexity. The 200 ms floor is intentional (constant-time padding, paper §3.5)
    Note: each Z3 subprocess can use up to 1 GB RAM. Set Docker memory limit
    to `(max_concurrent_verifications + 1) * 1.5 GB`.
 
-2. **Scale horizontally** — run multiple PAAC instances behind a load balancer.
+2. **Scale horizontally**, run multiple PAAC instances behind a load balancer.
    Each instance is stateless for verification; share Redis for checkpoints.
 
-3. **Pre-warm the cache** — submit common programs at startup to populate the
+3. **Pre-warm the cache**, submit common programs at startup to populate the
    SHA-256 cache before production traffic arrives.
 
 ### Memory Tuning

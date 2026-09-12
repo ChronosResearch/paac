@@ -1,4 +1,4 @@
-# PAAC v5.1.0 — Four Novel Extensions: Features Summary
+# PAAC v5.1.0: Four Novel Extensions: Features Summary
 
 Generated: 2026-08-03
 
@@ -51,7 +51,7 @@ percentage and an overall suite score.
 | **Overall** | | **7/25** | **28.0%** |
 
 **Interpretation**: Coverage of 28% reflects that each axiom targets a specific
-function domain — `balance` axioms only fire on `withdraw`/`deposit` programs.
+function domain, `balance` axioms only fire on `withdraw`/`deposit` programs.
 This is expected and correct: axioms are not vacuous (mutation score 100%),
 they are simply domain-specific.  A higher coverage score requires a broader
 program suite.
@@ -80,12 +80,12 @@ quality metric for each axiom.
 | **Suite** | **100.0%** | **28.0%** | |
 
 **Quadrant interpretation**:
-- High-R / High-C: ideal — axiom is tight and widely exercised
+- High-R / High-C: ideal, axiom is tight and widely exercised
 - High-R / Low-C: axiom is tight but domain-specific (expected for targeted axioms)
 - Low-R / High-C: axiom is exercised but weak (vacuous risk)
 - Low-R / Low-C: axiom needs attention
 
-All five axioms fall in High-R / Low-C or High-R / Med-C — correct for a
+All five axioms fall in High-R / Low-C or High-R / Med-C, correct for a
 domain-specific safety monitor.  No axiom is in the Low-R quadrant.
 
 ---
@@ -111,7 +111,7 @@ When verification returns SAT (unsafe), the CEGAR loop:
 
 **Key insight**: CEGAR repair succeeds when the program has a *fixable* violation
 (e.g., a concrete initial value that can be constrained).  It correctly fails
-when the program is fundamentally unsafe regardless of axiom tightening — the
+when the program is fundamentally unsafe regardless of axiom tightening, the
 repair loop does not produce unsound results.
 
 ### CLI
@@ -144,7 +144,7 @@ checks two directions:
 | `withdraw { assert balance>=0; return balance-amount; }` | `withdraw { return balance-amount; }` | `equivalent`* | ✓ Yes |
 
 *Note: Both versions are unsafe w.r.t. the axiom (balance is unconstrained in
-both) — the differential verifier correctly reports them as equivalent in their
+both), the differential verifier correctly reports them as equivalent in their
 safety profile.  A true regression would require the old version to have a
 concrete safety guarantee the new version removes.
 
@@ -226,23 +226,23 @@ PYTHONPATH=. python3.11 -m src.cli export-proof examples/safe.sil \
 > We present four novel extensions to PAAC that together form the first
 > complete quality-assurance suite for a formal AI safety monitor:
 >
-> 1. **Axiom Coverage** — quantifies which axioms are actively evaluated
+> 1. **Axiom Coverage**, quantifies which axioms are actively evaluated
 >    across a program suite, complementing mutation-based robustness.
 >
-> 2. **Robustness × Coverage Matrix** — a 2D metric combining mutation
+> 2. **Robustness × Coverage Matrix**, a 2D metric combining mutation
 >    testing (robustness) and coverage, giving a complete picture of
 >    axiom quality.  No prior work reports both dimensions simultaneously.
 >
-> 3. **CEGAR Axiom Repair** — automatically proposes conservative axiom
+> 3. **CEGAR Axiom Repair**, automatically proposes conservative axiom
 >    strengthening to eliminate counterexamples, closing the loop from
 >    "found a bug" to "system learned from it."
 >
-> 4. **Differential Verification** — formally proves that a new function
+> 4. **Differential Verification**, formally proves that a new function
 >    version introduces no safety regressions relative to the old version,
 >    directly addressing the incremental safety problem in continuously-
 >    updated AI systems.
 >
-> 5. **Proof Certificates** — exports machine-checkable HMAC-sealed
+> 5. **Proof Certificates**, exports machine-checkable HMAC-sealed
 >    certificates for every accepted verification, enabling independent
 >    third-party auditing without re-running Z3.
 

@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-# Global loop bound cap — mirrors sil_runtime.py and verifier.py.
+# Global loop bound cap: mirrors sil_runtime.py and verifier.py.
 # Enforced at parse time so malformed SIL never reaches the BMC pipeline.
 SIL_MAX_LOOP_BOUND: int = int(os.environ.get("PAAC_MAX_LOOP_BOUND", "10000"))
 
@@ -36,7 +36,7 @@ class SILLexer:
         ("WHITESPACE", r"[ \t]+"),
         ("NEWLINE", r"\n"),
         ("COMMENT", r"#.*"),
-        ("ERROR", r"."),  # Step 6: catch-all — must be last.
+        ("ERROR", r"."),  # Step 6: catch-all, must be last.
     ]
 
     def __init__(self, code: str):
@@ -50,7 +50,7 @@ class SILLexer:
         line_start = 0
         for mo in re.finditer(tok_regex, self.code):
             kind = mo.lastgroup
-            if kind is None:  # pragma: no cover — guaranteed by regex structure
+            if kind is None:  # pragma: no cover, guaranteed by regex structure
                 continue
             value = mo.group()
             column = mo.start() - line_start
@@ -259,7 +259,7 @@ class SILParser:
         def dfs(name: str, path: list[str]) -> None:
             """Depth-first search helper for call-graph cycle detection."""
             if name not in graph:
-                return  # call to external / stdlib — not our concern here
+                return  # call to external / stdlib, not our concern here
             if name in in_stack:
                 cycle = " -> ".join(path + [name])
                 raise SILError(f"Recursion cycle detected: {cycle}")

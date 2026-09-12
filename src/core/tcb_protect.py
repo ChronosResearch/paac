@@ -56,7 +56,7 @@ def protect_tcb() -> None:
 
     if sys.platform != "linux":
         logger.warning(
-            "R-2: TCB file protection skipped — only supported on Linux. "
+            "R-2: TCB file protection skipped, only supported on Linux. "
             "Deploy with '--read-only' Docker flag as mitigation."
         )
         return
@@ -91,7 +91,7 @@ def protect_tcb() -> None:
             os.chmod(src_file, new_mode)
             protected += 1
         except OSError:
-            pass  # non-fatal — log below
+            pass  # non-fatal, log below
 
     _TCB_PROTECTED = True
     if protected > 0:

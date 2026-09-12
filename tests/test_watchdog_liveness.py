@@ -56,11 +56,11 @@ def test_idle_does_not_trigger_recovery():
     wd._trigger_recovery = patched
 
     wd.start()
-    time.sleep(6)  # 1.5× timeout — liveness thread should keep it alive
+    time.sleep(6)  # 1.5× timeout, liveness thread should keep it alive
     wd.stop()
 
     assert recovery_calls == [], (
-        f"Watchdog fired {len(recovery_calls)} time(s) during idle — "
+        f"Watchdog fired {len(recovery_calls)} time(s) during idle, "
         "liveness thread is not running correctly."
     )
 
@@ -175,7 +175,7 @@ def test_code_monitor_idle_does_not_trigger(tmp_path, monkeypatch):
         "grounding": {"require_source_citations": False},
     }
     monitor = CodeMonitor(config)
-    time.sleep(6)  # 1.5× timeout — liveness thread must keep it alive
+    time.sleep(6)  # 1.5× timeout, liveness thread must keep it alive
     monitor.stop_watchdog()
 
     assert (

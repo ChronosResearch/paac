@@ -1,4 +1,4 @@
-"""tests/test_probabilistic.py — Feature 1: Probabilistic Verification"""
+"""tests/test_probabilistic.py, Feature 1: Probabilistic Verification"""
 
 from src.core.probabilistic import (
     ProbabilisticAxiom,
@@ -28,7 +28,7 @@ def test_always_safe_program_accepted():
     """A program that always satisfies the axiom should be accepted."""
     ast, _ = COMPILER.compile("func f(x: int) -> int { assert x >= 0; return x; }")
     verifier = ProbabilisticVerifier(domain=50, samples=100)
-    # Axiom: x >= 0 with threshold 0.5 — only half the domain satisfies it.
+    # Axiom: x >= 0 with threshold 0.5: only half the domain satisfies it.
     # But the assert forces x >= 0 on all paths, so the program is always safe.
     ax = _axiom("x >= 0", 0.40)
     result = verifier.verify(ast, [ax])
@@ -40,10 +40,10 @@ def test_always_safe_program_accepted():
 
 
 def test_high_confidence_safe_program():
-    """Program with x >= 0 axiom at 0.90 threshold — domain [-10, 100]."""
+    """Program with x >= 0 axiom at 0.90 threshold, domain [-10, 100]."""
     ast, _ = COMPILER.compile("func f(x: int) -> int { return x; }")
     verifier = ProbabilisticVerifier(domain=100, samples=300)
-    # Axiom: x >= 0 with threshold 0.40 — ~50% of [-100,100] satisfies it.
+    # Axiom: x >= 0 with threshold 0.40: ~50% of [-100,100] satisfies it.
     ax = _axiom("x >= 0", 0.40)
     result = verifier.verify(ast, [ax])
     assert result.samples_checked == 300
@@ -73,7 +73,7 @@ def test_no_axioms_always_accepted():
 
 
 def test_deterministic_no_params():
-    """Parameter-free function — deterministic check path."""
+    """Parameter-free function, deterministic check path."""
     ast, _ = COMPILER.compile("func f() -> int { return 1; }")
     verifier = ProbabilisticVerifier()
     ax = _axiom("x >= 0", 0.5)  # x not in scope → inapplicable → safe

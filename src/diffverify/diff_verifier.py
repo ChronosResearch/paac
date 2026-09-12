@@ -218,10 +218,10 @@ class DifferentialVerifier:
         axiom_ids = [a.id for a in axioms]
 
         if regression_ce is not None and relaxation_ce is not None:
-            # Both directions differ — programs are incomparable
+            # Both directions differ: programs are incomparable
             status = DiffStatus.REGRESSION
             msg = (
-                "New version has regressions AND relaxations — "
+                "New version has regressions AND relaxations, "
                 "programs are safety-incomparable."
             )
         elif regression_ce is not None:
@@ -231,7 +231,7 @@ class DifferentialVerifier:
                 "but unsafe under new version."
             )
         elif relaxation_ce is not None:
-            # Relaxation only: new accepts programs old rejected — still conservative
+            # Relaxation only: new accepts programs old rejected: still conservative
             # (no regressions means new is at least as safe as old)
             status = DiffStatus.CONSERVATIVE
             msg = (
@@ -321,7 +321,7 @@ class DifferentialVerifier:
             if new_flags:
                 solver.add(z3.Or(*new_flags))
             else:
-                return None  # new has no violations — can't regress
+                return None  # new has no violations, can't regress
         else:  # relaxation
             # new is safe AND old is unsafe
             if new_flags:

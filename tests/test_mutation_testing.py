@@ -65,10 +65,10 @@ def strict_axiom():
 
 @pytest.fixture
 def vacuous_axiom():
-    """An axiom whose condition is always true — should be detected as vacuous."""
+    """An axiom whose condition is always true, should be detected as vacuous."""
     return Axiom(
         id="always_true",
-        description="Always true — vacuous.",
+        description="Always true, vacuous.",
         condition="x >= 0",
         target_functions=["*"],
     )
@@ -208,7 +208,7 @@ class TestProbeBuilder:
 
 
 # ---------------------------------------------------------------------------
-# Mutation runner tests — core validation requirements
+# Mutation runner tests: core validation requirements
 # ---------------------------------------------------------------------------
 
 
@@ -219,7 +219,7 @@ class TestMutationRunner:
         assert result.axiom.id == balance_axiom.id
 
     def test_noop_mutant_kills_zero_probes(self, balance_axiom):
-        """NOOP must never kill any probe — sanity check."""
+        """NOOP must never kill any probe, sanity check."""
         result = run_axiom_mutation(balance_axiom)
         noop = next(
             m for m in result.mutant_results if m.mutant.kind == MutationKind.NOOP
@@ -234,7 +234,7 @@ class TestMutationRunner:
             m for m in result.mutant_results if m.mutant.kind == MutationKind.NEGATE
         )
         assert negate.probes_killed > 0, (
-            "Negation mutation must kill at least one probe — "
+            "Negation mutation must kill at least one probe, "
             "proves the mutation system is working"
         )
 
@@ -245,7 +245,7 @@ class TestMutationRunner:
             m for m in result.mutant_results if m.mutant.kind == MutationKind.NEGATE
         )
         assert negate.kill_rate >= 0.3, (
-            f"Negation kill rate {negate.kill_rate:.1%} is too low — "
+            f"Negation kill rate {negate.kill_rate:.1%} is too low, "
             "mutation system may not be working correctly"
         )
 
@@ -254,7 +254,7 @@ class TestMutationRunner:
         # An axiom on a variable that is always >= 0 in all probes (x*x >= 0)
         # We simulate this by using condition "x >= -1000" which is always true
         # for any reasonable value Z3 would pick.
-        # More directly: use condition "true" — the vacuous mutant of any axiom
+        # More directly: use condition "true": the vacuous mutant of any axiom
         # should survive if the original axiom is already vacuous.
         # We test the detection logic directly.
         vacuous = Axiom(
@@ -315,7 +315,7 @@ class TestMutationRunner:
         )
         for i, (br, pr) in enumerate(zip(result.baseline_results, noop.probe_results)):
             assert br.actual_safe == pr.actual_safe, (
-                f"Probe {i}: baseline={br.actual_safe} but noop={pr.actual_safe} — "
+                f"Probe {i}: baseline={br.actual_safe} but noop={pr.actual_safe}, "
                 "NOOP must produce identical results to baseline"
             )
 
@@ -339,7 +339,7 @@ class TestMutationRunner:
             None,
         )
         if weaken is not None and strengthen is not None:
-            # Strengthening makes the axiom harder to satisfy — should reject more programs
+            # Strengthening makes the axiom harder to satisfy: should reject more programs
             # (kill more probes that were previously safe)
             # This is a directional check, not a strict requirement
             assert strengthen.probes_killed >= 0  # at minimum, no negative kills
@@ -415,7 +415,7 @@ class TestReport:
 
 
 # ---------------------------------------------------------------------------
-# Integration test — full pipeline on canonical axiom set
+# Integration test: full pipeline on canonical axiom set
 # ---------------------------------------------------------------------------
 
 
@@ -444,7 +444,7 @@ class TestIntegration:
         # Mutation score must be > 0 (at least some mutants are killed)
         assert (
             metrics["suite_mutation_score"] > 0.0
-        ), "Suite mutation score must be > 0 — at least some mutants must be killed"
+        ), "Suite mutation score must be > 0, at least some mutants must be killed"
         # Robustness score must be computable
         assert 0.0 <= metrics["suite_robustness_score"] <= 1.0
 
