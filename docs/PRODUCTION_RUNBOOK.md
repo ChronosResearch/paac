@@ -52,10 +52,10 @@ curl http://localhost:8000/metrics
 ```
 
 Key metrics:
-- `verifications_total{outcome="accepted|rejected|error"}` — request counts
-- `verification_latency_seconds` — p50/p95/p99 latency histogram
-- `active_verifications` — current in-flight verifications
-- `circuit_breaker_state_changes_total` — circuit breaker transitions
+- `verifications_total{outcome="accepted|rejected|error"}`, request counts
+- `verification_latency_seconds`, p50/p95/p99 latency histogram
+- `active_verifications`, current in-flight verifications
+- `circuit_breaker_state_changes_total`, circuit breaker transitions
 
 ### Logs
 ```bash
@@ -108,7 +108,7 @@ tail -f audit.log
 **Symptom**: Logs show "Z3 subprocess crashed" 3 times, then VerificationError.
 
 **Recovery**:
-1. Check memory: `docker stats paac_core` — if near 2 GB, increase limit.
+1. Check memory: `docker stats paac_core`, if near 2 GB, increase limit.
 2. Check for malformed SIL input in audit.log.
 3. Restart PAAC: `docker-compose restart paac_core`
 

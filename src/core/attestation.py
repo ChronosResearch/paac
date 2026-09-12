@@ -30,7 +30,7 @@ Old attestations remain verifiable with the old public key via
 verify_with_public_key().
 
 Third parties who hold only the public key can verify attestations
-without being able to forge them — this is the key advantage over HMAC.
+without being able to forge them, this is the key advantage over HMAC.
 
 Limitations (documented honestly)
 ----------------------------------
@@ -94,13 +94,13 @@ def _load_keypair() -> tuple[Ed25519PrivateKey, Ed25519PublicKey]:
 
     if pub_pem and not priv_pem:
         logger.warning(
-            "PAAC_ATTEST_PUBLIC_KEY set but PAAC_ATTEST_PRIVATE_KEY missing — "
+            "PAAC_ATTEST_PUBLIC_KEY set but PAAC_ATTEST_PRIVATE_KEY missing, "
             "cannot sign new attestations. Generating ephemeral keypair."
         )
 
     private_key, public_key = _generate_keypair()
     logger.warning(
-        "No PAAC_ATTEST_PRIVATE_KEY set — using ephemeral Ed25519 keypair. "
+        "No PAAC_ATTEST_PRIVATE_KEY set, using ephemeral Ed25519 keypair. "
         "Attestations will not be verifiable across restarts."
     )
     return private_key, public_key
@@ -139,7 +139,7 @@ class AttestationRecord:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "AttestationRecord":
-        # Accept v1 records (HMAC) for backward compatibility — they will
+        # Accept v1 records (HMAC) for backward compatibility: they will
         # fail signature verification but won't crash deserialization.
         fields = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
         fields.setdefault("public_key_pem", "")
@@ -312,7 +312,7 @@ class AttestationEngine:
         if not valid:
             logger.warning(
                 f"Attestation verification FAILED for id={record.modification_id!r} "
-                "— Ed25519 signature invalid (tampering or wrong key)."
+                ", Ed25519 signature invalid (tampering or wrong key)."
             )
         return valid
 

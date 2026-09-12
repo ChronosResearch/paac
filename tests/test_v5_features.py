@@ -514,7 +514,7 @@ class TestMultiAgentCoordination:
         )
         cv.mark_agent_crashed("crash_agent")
         results = cv.process_queue("crash_func", [])
-        # All modifications abandoned — empty or accepted (abandoned = skipped)
+        # All modifications abandoned: empty or accepted (abandoned = skipped)
         assert all(r.accepted for r in results) or len(results) == 0
 
     def test_dependency_graph_registers_calls(self):
@@ -604,11 +604,11 @@ func func_caller(x: int) -> int { return func_callee(x); }
         assert result.accepted is False
         # The function should not appear in the dependency graph as a caller
         # (it was rejected, so its call graph should not be trusted)
-        # This is a best-effort check — the graph may have been updated during
+        # This is a best-effort check: the graph may have been updated during
         # compilation before rejection.  The important thing is the result is False.
 
     def test_10_agents_100_mods_stress(self):
-        """Stress test: 10 agents, 10 mods each, all safe — all accepted."""
+        """Stress test: 10 agents, 10 mods each, all safe, all accepted."""
         from src.core.compositional import AgentModification, CompositionalVerifier
 
         cv = CompositionalVerifier(timeout_ms=5000)

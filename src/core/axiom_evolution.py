@@ -276,7 +276,7 @@ class AxiomEvolutionEngine:
                     accepted=False,
                     old_condition=old_condition,
                     new_condition=new_condition,
-                    message="Could not encode one or both conditions — rejecting.",
+                    message="Could not encode one or both conditions, rejecting.",
                 )
 
             # Query: new holds AND old does NOT hold.
@@ -288,7 +288,7 @@ class AxiomEvolutionEngine:
                     accepted=True,
                     old_condition=old_condition,
                     new_condition=new_condition,
-                    message="Conservative extension verified — new axiom is at least as strong.",
+                    message="Conservative extension verified, new axiom is at least as strong.",
                 )
             elif result == z3.sat:
                 model = solver.model()
@@ -299,7 +299,7 @@ class AxiomEvolutionEngine:
                     new_condition=new_condition,
                     counterexample=ce,
                     message=(
-                        f"Rejected: new axiom is weaker — counterexample: {ce}. "
+                        f"Rejected: new axiom is weaker, counterexample: {ce}. "
                         "The new condition allows states that the old condition forbids."
                     ),
                 )
@@ -308,7 +308,7 @@ class AxiomEvolutionEngine:
                     accepted=False,
                     old_condition=old_condition,
                     new_condition=new_condition,
-                    message="Z3 returned unknown — rejecting (fail-closed).",
+                    message="Z3 returned unknown, rejecting (fail-closed).",
                 )
 
         except Exception as exc:
@@ -316,7 +316,7 @@ class AxiomEvolutionEngine:
                 accepted=False,
                 old_condition=old_condition,
                 new_condition=new_condition,
-                message=f"Encoding error — rejecting: {exc}",
+                message=f"Encoding error, rejecting: {exc}",
             )
 
     # ------------------------------------------------------------------

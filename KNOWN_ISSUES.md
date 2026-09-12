@@ -1,13 +1,13 @@
-# Known Issues — v7.0
+# Known Issues: v7.0
 
 ## Compiler
 
-### KI-002: Duplicate SIL parameter names — FIXED in v5.0.0
+### KI-002: Duplicate SIL parameter names: FIXED in v5.0.0
 The SIL type checker detects duplicate parameter names at compile time and raises
 `SILError`. Previously, the second parameter silently shadowed the first.
 Status: **Fixed.**
 
-### KI-003: Missing return statement — WARNING added in v5.0.0
+### KI-003: Missing return statement: WARNING added in v5.0.0
 A SIL function that falls off the end without a `return` statement emits a
 `SyntaxWarning` at compile time. A hard error is planned for a future release.
 Status: Warning added. Hard error is future work.
@@ -33,7 +33,7 @@ Status: By design. Documented.
 
 ## Security
 
-### KI-007: Default HMAC key is insecure (High — mitigated)
+### KI-007: Default HMAC key is insecure (High: mitigated)
 The default `PAAC_CERT_KEY` value is hardcoded and publicly known. Any deployment
 using the default key produces certificates that can be forged.
 Mitigation: always set `PAAC_CERT_KEY` to a strong random value.

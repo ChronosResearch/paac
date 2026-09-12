@@ -25,7 +25,7 @@ COMPILER = SILCompiler()
 
 
 # ---------------------------------------------------------------------------
-# Scenario 1: Redis down — WAL fallback
+# Scenario 1: Redis down: WAL fallback
 # ---------------------------------------------------------------------------
 
 
@@ -46,7 +46,7 @@ def test_failsafe_redis_down_wal_fallback(tmp_path, monkeypatch):
     )
     wal_append(entry)
 
-    # Simulate restart — load from WAL
+    # Simulate restart: load from WAL
     latest = wal_load_latest()
     assert "critical_func" in latest
     assert latest["critical_func"].new_code == "new_safe"
@@ -54,7 +54,7 @@ def test_failsafe_redis_down_wal_fallback(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Scenario 2: WAL corruption — skip bad lines, continue
+# Scenario 2: WAL corruption: skip bad lines, continue
 # ---------------------------------------------------------------------------
 
 
@@ -83,7 +83,7 @@ def test_failsafe_wal_corruption_recovery(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Scenario 3: Circuit breaker open — rejects all, recovers after cooldown
+# Scenario 3: Circuit breaker open: rejects all, recovers after cooldown
 # ---------------------------------------------------------------------------
 
 
@@ -91,7 +91,7 @@ def test_failsafe_circuit_breaker_full_cycle():
     """Full circuit breaker cycle: CLOSED -> OPEN -> HALF_OPEN -> CLOSED."""
     cb = CircuitBreaker(failure_threshold=3, cooldown_s=0.1)
 
-    # CLOSED — requests allowed
+    # CLOSED: requests allowed
     cb.allow_request()
     assert cb.state == "CLOSED"
 
@@ -100,7 +100,7 @@ def test_failsafe_circuit_breaker_full_cycle():
         cb.record_failure()
     assert cb.state == "OPEN"
 
-    # OPEN — requests rejected
+    # OPEN: requests rejected
     with pytest.raises(CircuitOpenError):
         cb.allow_request()
 
@@ -132,7 +132,7 @@ def test_failsafe_circuit_breaker_half_open_failure():
 
 
 # ---------------------------------------------------------------------------
-# Scenario 4: Z3 crash — retry and fallback
+# Scenario 4: Z3 crash: retry and fallback
 # ---------------------------------------------------------------------------
 
 
@@ -157,7 +157,7 @@ def test_failsafe_z3_crash_static_fallback(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Scenario 5: Registry persistence — survives restart
+# Scenario 5: Registry persistence: survives restart
 # ---------------------------------------------------------------------------
 
 
@@ -169,7 +169,7 @@ def test_failsafe_registry_survives_restart(tmp_path, monkeypatch):
     # Save state
     registry_save({"func_a": "code_a", "func_b": "code_b"})
 
-    # Simulate restart — load state
+    # Simulate restart: load state
     loaded = registry_load()
     assert loaded == {"func_a": "code_a", "func_b": "code_b"}
     print("PASS: Registry survives restart")

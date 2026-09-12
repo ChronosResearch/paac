@@ -10,7 +10,7 @@ Operators:
   - strengthen_op : replace comparisons with stricter ones (>= -> >, > -> >=)
   - shift_const   : shift integer constants by ±1, ±5, ±10
   - vacuous       : replace condition with true (detects vacuous axioms)
-  - noop          : identity — baseline sanity check
+  - noop          : identity, baseline sanity check
 """
 
 from __future__ import annotations
@@ -100,18 +100,18 @@ def generate_mutations(axiom: Axiom) -> list[MutatedAxiom]:
     mutations: list[MutatedAxiom] = []
     cond = axiom.condition
 
-    # NOOP — baseline
+    # NOOP: baseline
     mutations.append(
         MutatedAxiom(
             original=axiom,
             mutant=_make_mutant(axiom, cond, "noop"),
             kind=MutationKind.NOOP,
-            description="Identity — no change to condition.",
+            description="Identity, no change to condition.",
             expected_direction="same",
         )
     )
 
-    # VACUOUS — replace with true
+    # VACUOUS: replace with true
     mutations.append(
         MutatedAxiom(
             original=axiom,
@@ -122,7 +122,7 @@ def generate_mutations(axiom: Axiom) -> list[MutatedAxiom]:
         )
     )
 
-    # NEGATE — wrap in not(...)
+    # NEGATE: wrap in not(...)
     negated = f"not ({cond})"
     mutations.append(
         MutatedAxiom(
@@ -134,7 +134,7 @@ def generate_mutations(axiom: Axiom) -> list[MutatedAxiom]:
         )
     )
 
-    # WEAKEN_OP — replace first comparison with weaker one
+    # WEAKEN_OP: replace first comparison with weaker one
     weakened = _replace_first_op(cond, _WEAKEN_OPS)
     if weakened and weakened != cond:
         mutations.append(
@@ -147,7 +147,7 @@ def generate_mutations(axiom: Axiom) -> list[MutatedAxiom]:
             )
         )
 
-    # STRENGTHEN_OP — replace first comparison with stricter one
+    # STRENGTHEN_OP: replace first comparison with stricter one
     strengthened = _replace_first_op(cond, _STRENGTHEN_OPS)
     if strengthened and strengthened != cond:
         mutations.append(
@@ -160,7 +160,7 @@ def generate_mutations(axiom: Axiom) -> list[MutatedAxiom]:
             )
         )
 
-    # SHIFT_CONST — shift integer constants
+    # SHIFT_CONST: shift integer constants
     for delta, label in [
         (-1, "shift_m1"),
         (+1, "shift_p1"),

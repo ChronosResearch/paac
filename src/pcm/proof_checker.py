@@ -1,7 +1,7 @@
 """
 src/pcm/proof_checker.py
 ------------------------
-Proof-Carrying Modification (PCM) — Independent AST-Based Proof Checker.
+Proof-Carrying Modification (PCM), Independent AST-Based Proof Checker.
 
 Validates a PPL proof without calling Z3.  Target: < 10ms per proof.
 
@@ -64,7 +64,7 @@ class Verdict(str, Enum):
 
 
 # ---------------------------------------------------------------------------
-# Symbolic environment — interval arithmetic
+# Symbolic environment: interval arithmetic
 # ---------------------------------------------------------------------------
 
 
@@ -139,7 +139,7 @@ class SymbolicEnv:
         except ValueError:
             pass
 
-        # expr = a - b  (subtraction — conservative: drop upper bound)
+        # expr = a - b  (subtraction: conservative: drop upper bound)
         sub_m = re.fullmatch(r"(\w+)\s*-\s*(\w+)", expr)
         if sub_m:
             a, b_var = sub_m.group(1), sub_m.group(2)
@@ -176,7 +176,7 @@ class SymbolicEnv:
             self._bounds[var] = new_b
             return
 
-        # Unknown expression — clear bounds for this var
+        # Unknown expression: clear bounds for this var
         self._bounds[var] = _Bound()
 
     def entails(self, condition: str) -> bool:
@@ -210,7 +210,7 @@ class SymbolicEnv:
                 return True
             if ast_result is False:
                 return False
-            # ast_result is None (unknown) — fall through to interval arithmetic
+            # ast_result is None (unknown): fall through to interval arithmetic
 
         # Interval arithmetic fallback
         parsed = _parse_simple_constraint(condition)
@@ -598,7 +598,7 @@ class ProofChecker:
                 covered_axioms.add(axiom_id)
 
             elif step_type == "BranchSafe":
-                # Record branch analysis — both branches must be safe
+                # Record branch analysis: both branches must be safe
                 then_safe = step.get("then_safe", False)
                 else_safe = step.get("else_safe", False)
                 if not (then_safe and else_safe):
@@ -610,7 +610,7 @@ class ProofChecker:
                     )
 
             elif step_type == "LoopInvariant":
-                # Record loop invariant — just validate it's consistent
+                # Record loop invariant: just validate it's consistent
                 invariant = step.get("invariant", "")
                 bound = step.get("bound", 0)
                 if bound <= 0:
@@ -646,7 +646,7 @@ class ProofChecker:
                     )
 
             else:
-                # Unknown step type — reject
+                # Unknown step type: reject
                 return CheckResult(
                     Verdict.REJECT,
                     reason=f"Step {step_idx}: unknown step type '{step_type}'.",

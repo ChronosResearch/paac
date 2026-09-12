@@ -47,7 +47,7 @@ def test_circuit_breaker_half_open_after_cooldown():
     cb.record_failure()
     assert cb.state == "OPEN"
     time.sleep(0.1)
-    cb.allow_request()  # should not raise — transitions to HALF_OPEN
+    cb.allow_request()  # should not raise, transitions to HALF_OPEN
     assert cb.state == "HALF_OPEN"
 
 
@@ -153,7 +153,7 @@ def test_registry_load_missing_returns_empty(tmp_path, monkeypatch):
 
 
 def test_registry_save_is_atomic(tmp_path, monkeypatch):
-    """save() writes to a .tmp file then renames — no partial reads."""
+    """save() writes to a .tmp file then renames, no partial reads."""
     reg_file = str(tmp_path / "registry.json")
     monkeypatch.setattr("src.core.failsafe._REGISTRY_PATH", reg_file)
 

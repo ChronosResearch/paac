@@ -57,7 +57,7 @@ class TestAxiomCoverage:
         programs = [ProgramEntry(UNSAFE_WITHDRAW, "withdraw")]
         result = analyse_coverage(programs, [BALANCE_AXIOM])
         ar = result.axiom_results[0]
-        # balance is in the program — axiom should be active
+        # balance is in the program: axiom should be active
         assert ar.active_count >= 1
 
     def test_zero_coverage_when_variable_absent(self):
@@ -84,7 +84,7 @@ class TestAxiomCoverage:
     def test_uncovered_axioms_listed(self):
         from src.coverage.axiom_coverage import ProgramEntry, analyse_coverage
 
-        # Only balance program — counter axiom should be uncovered
+        # Only balance program: counter axiom should be uncovered
         programs = [ProgramEntry(UNSAFE_WITHDRAW, "withdraw")]
         result = analyse_coverage(programs, [BALANCE_AXIOM, COUNTER_AXIOM])
         assert "counter_nonneg" in result.uncovered_axioms
@@ -127,7 +127,7 @@ class TestAxiomCoverage:
         programs = [ProgramEntry(UNSAFE_WITHDRAW, "withdraw")]
         result = analyse_coverage(programs, [BALANCE_AXIOM])
         ar = result.axiom_results[0]
-        # Either violated or active — axiom was evaluated
+        # Either violated or active: axiom was evaluated
         assert ar.active_count >= 1 or ar.violated_count >= 1
 
     def test_coverage_elapsed_ms_positive(self):
@@ -171,7 +171,7 @@ class TestCEGARRepair:
         from src.cegar.repair import repair_axiom
 
         result = repair_axiom(BALANCE_AXIOM, UNSAFE_WITHDRAW, [BALANCE_AXIOM])
-        # Repair should succeed — the axiom can be tightened to fix the violation
+        # Repair should succeed: the axiom can be tightened to fix the violation
         assert isinstance(result.success, bool)
         assert result.original_axiom.id == BALANCE_AXIOM.id
 
@@ -280,7 +280,7 @@ class TestDifferentialVerification:
         new = "func withdraw(balance: int, amount: int) -> int { return balance - amount; }"
         dv = DifferentialVerifier()
         result = dv.verify(old, new, [BALANCE_AXIOM])
-        # New version is less safe — should detect regression or relaxation
+        # New version is less safe: should detect regression or relaxation
         assert isinstance(result.status, DiffStatus)
 
     def test_result_has_status(self):

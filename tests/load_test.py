@@ -1,5 +1,5 @@
 """
-Load test: verifications with bounded concurrency — measure p95 latency.
+Load test: verifications with bounded concurrency, measure p95 latency.
 Uses _verify_inner directly (in-process Z3) to avoid subprocess fork issues
 under concurrent load. The subprocess isolation is tested separately.
 Run with: PYTHONPATH=. python3.11 tests/load_test.py

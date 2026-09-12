@@ -23,7 +23,7 @@ from src.axioms.axiom_parser import Axiom, AxiomParser
 from src.mutation.mutation_runner import run_all_axioms
 from src.mutation.report import compute_suite_metrics, to_csv, to_json, to_markdown
 
-# Default axioms used when no file is provided — the canonical PAAC axiom set
+# Default axioms used when no file is provided: the canonical PAAC axiom set
 # plus additional axioms that exercise all mutation operators.
 _DEFAULT_AXIOMS = [
     Axiom(
@@ -61,7 +61,7 @@ _DEFAULT_AXIOMS = [
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="PAAC Axiom Mutation Testing — quantitative robustness analysis"
+        description="PAAC Axiom Mutation Testing, quantitative robustness analysis"
     )
     parser.add_argument(
         "--axiom-file",

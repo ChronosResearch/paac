@@ -1,4 +1,4 @@
-"""tests/test_compositional.py — Feature 7: Multi-Agent Coordination Verification"""
+"""tests/test_compositional.py, Feature 7: Multi-Agent Coordination Verification"""
 
 from src.axioms.axiom_parser import Axiom
 from src.core.compositional import (
@@ -57,7 +57,7 @@ def test_dependency_graph_update_from_ast():
 
 
 def test_two_independent_functions_both_accepted():
-    """Two agents modifying independent functions — both must be accepted."""
+    """Two agents modifying independent functions, both must be accepted."""
     verifier = CompositionalVerifier()
     mods = [
         AgentModification(
@@ -91,7 +91,7 @@ def test_empty_batch_accepted():
 
 
 def test_dependent_functions_verified_together():
-    """g and f are both safe — both must be verified together successfully."""
+    """g and f are both safe, both must be verified together successfully."""
     verifier = CompositionalVerifier()
     mods = [
         AgentModification(
@@ -127,7 +127,7 @@ def test_unsafe_function_rejects_batch():
             axioms=[Axiom("ax", "", "x > 0", ["*"])],
         ),
     ]
-    # unsafe_g asserts x > 0 but axiom requires x > 0 — actually safe.
+    # unsafe_g asserts x > 0 but axiom requires x > 0: actually safe.
     # Use a program that is genuinely unsafe.
     mods[1] = AgentModification(
         agent_id="agent_b",
@@ -144,7 +144,7 @@ def test_unsafe_function_rejects_batch():
 
 
 def test_same_function_queued_sequentially():
-    """Two agents modifying the same function — processed sequentially."""
+    """Two agents modifying the same function, processed sequentially."""
     verifier = CompositionalVerifier()
     mod1 = AgentModification(
         agent_id="agent_a",

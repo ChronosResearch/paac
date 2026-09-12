@@ -25,7 +25,7 @@ paac-venv/
 .mypy_cache/
 .ruff_cache/
 
-# Runtime data files (written during operation and tests — not source)
+# Runtime data files (written during operation and tests, not source)
 *.wal
 *.jsonl
 checkpoints.wal

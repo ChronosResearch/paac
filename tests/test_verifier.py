@@ -62,7 +62,7 @@ def test_conditional_assertion_violation():
     """)
     bmc = BoundedModelChecker()
     safe, ce = bmc.verify(ast, [])
-    # x is unconstrained — Z3 can pick x = -1 to violate the assertion.
+    # x is unconstrained: Z3 can pick x = -1 to violate the assertion.
     assert safe is False
     assert ce is not None
 
@@ -70,7 +70,7 @@ def test_conditional_assertion_violation():
 def test_constrained_safe_assertion():
     """When the precondition makes the assertion always true, result is UNSAT."""
     # We encode the precondition as an axiom: x >= 0
-    # ast with unconstrained x is unused — test verifies the tautology below.
+    # ast with unconstrained x is unused: test verifies the tautology below.
     ast2 = compile("""
     func tautology(x: int) -> int {
         assert x == x;
@@ -88,7 +88,7 @@ def test_constrained_safe_assertion():
 
 
 def test_loop_with_safe_assertion():
-    """A loop that counts up — assert inside loop should be provable safe."""
+    """A loop that counts up, assert inside loop should be provable safe."""
     ast = compile("""
     func count() -> int {
         x = 0;
@@ -219,7 +219,7 @@ def test_axiom_enforced_accepts_safe():
     """)
     axiom = Axiom("no_negative_balance", "", "balance >= 0", ["deposit"])
     bmc = BoundedModelChecker()
-    # balance is unconstrained — Z3 can pick balance = -1 before deposit.
+    # balance is unconstrained: Z3 can pick balance = -1 before deposit.
     # The axiom checks the *parameter* value, not the post-state, so this
     # is unsafe unless we add a precondition.  Use a program that is always safe.
     ast2 = compile("""
@@ -315,7 +315,7 @@ def test_precond_makes_unsafe_program_safe():
 
     Without pre_cond the verifier finds x=-1 as a counterexample.
     With pre_cond='x >= 0' the input space is restricted to x >= 0,
-    so no counterexample exists — UNSAT (safe=True).
+    so no counterexample exists, UNSAT (safe=True).
     Validates paper §3.4: BMC(f,k) = pre_f ∧ semantics ∧ violation.
     """
     ast = compile("""
@@ -394,7 +394,7 @@ def test_precond_tighter_than_assertion():
 
 
 def test_precond_does_not_mask_assert_false():
-    """pre_cond must NOT mask assert false — still UNSAFE regardless."""
+    """pre_cond must NOT mask assert false, still UNSAFE regardless."""
     ast = compile("""
     func bad(x: int) -> int {
         assert false;
@@ -408,7 +408,7 @@ def test_precond_does_not_mask_assert_false():
 
 
 # ---------------------------------------------------------------------------
-# Tests: sentinel variable axioms (no_exit, no_network) — body-assigned vars
+# Tests: sentinel variable axioms (no_exit, no_network): body-assigned vars
 # ---------------------------------------------------------------------------
 
 def test_no_exit_axiom_body_assigned_unsafe():
@@ -467,7 +467,7 @@ def test_no_network_axiom_body_assigned_safe():
 
 
 # ---------------------------------------------------------------------------
-# Tests: Bounded Loop Verification (v7.0) — Z3 proofs for loop bounds
+# Tests: Bounded Loop Verification (v7.0): Z3 proofs for loop bounds
 # ---------------------------------------------------------------------------
 
 from src.core.verifier import LoopBoundAnalyzer, LoopBoundReport, analyze_loop_bounds

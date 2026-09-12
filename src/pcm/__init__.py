@@ -1,7 +1,7 @@
 """
 src/pcm/__init__.py
 -------------------
-Proof-Carrying Modification (PCM) — public API.
+Proof-Carrying Modification (PCM), public API.
 """
 
 from .certificate import (

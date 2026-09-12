@@ -42,7 +42,7 @@ def _compile(code: str):
 
 
 # ---------------------------------------------------------------------------
-# Canonical probe programs — one set per axiom variable pattern
+# Canonical probe programs: one set per axiom variable pattern
 # ---------------------------------------------------------------------------
 
 
@@ -153,7 +153,7 @@ func {func_name}(x: int) -> int {{
         )
     )
 
-    # Unconstrained variable probe — should be UNSAFE (Z3 can pick violating value)
+    # Unconstrained variable probe: should be UNSAFE (Z3 can pick violating value)
     code = f"""
 func {func_name}({var}: int) -> int {{
     return {var};
@@ -186,7 +186,7 @@ def _generic_probes(axiom: Axiom) -> list[Probe]:
         Probe(
             sil_code=f"func {func_name}(x: int) -> int {{ assert false; return x; }}",
             expected_safe=False,
-            description="assert false — always unsafe",
+            description="assert false, always unsafe",
         ),
     ]
 
@@ -249,7 +249,7 @@ class AxiomMutationResult:
 
     @property
     def is_vacuous(self) -> bool:
-        """True if the vacuous mutant (condition=true) survived — axiom has no effect."""
+        """True if the vacuous mutant (condition=true) survived, axiom has no effect."""
         for mr in self.mutant_results:
             if mr.mutant.kind == MutationKind.VACUOUS and mr.survived:
                 return True
@@ -287,7 +287,7 @@ def _run_probe(probe: Probe, axiom: Axiom, bmc: BoundedModelChecker) -> ProbeRes
     except Exception as exc:  # noqa: BLE001
         elapsed = (time.monotonic() - t0) * 1000
         # Compilation errors on mutant conditions are treated as "safe=True"
-        # (the mutant condition was invalid SIL — counts as killed if original expected unsafe)
+        # (the mutant condition was invalid SIL: counts as killed if original expected unsafe)
         return ProbeResult(
             probe=probe,
             actual_safe=True,

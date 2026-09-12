@@ -1,4 +1,4 @@
-# AUDIT_REPORT_FINAL.md — PAAC v5.0.0
+# AUDIT_REPORT_FINAL.md: PAAC v5.0.0
 **Role**: Senior Systems Engineer / Security Auditor
 **Date**: 2026-08-03
 **Commit**: e2a3523f605d38c2a908de3b24b48f643e86e1aa
@@ -7,7 +7,7 @@
 
 ---
 
-## Phase 1 — Environment & Baseline
+## Phase 1: Environment & Baseline
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
@@ -17,11 +17,11 @@
 | 4 | bandit / mypy / ruff | ⚠️ WARN | bandit: 0 HIGH, 0 CRITICAL ✅. mypy: 0 errors ✅. ruff: 39 style warnings (no errors), 14 auto-fixable. |
 | 5 | pytest baseline | ✅ PASS | **260 passed, 0 failed** in 72.7s |
 
-**Phase 1 Verdict: CONDITIONAL PASS** — setuptools CVE must be patched before production.
+**Phase 1 Verdict: CONDITIONAL PASS**, setuptools CVE must be patched before production.
 
 ---
 
-## Phase 2 — Core Verification Engine
+## Phase 2: Core Verification Engine
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
@@ -31,16 +31,16 @@
 | 9 | A-01 loop bound enforcement | ✅ PASS | `while (x<5) bound 3` with `x=0` returns SAT (unsafe) as required. |
 | 10 | SSA phi-node merge | ✅ PASS | if/else with same variable in both branches produces correct ITE merge. |
 | 11 | Axiom encoding | ✅ PASS | `balance >= 0` axiom on `withdraw` returns SAT with `balance_0=-1`. |
-| 12 | Counterexample extraction | ✅ PASS | CE includes `balance_0=-1, amount_0=0` — human-readable. |
+| 12 | Counterexample extraction | ✅ PASS | CE includes `balance_0=-1, amount_0=0`, human-readable. |
 | 13 | Cache behaviour | ✅ PASS | Run 1: 9.7ms. Run 2 (cache hit): 0.1ms. Code change invalidates cache. |
 | 14 | Cache poisoning resistance (A-02) | ✅ PASS | `_cache` property returns a copy. Writes to copy don't persist. `__cache` name-mangled. |
 | 15 | Constant-time padding | ✅ PASS | avg_safe=200ms, avg_unsafe=200ms, variance=0.0ms. Floor enforced. |
 
-**Phase 2 Verdict: PASS with 1 GAP** — duplicate parameter detection missing (low severity).
+**Phase 2 Verdict: PASS with 1 GAP**, duplicate parameter detection missing (low severity).
 
 ---
 
-## Phase 3 — Security & Access Control
+## Phase 3: Security & Access Control
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
@@ -56,7 +56,7 @@
 
 ---
 
-## Phase 4 — Bootstrap Verification
+## Phase 4: Bootstrap Verification
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
@@ -64,16 +64,16 @@
 | 24 | TCB stub coverage | ✅ PASS | 6 stubs: `bmc_verify_inner`, `stmt_encoder_while`, `bmc_result_flag`, `bmc_cache_key`, `monitor_axiom_count`, `verifier_facade`. |
 | 25 | Self-verification execution | ✅ PASS | Completes in ~49ms, no errors, produces per-stub report. |
 | 26 | Self-verification result | ⚠️ PARTIAL | All 6 stubs return SAT. **This is correct documented behavior**: stubs assert `timeout_ms >= 1` but Z3 picks `timeout_ms=0` (unconstrained input). Boundary condition correctly identified. Full proof requires preconditions (future work). |
-| 27 | Malicious modification detection | ✅ PASS | `assert false` stub returns SAT immediately — flaw detected. |
+| 27 | Malicious modification detection | ✅ PASS | `assert false` stub returns SAT immediately, flaw detected. |
 | 28 | CLI `--timeout-ms` flag | ✅ PASS | Completes in 0.3s, respects timeout, no hang. |
 | 29 | `/self-verify` endpoint | ✅ PASS | Returns 200 with `passed`, `elapsed_ms`, `stubs_verified` fields. |
 | 30 | Stress test 100 runs | ✅ PASS | Memory growth: 142KB over 100 runs (well under 20% baseline). |
 
-**Phase 4 Verdict: PASS with documented limitation** — SAT stubs are correct behavior, not a bug.
+**Phase 4 Verdict: PASS with documented limitation**, SAT stubs are correct behavior, not a bug.
 
 ---
 
-## Phase 5 — Cryptographic Attestation
+## Phase 5: Cryptographic Attestation
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
@@ -86,32 +86,32 @@
 | 37 | Attestation logging | ✅ PASS | Every attestation logged via loguru at DEBUG level with commitment prefix. |
 | 38 | Metrics endpoint | ✅ PASS | `metrics()` returns `attestations_generated`, `attestations_verified`, `attestation_failures`, `store_size`. |
 | 39 | Stress test 1000 attestations | ✅ PASS | 1000 attestations in 0.05s (avg 0.05ms each). All 1000 verify correctly. |
-| 40 | HMAC collision resistance | ✅ PASS | 75,757 brute-force attempts in 100ms — no collision. 256-bit HMAC is computationally infeasible to forge. |
+| 40 | HMAC collision resistance | ✅ PASS | 75,757 brute-force attempts in 100ms, no collision. 256-bit HMAC is computationally infeasible to forge. |
 
 **Phase 5 Verdict: PASS**
 
 ---
 
-## Phase 6 — Multi-Agent Coordination
+## Phase 6: Multi-Agent Coordination
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
 | 41 | Dependency graph | ✅ PASS | `dependents_of('f')` correctly returns callers. Graph built from SIL AST. |
-| 42 | Single agent modification | ✅ PASS | Agent A modifies `f()` — verified in isolation, accepted. |
-| 43 | Two agents, independent functions | ✅ PASS | Agent A modifies `f()`, Agent B modifies `g()` — both accepted independently. |
+| 42 | Single agent modification | ✅ PASS | Agent A modifies `f()`, verified in isolation, accepted. |
+| 43 | Two agents, independent functions | ✅ PASS | Agent A modifies `f()`, Agent B modifies `g()`, both accepted independently. |
 | 44 | Unsafe modification in batch | ✅ PASS | Safe `f()` + unsafe `h()` → batch rejected. Isolation results show which function failed. |
 | 45 | Conflict detection | ✅ PASS | Two agents modifying same function → queued, `total_conflicts=1` in metrics. |
 | 46 | Agent crash recovery | ✅ PASS | `mark_agent_crashed()` marks all queued modifications as `abandoned=True`. |
 | 47 | `/agents` endpoint | ✅ PASS | Returns 200 with `agents` list and `metrics` dict. |
-| 48 | Compositional BMC | ✅ PASS | `f()` safe alone, `g()` with `assert x < 5` unsafe — compositional check catches violation. |
+| 48 | Compositional BMC | ✅ PASS | `f()` safe alone, `g()` with `assert x < 5` unsafe, compositional check catches violation. |
 | 49 | Stress test 10×10 | ✅ PASS | 100 modifications in 0.2s, no deadlocks, `total_verifications=101`. |
-| 50 | Rollback on conflict | ✅ PASS | Queue stops after first rejection — agent C's modification not processed. |
+| 50 | Rollback on conflict | ✅ PASS | Queue stops after first rejection, agent C's modification not processed. |
 
 **Phase 6 Verdict: PASS**
 
 ---
 
-## Phase 7 — Performance & Stress Testing
+## Phase 7: Performance & Stress Testing
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
@@ -128,7 +128,7 @@
 
 ---
 
-## Phase 8 — Code Quality & Documentation
+## Phase 8: Code Quality & Documentation
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
@@ -139,11 +139,11 @@
 | 63 | Deployment guide | ✅ PASS | `docs/DEPLOYMENT.md` present with Docker, env vars, failure modes. |
 | 64 | Security policy | ⚠️ PARTIAL | `SECURITY.md` says v4.2.0. Threat model present. Known limitations section needs v5.0.0 additions. |
 
-**Phase 8 Verdict: CONDITIONAL PASS** — README and SECURITY.md version strings must be updated.
+**Phase 8 Verdict: CONDITIONAL PASS**, README and SECURITY.md version strings must be updated.
 
 ---
 
-## Phase 9 — Final Sign-Off
+## Phase 9: Final Sign-Off
 
 | Step | Check | Result | Notes |
 |------|-------|--------|-------|
@@ -170,14 +170,14 @@
 | ID | Finding | Severity | Status |
 |----|---------|----------|--------|
 | F-02 | Duplicate SIL parameter names silently accepted (Step 7) | MEDIUM | Document as known gap. Add compile-time check in future release. |
-| F-03 | README.md still says v4.2.0 — v5.0.0 features not documented | MEDIUM | Update README before publication. |
+| F-03 | README.md still says v4.2.0, v5.0.0 features not documented | MEDIUM | Update README before publication. |
 
 ### LOW
 | ID | Finding | Severity | Status |
 |----|---------|----------|--------|
 | F-04 | 39 ruff style warnings (unsorted imports, unused vars, collapsible-if) | LOW | Run `ruff check --fix src/ tests/` to auto-fix 14. |
 | F-05 | SECURITY.md version string is v4.2.0 | LOW | Update to v5.0.0. |
-| F-06 | Bootstrap stubs return SAT (unconstrained inputs) — documented as PARTIAL | LOW | Known limitation. Documented in PAPER_CLAIMS_CHECKLIST.md. Not a bug. |
+| F-06 | Bootstrap stubs return SAT (unconstrained inputs), documented as PARTIAL | LOW | Known limitation. Documented in PAPER_CLAIMS_CHECKLIST.md. Not a bug. |
 | F-07 | Translator generates duplicate `return` line for simple functions | LOW | Cosmetic. Compiles and verifies correctly. |
 
 ### INFORMATIONAL
@@ -185,7 +185,7 @@
 |----|---------|----------|--------|
 | F-08 | HMAC attestation is not a zk-SNARK | INFO | Documented honestly. HMAC provides integrity + authenticity. ZK is future work. |
 | F-09 | TCB protection is chmod only, not kernel mprotect | INFO | Documented. Run as non-root with read-only container filesystem. |
-| F-10 | Bootstrap verification covers assert/arithmetic only — external calls dropped | INFO | Documented. Correct behavior for the stated scope. |
+| F-10 | Bootstrap verification covers assert/arithmetic only, external calls dropped | INFO | Documented. Correct behavior for the stated scope. |
 
 ---
 
@@ -216,7 +216,7 @@
 **Commit**: `e2a3523f605d38c2a908de3b24b48f643e86e1aa`
 **Tag**: `v5.0.0`
 **Auditor**: Senior Systems Engineer / Security Auditor
-**Status**: CONDITIONAL GO — fix F-01 and F-03 before deployment.
+**Status**: CONDITIONAL GO, fix F-01 and F-03 before deployment.
 
 ```bash
 # Remediation commands

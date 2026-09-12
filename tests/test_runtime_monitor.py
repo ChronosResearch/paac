@@ -1,4 +1,4 @@
-"""tests/test_runtime_monitor.py — Feature 6: Runtime Verification"""
+"""tests/test_runtime_monitor.py, Feature 6: Runtime Verification"""
 
 import pytest
 
@@ -151,7 +151,7 @@ def test_unknown_function_raises():
 
 
 def test_static_safe_runtime_safe():
-    """Program safe statically and at runtime — both must agree."""
+    """Program safe statically and at runtime, both must agree."""
     from src.core.verifier import BoundedModelChecker
 
     code = "func f(x: int) -> int { assert x == x; return x; }"

@@ -1,7 +1,7 @@
 """
 src/pcm/proof_generator.py
 --------------------------
-Proof-Carrying Modification (PCM) — Proof Generator.
+Proof-Carrying Modification (PCM), Proof Generator.
 
 Takes a SIL program string and a list of axioms, and generates a PPL proof
 that the program satisfies the axioms.
@@ -20,7 +20,7 @@ Proof validity guarantee:
   - For programs that are safe (UNSAT under Z3), the generator produces
     a valid proof that the checker accepts.
   - For programs that are unsafe (SAT under Z3), the generator produces
-    a proof with conclusion "unsafe" — the checker rejects it.
+    a proof with conclusion "unsafe", the checker rejects it.
 """
 
 from __future__ import annotations
@@ -182,7 +182,7 @@ def _steps_for_func(
             continue
 
         if is_safe:
-            # Safe program: emit ApplyAxiom — the checker will verify entailment
+            # Safe program: emit ApplyAxiom: the checker will verify entailment
             # We also emit an Assume for the axiom condition so the checker
             # can verify it (the Assume represents the Z3-verified fact)
             steps.append(

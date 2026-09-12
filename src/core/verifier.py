@@ -223,7 +223,7 @@ class ExprEncoder:
 class StmtEncoder:
     """Encodes SIL statements into Z3 solver assertions using SSA + BMC."""
 
-    MAX_LOOP_BOUND = 10_000  # Global cap — cannot be overridden by SIL source.
+    MAX_LOOP_BOUND = 10_000  # Global cap, cannot be overridden by SIL source.
 
     def __init__(self, ctx: z3.Context, solver: z3.Solver, env: SSAEnv):
         self.ctx = ctx
@@ -316,8 +316,7 @@ class StmtEncoder:
                 self.encode_stmts(stmt.body, iter_path)
                 current_path = iter_path
             # A-01 fix: if the loop condition is still true after all K
-            # iterations the loop never exited within the declared bound —
-            # that is UNSAFE (runtime would raise LoopBoundExceeded).
+            # iterations the loop never exited within the declared bound:             # that is UNSAFE (runtime would raise LoopBoundExceeded).
             # Appended exactly ONCE to avoid spurious double-counting (C-01).
             self.expr_enc = ExprEncoder(self.ctx, self.env)
             post_loop_cond = self.expr_enc.encode(stmt.condition)
@@ -330,7 +329,7 @@ class StmtEncoder:
 
 
 # ---------------------------------------------------------------------------
-# Axiom encoder — Step 22: raises on failure, never silently skips
+# Axiom encoder: Step 22: raises on failure, never silently skips
 # ---------------------------------------------------------------------------
 
 
@@ -352,8 +351,7 @@ def _encode_axiom(
       1. Build the SIL wrapper param list from ALL variables currently in env
          (function params + body-assigned vars).  This lets the SIL type-checker
          accept the condition without "Undefined variable".
-      2. Encode the parsed AST node with ExprEncoder(ctx, env) — the live env —
-         so IdentifierNode lookups call env.read(), returning the current SSA
+      2. Encode the parsed AST node with ExprEncoder(ctx, env), the live env,          so IdentifierNode lookups call env.read(), returning the current SSA
          expression (which may be a concrete Z3 value like IntVal(1)).
 
     on_unbound controls what happens when the condition names a variable that
@@ -556,7 +554,7 @@ def check_precondition_satisfiable(
 
 
 # ---------------------------------------------------------------------------
-# Loop Bound Analyzer — proves all loop bounds ≤ MAX_LOOP_BOUND via Z3
+# Loop Bound Analyzer: proves all loop bounds ≤ MAX_LOOP_BOUND via Z3
 # ---------------------------------------------------------------------------
 
 
@@ -996,7 +994,7 @@ class BoundedModelChecker:
                 ipc_token, received_token
             ):
                 raise VerificationError(
-                    "IPC: token mismatch — subprocess response rejected."
+                    "IPC: token mismatch, subprocess response rejected."
                 )
 
             rest = outcome[1:]
@@ -1059,14 +1057,14 @@ class BoundedModelChecker:
         cache_key = self._hash_ast(ast, axioms, pre_cond)
         if cache_key in self.__cache:
             safe, _ce_str = self.__cache[cache_key]
-            # Re-run loop bound analysis (not cached — fast, pure Z3)
+            # Re-run loop bound analysis (not cached: fast, pure Z3)
             loop_report = LoopBoundAnalyzer().analyze(ast)
             return safe, None, loop_report
 
         # --- Loop bound verification (Z3 proof for every loop) ---
         loop_report = LoopBoundAnalyzer().analyze(ast)
         if not loop_report.all_proven_safe:
-            # A loop bound exceeds MAX_LOOP_BOUND — reject immediately.
+            # A loop bound exceeds MAX_LOOP_BOUND: reject immediately.
             # (Should be caught at compile time; this is the formal Z3 backstop.)
             bad = [r for r in loop_report.results if not r.proven_safe]
             ce = CounterExample.__new__(CounterExample)
@@ -1100,7 +1098,7 @@ class BoundedModelChecker:
                     solver.add(pvar >= _INT32_MIN)
                     solver.add(pvar <= _INT32_MAX)
             # Encode precondition as a solver CONSTRAINT (paper §3.4).
-            # pre_cond restricts the input space — it is NOT a violation flag.
+            # pre_cond restricts the input space: it is NOT a violation flag.
             # This implements: BMC(f,k) = pre_f ∧ unrolled_semantics ∧ violation
             if pre_cond.strip():
                 _param_names_pre = [p.name for p in func.params]

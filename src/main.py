@@ -1,8 +1,17 @@
 """
-PAAC FastAPI application — v7.0.0
+PAAC FastAPI application.
+
 Steps 39-50: health, metrics, rate limiting, API key auth, request validation.
 Steps 76-85: Prometheus metrics, structured logging.
-v7.0.0: bootstrap self-verification, cryptographic attestation, multi-agent.
+v7.0: bootstrap self-verification, cryptographic attestation, multi-agent.
+v8.0: precondition satisfiability gate, fail-closed axiom encoding, and
+solver-synthesised decomposition witnesses. Two of those witnesses are open
+vulnerabilities, so see `docs/DECOMPOSITION.md` before relying on an accepted
+modification meaning anything about a *sequence* of modifications.
+
+The version string lives in `PAAC_VERSION` below and nowhere else. It was
+previously repeated at four sites and drifted: the tree was v8-hardened while
+`/health` still answered "7.0.0".
 """
 
 from __future__ import annotations
@@ -172,10 +181,15 @@ async def _lifespan(app: FastAPI):
     monitor.stop_watchdog()
 
 
+#: Single source of truth for the reported version. Referenced by the OpenAPI
+#: description and by `/health`; do not inline it anywhere else.
+PAAC_VERSION = "8.0.0"
+
+
 app = FastAPI(
     title="PAAC API",
-    description="Provably Aligned Core Verification API v7.0.0",
-    version="7.0.0",
+    description=f"Provably Aligned Core Verification API v{PAAC_VERSION}",
+    version=PAAC_VERSION,
     lifespan=_lifespan,
 )
 
@@ -302,7 +316,7 @@ async def verify_modification(req: ModificationRequest, request: Request):
 
 @app.get("/health")
 async def health():
-    """Health endpoint — returns healthy/degraded/unhealthy."""
+    """Health endpoint, returns healthy/degraded/unhealthy."""
     cb_state = CodeMonitor._circuit_breaker.state
 
     if cb_state == "OPEN":
@@ -330,7 +344,7 @@ async def health():
         status_code=http_code,
         content={
             "status": status,
-            "version": "7.0.0",
+            "version": PAAC_VERSION,
             "circuit_breaker": cb_state,
             "axioms_loaded": len(monitor.axioms),
             "registry_size": len(CodeMonitor._live_registry),
@@ -472,7 +486,7 @@ def _get_compositional_verifier():
 
 @app.exception_handler(Exception)
 async def panic_hook(request: Request, exc: Exception):
-    """Panic hook — log unhandled exceptions with ERROR level."""
+    """Panic hook, log unhandled exceptions with ERROR level."""
     logger.error(
         f"PANIC: unhandled exception on {request.url.path}: "
         f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"

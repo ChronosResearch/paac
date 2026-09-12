@@ -1,4 +1,4 @@
-# PAPER_CLAIMS_CHECKLIST.md — PAAC v5.0.0
+# PAPER_CLAIMS_CHECKLIST.md: PAAC v5.0.0
 # EU AI Summer Research Program, EPFL
 # Generated: 2026-08-02
 
@@ -49,7 +49,7 @@ Status codes: VERIFIED | PARTIAL | CORRECTED | FUTURE_WORK
 | SIL compiler rejects recursion at compile time | VERIFIED | `test_mutual_recursion_detected`, `test_direct_recursion_rejected` |
 | All loops require explicit bounds | VERIFIED | `test_loop_without_bound_rejected` |
 | Z3 BMC pipeline is sound for well-bounded loops | VERIFIED | `test_under_bounded_loop_is_unsafe`, `test_exactly_bounded_loop_is_safe` |
-| Under-bounded loops return SAT (A-01 fix) | VERIFIED | `test_under_bounded_loop_is_unsafe` — `while (x<5) bound 3` correctly SAT |
+| Under-bounded loops return SAT (A-01 fix) | VERIFIED | `test_under_bounded_loop_is_unsafe`, `while (x<5) bound 3` correctly SAT |
 | Cache cannot be poisoned externally (A-02 fix) | VERIFIED | `test_cache_not_poisonable_via_direct_assignment`, `test_cache_not_poisonable_via_attribute_set` |
 | API key comparison is constant-time (A-03 fix) | VERIFIED | `test_main_uses_compare_digest`, source inspection |
 | Multiprocessing uses spawn (A-04 fix) | VERIFIED | `test_spawn_start_method_configured` |
@@ -61,12 +61,12 @@ Status codes: VERIFIED | PARTIAL | CORRECTED | FUTURE_WORK
 
 | Claim | Status | Evidence |
 |---|---|---|
-| PAAC can translate its own TCB to SIL stubs | VERIFIED | `test_all_tcb_stubs_compile_and_run` — 6 stubs compile and verify |
+| PAAC can translate its own TCB to SIL stubs | VERIFIED | `test_all_tcb_stubs_compile_and_run`, 6 stubs compile and verify |
 | Python-to-SIL translator handles assert statements | VERIFIED | `test_python_to_sil_stub_simple_function` |
 | Python-to-SIL translator handles loops | VERIFIED | `test_python_to_sil_stub_with_loop` |
-| Malicious TCB modification is detected | VERIFIED | `test_malicious_modification_rejected` — `assert false` stub is SAT |
+| Malicious TCB modification is detected | VERIFIED | `test_malicious_modification_rejected`, `assert false` stub is SAT |
 | Self-verification is deterministic | VERIFIED | `test_self_verify_stress_10_runs_deterministic` |
-| PAAC proves its own structural invariants hold | PARTIAL | Stubs assert conditions that are SAT for unconstrained inputs. This is correct behavior — the verifier finds boundary conditions. Full proof requires preconditions on inputs (future work). |
+| PAAC proves its own structural invariants hold | PARTIAL | Stubs assert conditions that are SAT for unconstrained inputs. This is correct behavior, the verifier finds boundary conditions. Full proof requires preconditions on inputs (future work). |
 | Translation covers all Python constructs | CORRECTED | Only assert, assignment, simple arithmetic, and loops are translated. External calls (Z3, Redis) are dropped. This is documented as a limitation. |
 
 ---
@@ -76,13 +76,13 @@ Status codes: VERIFIED | PARTIAL | CORRECTED | FUTURE_WORK
 | Claim | Status | Evidence |
 |---|---|---|
 | Attestation is generated for every accepted modification | VERIFIED | `test_attest_generates_record`, `/verify` endpoint integration |
-| Attestation commitment is 32 bytes (64 hex chars) | VERIFIED | `test_attest_generates_record` — `len(record.commitment) == 64` |
+| Attestation commitment is 32 bytes (64 hex chars) | VERIFIED | `test_attest_generates_record`, `len(record.commitment) == 64` |
 | Tampered result invalidates commitment | VERIFIED | `test_tampered_result_fails_verification` |
 | Tampered program hash invalidates commitment | VERIFIED | `test_tampered_program_hash_fails` |
 | Key rotation works; old attestations verifiable with old key | VERIFIED | `test_key_rotation` |
 | 1000 attestations all verify correctly | VERIFIED | `test_stress_1000_attestations` |
 | Concurrent attestation generation is thread-safe | VERIFIED | `test_concurrent_attestations_thread_safe` |
-| Attestation is a full zk-SNARK proof | CORRECTED | HMAC-SHA256 is used, not a zk-SNARK. HMAC provides integrity and authenticity but not zero-knowledge. A verifier who holds the key can forge attestations. Full SNARKs require arkworks/bellman (Rust/C++) — future work. |
+| Attestation is a full zk-SNARK proof | CORRECTED | HMAC-SHA256 is used, not a zk-SNARK. HMAC provides integrity and authenticity but not zero-knowledge. A verifier who holds the key can forge attestations. Full SNARKs require arkworks/bellman (Rust/C++), future work. |
 
 ---
 
@@ -128,16 +128,16 @@ Status codes: VERIFIED | PARTIAL | CORRECTED | FUTURE_WORK
 
 These are documented honestly in the paper:
 
-1. Loop soundness requires sufficient bounds — no automated bound inference.
-2. 200ms latency floor — constant-time padding is a security property.
-3. TCB ~2,123 lines — larger than the research prototype.
+1. Loop soundness requires sufficient bounds, no automated bound inference.
+2. 200ms latency floor, constant-time padding is a security property.
+3. TCB ~2,123 lines, larger than the research prototype.
 4. SIL cannot express heap, concurrency, or quantified invariants.
-5. Axiom completeness is manual — incomplete axioms allow unsafe programs.
-6. TCB protection is chmod only — not kernel-enforced.
-7. Bootstrap verification translates only assert/arithmetic — external calls dropped.
-8. Attestation uses HMAC-SHA256 — not a zero-knowledge proof.
+5. Axiom completeness is manual, incomplete axioms allow unsafe programs.
+6. TCB protection is chmod only, not kernel-enforced.
+7. Bootstrap verification translates only assert/arithmetic, external calls dropped.
+8. Attestation uses HMAC-SHA256, not a zero-knowledge proof.
 9. Multi-agent coordination does not model Redis/global state interactions.
-10. macOS RLIMIT_AS not enforced — use Docker --memory=2g.
+10. macOS RLIMIT_AS not enforced, use Docker --memory=2g.
 
 ---
 

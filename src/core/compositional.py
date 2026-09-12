@@ -272,7 +272,7 @@ class CompositionalVerifier:
             if existing:
                 self._total_conflicts += 1
                 logger.info(
-                    f"Multi-agent: conflict on '{mod.func_name}' — "
+                    f"Multi-agent: conflict on '{mod.func_name}', "
                     f"agent '{mod.agent_id}' queued behind "
                     f"{len(existing)} existing modification(s)."
                 )
@@ -350,7 +350,7 @@ class CompositionalVerifier:
                 isolation[func_name] = False
                 logger.warning(f"Multi-agent isolation ERROR for '{func_name}': {exc}")
 
-        # Step 3: Compositional check — merge all ASTs into one program.
+        # Step 3: Compositional check: merge all ASTs into one program.
         all_funcs: list[FuncDefNode] = []
         for ast in asts.values():
             all_funcs.extend(ast.functions)
@@ -423,7 +423,7 @@ class CompositionalVerifier:
             if not result.accepted:
                 logger.warning(
                     f"Multi-agent: modification by '{mod.agent_id}' to "
-                    f"'{func_name}' rejected — stopping queue processing."
+                    f"'{func_name}' rejected, stopping queue processing."
                 )
                 break
 

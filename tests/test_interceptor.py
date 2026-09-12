@@ -25,7 +25,7 @@ def test_interceptor_accepts_safe():
 def test_interceptor_rejects_unsafe():
     """A program that explicitly asserts false must be rejected."""
     db = AxiomDatabase()
-    # No axioms needed — the program itself contains assert false.
+    # No axioms needed: the program itself contains assert false.
     interceptor = Interceptor(db)
     mod = CodeModification(
         "foo.py",
@@ -46,7 +46,7 @@ def test_interceptor_rejects_axiom_violation():
     mod = CodeModification(
         "foo.py",
         "withdraw",
-        # balance is unconstrained — Z3 picks balance = -1 to violate the axiom.
+        # balance is unconstrained: Z3 picks balance = -1 to violate the axiom.
         "func withdraw(balance: int, amount: int) -> int { return balance - amount; }",
         "agent",
     )

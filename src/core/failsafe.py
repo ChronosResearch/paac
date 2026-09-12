@@ -38,9 +38,9 @@ class CircuitBreaker:
     Tracks consecutive Z3 verification failures.
 
     States:
-      CLOSED    — normal operation
-      OPEN      — all requests rejected with CircuitOpenError
-      HALF_OPEN — one probe allowed; success → CLOSED, failure → OPEN
+      CLOSED, normal operation
+      OPEN, all requests rejected with CircuitOpenError
+      HALF_OPEN, one probe allowed; success → CLOSED, failure → OPEN
     """
 
     def __init__(
@@ -68,7 +68,7 @@ class CircuitBreaker:
             if self._state == "OPEN":
                 if time.monotonic() - self._opened_at >= self._cooldown:
                     self._state = "HALF_OPEN"
-                    logger.info("CircuitBreaker: entering HALF_OPEN — sending probe.")
+                    logger.info("CircuitBreaker: entering HALF_OPEN, sending probe.")
                     return
                 raise CircuitOpenError(
                     "Circuit breaker is OPEN. Verification requests are suspended "
@@ -82,7 +82,7 @@ class CircuitBreaker:
         with self._lock:
             self._consecutive_failures = 0
             if self._state != "CLOSED":
-                logger.info("CircuitBreaker: probe succeeded — circuit CLOSED.")
+                logger.info("CircuitBreaker: probe succeeded, circuit CLOSED.")
             self._state = "CLOSED"
 
     def record_failure(self) -> None:

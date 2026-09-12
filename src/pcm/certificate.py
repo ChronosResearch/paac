@@ -1,11 +1,11 @@
 """
 src/pcm/certificate.py
 ----------------------
-Proof-Carrying Modification (PCM) — Certificate System.
+Proof-Carrying Modification (PCM), Certificate System.
 
 Every accepted proof produces a PCMCertificate.  Certificates are stored
 in an append-only JSONL audit log.  Third parties can verify certificates
-without access to PAAC — they only need the shared HMAC key.
+without access to PAAC, they only need the shared HMAC key.
 
 Certificate format:
   {

@@ -1,4 +1,4 @@
-"""tests/test_ctvp.py — Feature 4: Cross-Trace Semantic Verification (CTVP)"""
+"""tests/test_ctvp.py, Feature 4: Cross-Trace Semantic Verification (CTVP)"""
 
 from src.core.ctvp import (
     CTVPEngine,
@@ -133,7 +133,7 @@ def test_safe_program_consistent():
 
 
 def test_trivially_safe_no_asserts():
-    """Program with no assertions — all variants agree on UNSAT."""
+    """Program with no assertions, all variants agree on UNSAT."""
     ast, _ = COMPILER.compile("func f(x: int) -> int { return x; }")
     engine = CTVPEngine()
     result = engine.verify(ast, [])

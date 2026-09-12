@@ -231,13 +231,13 @@ def to_markdown(results: list[AxiomMutationResult]) -> str:
     # Interpretation
     score = metrics["suite_robustness_score"]
     if score >= 0.80:
-        verdict = "STRONG — axiom set is robust and non-vacuous."
+        verdict = "STRONG, axiom set is robust and non-vacuous."
     elif score >= 0.60:
-        verdict = "ADEQUATE — axiom set is functional but has gaps."
+        verdict = "ADEQUATE, axiom set is functional but has gaps."
     elif score >= 0.40:
-        verdict = "WEAK — several axioms are ineffective or vacuous."
+        verdict = "WEAK, several axioms are ineffective or vacuous."
     else:
-        verdict = "POOR — axiom set provides minimal safety guarantees."
+        verdict = "POOR, axiom set provides minimal safety guarantees."
 
     lines.append(f"**Verdict**: {verdict}")
     lines.append("")
@@ -328,7 +328,7 @@ def to_markdown(results: list[AxiomMutationResult]) -> str:
         "We introduce *axiom mutation testing* as a quantitative method to evaluate "
         "the robustness of a safety axiom set. Inspired by mutation testing in software "
         "engineering [Jia & Harman, 2011], we apply six mutation operators to each axiom "
-        "and measure how many mutations are *killed* — i.e., cause a change in verification "
+        "and measure how many mutations are *killed*, i.e., cause a change in verification "
         "outcome on a targeted probe suite."
     )
     lines.append("")
@@ -356,7 +356,7 @@ def to_markdown(results: list[AxiomMutationResult]) -> str:
     lines.append(
         "**Robustness Score** is defined as the fraction of non-noop mutants that are killed, "
         "with a penalty of 0 for any vacuous axiom. A score of 1.0 means every mutation "
-        "changes at least one verification outcome — the axiom set is maximally discriminating."
+        "changes at least one verification outcome, the axiom set is maximally discriminating."
     )
     lines.append("")
     lines.append(
@@ -373,7 +373,7 @@ def to_markdown(results: list[AxiomMutationResult]) -> str:
         )
     else:
         lines.append(
-            "No vacuous axioms were detected — every axiom actively constrains at least one program."
+            "No vacuous axioms were detected, every axiom actively constrains at least one program."
         )
     lines.append("")
     lines.append(

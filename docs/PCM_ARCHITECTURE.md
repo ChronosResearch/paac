@@ -1,4 +1,4 @@
-# PCM Architecture — Proof-Carrying Modification
+# PCM Architecture: Proof-Carrying Modification
 
 **Version:** 1.0
 **Module:** `src/pcm/`
@@ -73,7 +73,7 @@ A minimal valid proof:
 
 **File:** `src/pcm/proof_checker.py`
 
-The checker maintains a `SymbolicEnv` — a mapping from variable names to known
+The checker maintains a `SymbolicEnv`, a mapping from variable names to known
 integer bounds (lower, upper, exact). It processes each proof step in order:
 
 | Step | Action |
@@ -118,7 +118,7 @@ The generator is rule-based (not an LLM). It produces proofs that the
 - For safe programs (Z3 returns UNSAT), the generator produces a valid proof
   that the checker accepts.
 - For unsafe programs (Z3 returns SAT), the generator produces a proof with
-  `conclusion: "unsafe"` — the checker rejects it.
+  `conclusion: "unsafe"`, the checker rejects it.
 
 ---
 
